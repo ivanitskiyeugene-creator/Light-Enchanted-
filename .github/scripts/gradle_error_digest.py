@@ -20,13 +20,14 @@ def main(path: str) -> None:
     if start >= 0:
         parts.append(data[start:end if end > start else start + 2500].strip())
 
-    # Compiler / causes, anywhere in the log
+    # Compiler / causes, anywhere in the log (keep the detail lines too)
     interesting = []
-    for line in data.splitlines():
+    lines = data.splitlines()
+    for idx, line in enumerate(lines):
         if ("error:" in line or "Caused by:" in line or "Execution failed" in line):
-            interesting.append(line.strip())
+            interesting.extend(lines[idx:idx + 4])
     if interesting:
-        parts.append("--- interesting lines ---\n" + "\n".join(interesting[:40]))
+        parts.append("--- interesting lines ---\n" + "\n".join(interesting[:60]))
 
     digest = "\n\n".join(parts) if parts else data[-3000:]
     digest = digest[:4000]  # stay safely under the annotation size limit

@@ -12,6 +12,7 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -56,7 +57,7 @@ public class LightEmitterScreen extends Screen {
         this.emitter = emitter;
     }
 
-    private static Component text(String key) {
+    private static MutableComponent text(String key) {
         return Component.translatable("screen.lightenchanted." + key);
     }
 
