@@ -29,9 +29,9 @@ jobs:
       - name: Build with Gradle
         shell: bash
         run: |
-          gradle build --no-daemon --console=plain --stacktrace > build_output.txt 2>&1 || {
-            echo "Gradle build failed — publishing log tail as an annotation"
-            tail -c 6000 build_output.txt | python3 -c "import sys,urllib.parse;print('::error title=Gradle build failed::'+urllib.parse.quote(sys.stdin.read()))"
+          gradle build --no-daemon --console=plain > build_output.txt 2>&1 || {
+            echo "Gradle build failed — publishing error digest as an annotation"
+            python3 .github/scripts/gradle_error_digest.py build_output.txt
             exit 1
           }
 
@@ -42,3 +42,10 @@ jobs:
           name: lightenchanted-jar
           path: build/libs/*.jar
           if-no-files-found: error
+
+      - name: Upload full build log
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gradle-build-log
+          path: build_output.txt
