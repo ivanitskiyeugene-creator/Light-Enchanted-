@@ -1,6 +1,7 @@
 package dev.lightenchanted.init;
 
 import dev.lightenchanted.LightEnchanted;
+import dev.lightenchanted.item.BeamTunerItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -14,6 +15,9 @@ public final class ModItems {
 
     public static final RegistryObject<BlockItem> LIGHT_EMITTER = ITEMS.register("light_emitter",
             () -> new BlockItem(ModBlocks.LIGHT_EMITTER.get(), new Item.Properties()));
+
+    public static final RegistryObject<BeamTunerItem> BEAM_TUNER = ITEMS.register("beam_tuner",
+            () -> new BeamTunerItem(new Item.Properties().stacksTo(1)));
 
     private ModItems() {
     }

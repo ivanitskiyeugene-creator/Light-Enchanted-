@@ -107,13 +107,63 @@ def gen_beam_texture(path, size=64):
     write_png(path, size, size, pixels)
 
 
+def gen_tuner_texture(path, size=16):
+    """Beam tuner item: a wand with an iron handle and a glowing amethyst tip."""
+
+    def dist_to_segment(px, py, x0, y0, x1, y1):
+        vx, vy = x1 - x0, y1 - y0
+        wx, wy = px - x0, py - y0
+        c1 = vx * wx + vy * wy
+        c2 = vx * vx + vy * vy
+        t = 0.0 if c2 == 0 else clamp(c1 / c2)
+        return math.hypot(px - (x0 + t * vx), py - (y0 + t * vy))
+
+    # handle from (3.5, 12.5) to tip at (11.5, 4.5); y grows downwards
+    hx0, hy0, hx1, hy1 = 3.5, 12.5, 9.0, 7.0
+    pixels = []
+    for y in range(size):
+        row = []
+        for x in range(size):
+            px, py = x + 0.5, y + 0.5
+            r = g = b = a = 0.0
+
+            # iron handle
+            hd = dist_to_segment(px, py, hx0, hy0, hx1, hy1)
+            if hd < 0.9:
+                shade = 0.55 + 0.35 * (1.0 - hd / 0.9)
+                r, g, b, a = shade * 0.62, shade * 0.62, shade * 0.70, 1.0
+
+            # redstone band near the bottom of the handle
+            bd = dist_to_segment(px, py, 4.4, 11.6, 5.6, 10.4)
+            if bd < 1.1:
+                r, g, b, a = 0.75, 0.12, 0.10, 1.0
+
+            # amethyst crystal tip with a hot core
+            tipd = math.hypot(px - 11.5, py - 4.5)
+            if tipd < 2.6:
+                core = smoothstep(1.0, 0.0, tipd)
+                glow = smoothstep(2.6, 1.0, tipd)
+                r = 0.45 * glow + 0.55 * core
+                g = 0.20 * glow + 0.45 * core
+                b = 0.85 * glow + 0.90 * core
+                a = 1.0
+
+            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255),
+                        int(clamp(a) * 255)))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
 def main():
     block_dir = os.path.join(ROOT, "block")
     entity_dir = os.path.join(ROOT, "entity")
+    item_dir = os.path.join(ROOT, "item")
     os.makedirs(block_dir, exist_ok=True)
     os.makedirs(entity_dir, exist_ok=True)
+    os.makedirs(item_dir, exist_ok=True)
     gen_block_texture(os.path.join(block_dir, "light_emitter.png"))
     gen_beam_texture(os.path.join(entity_dir, "beam.png"))
+    gen_tuner_texture(os.path.join(item_dir, "beam_tuner.png"))
 
 
 if __name__ == "__main__":

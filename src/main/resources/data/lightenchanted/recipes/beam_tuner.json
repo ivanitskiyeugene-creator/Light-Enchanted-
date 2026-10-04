@@ -1,0 +1,21 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "category": "tools",
+    "pattern": [
+        " A",
+        "I "
+    ],
+    "key": {
+        "A": {
+            "item": "minecraft:amethyst_shard"
+        },
+        "I": {
+            "item": "minecraft:iron_ingot"
+        }
+    },
+    "result": {
+        "item": "lightenchanted:beam_tuner",
+        "count": 1
+    },
+    "show_notification": true
+}

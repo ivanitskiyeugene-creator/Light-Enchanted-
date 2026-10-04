@@ -1,5 +1,7 @@
 {
     "block.lightenchanted.light_emitter": "Излучатель света",
+    "item.lightenchanted.beam_tuner": "Тюнер луча",
+    "item.lightenchanted.beam_tuner.tooltip": "ПКМ по излучателю, затем ПКМ по точке назначения",
     "itemGroup.lightenchanted": "Light Enchanted",
 
     "screen.lightenchanted.title": "Настройка луча",
@@ -8,6 +10,7 @@
     "screen.lightenchanted.blue": "Синий",
     "screen.lightenchanted.alpha": "Яркость",
     "screen.lightenchanted.width": "Ширина",
+    "screen.lightenchanted.spread": "Разброс",
     "screen.lightenchanted.glow": "Свечение",
     "screen.lightenchanted.height": "Высота",
     "screen.lightenchanted.pulse": "Пульсация",
@@ -19,10 +22,19 @@
     "screen.lightenchanted.hex": "HEX-цвет",
     "screen.lightenchanted.apply": "Применить",
     "screen.lightenchanted.done": "Готово",
+    "screen.lightenchanted.aim": "Цель из прицела",
+    "screen.lightenchanted.clear_target": "Сбросить цель",
+    "screen.lightenchanted.target": "Цель",
+    "screen.lightenchanted.target_none": "не задана",
+
+    "message.lightenchanted.tuner_linked": "Излучатель привязан: %d, %d, %d",
+    "message.lightenchanted.tuner_target_set": "Цель луча установлена",
+    "message.lightenchanted.tuner_too_far": "Слишком далеко (макс. %d блоков)",
+    "message.lightenchanted.tuner_missing": "Привязанный излучатель не найден",
 
     "shape.lightenchanted.classic": "Классика",
-    "shape.lightenchanted.cylinder": "Цилиндр",
-    "shape.lightenchanted.cone": "Конус",
+    "shape.lightenchanted.cylinder": "Лазер",
+    "shape.lightenchanted.cone": "Прожектор",
     "shape.lightenchanted.helix": "Спираль",
     "shape.lightenchanted.sheet": "Плоскость",
     "shape.lightenchanted.star": "Звезда"

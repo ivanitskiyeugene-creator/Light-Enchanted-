@@ -12,6 +12,9 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.gui.widget.ForgeSlider;
 
 /**
@@ -25,11 +28,14 @@ public class LightEmitterScreen extends Screen {
     private final LightEmitterBlockEntity emitter;
     private BeamConfig working = new BeamConfig();
 
+    private static final double AIM_REACH = 160.0;
+
     private ForgeSlider redSlider;
     private ForgeSlider greenSlider;
     private ForgeSlider blueSlider;
     private ForgeSlider alphaSlider;
     private ForgeSlider widthSlider;
+    private ForgeSlider spreadSlider;
     private ForgeSlider glowSlider;
     private ForgeSlider heightSlider;
     private ForgeSlider pulseSlider;
@@ -42,6 +48,7 @@ public class LightEmitterScreen extends Screen {
 
     private int previewX;
     private int previewY;
+    private int targetInfoY;
     private boolean syncingWidgets;
 
     public LightEmitterScreen(LightEmitterBlockEntity emitter) {
@@ -80,6 +87,9 @@ public class LightEmitterScreen extends Screen {
         widthSlider = addRenderableWidget(new ForgeSlider(left, y, w, h,
                 text("width").append(": "), Component.empty(), 0.05, 2.0, working.width, 0.05, 2, true));
         y += gap;
+        spreadSlider = addRenderableWidget(new ForgeSlider(left, y, w, h,
+                text("spread").append(": "), Component.empty(), 0.1, 4.0, working.endWidth, 0.1, 1, true));
+        y += gap;
         glowSlider = addRenderableWidget(new ForgeSlider(left, y, w, h,
                 text("glow").append(": "), Component.empty(), 0.0, 2.0, working.glow, 0.1, 1, true));
         y += gap;
@@ -116,6 +126,16 @@ public class LightEmitterScreen extends Screen {
 
         previewX = right;
         previewY = ry;
+        ry += 34;
+
+        // ---- target section
+        addRenderableWidget(Button.builder(text("aim"), button -> aimFromCrosshair())
+                .bounds(right, ry, w, h).build());
+        ry += gap - 2;
+        addRenderableWidget(Button.builder(text("clear_target"), button -> clearTarget())
+                .bounds(right, ry, w, h).build());
+        ry += gap - 2;
+        targetInfoY = ry;
 
         // ---- bottom buttons
         int by = this.height - 34;
@@ -123,6 +143,28 @@ public class LightEmitterScreen extends Screen {
                 .bounds(this.width / 2 - 110, by, 100, 20).build());
         addRenderableWidget(Button.builder(text("apply"), button -> sendToServer())
                 .bounds(this.width / 2 + 10, by, 100, 20).build());
+    }
+
+    /** Set the beam target to the block the player is currently looking at. */
+    private void aimFromCrosshair() {
+        Player player = this.minecraft != null ? this.minecraft.player : null;
+        if (player == null) {
+            return;
+        }
+        HitResult hit = player.pick(AIM_REACH, 0.0f, false);
+        if (hit.getType() == HitResult.Type.BLOCK) {
+            Vec3 loc = hit.getLocation();
+            working.hasTarget = true;
+            working.targetX = loc.x;
+            working.targetY = loc.y;
+            working.targetZ = loc.z;
+            applyPreview();
+        }
+    }
+
+    private void clearTarget() {
+        working.hasTarget = false;
+        applyPreview();
     }
 
     private void onHexChanged(String raw) {
@@ -163,6 +205,7 @@ public class LightEmitterScreen extends Screen {
                 | (int) blueSlider.getValue();
         working.alpha = (int) alphaSlider.getValue();
         working.width = (float) widthSlider.getValue();
+        working.endWidth = (float) spreadSlider.getValue();
         working.glow = (float) glowSlider.getValue();
         working.height = heightSlider.getValueInt();
         working.pulse = (float) pulseSlider.getValue();
@@ -174,7 +217,8 @@ public class LightEmitterScreen extends Screen {
         greenSlider.active = colorEditable;
         blueSlider.active = colorEditable;
         hexBox.active = colorEditable;
-        heightSlider.active = !working.toSky;
+        heightSlider.active = !working.toSky && !working.hasTarget;
+        spreadSlider.active = working.shape == BeamShape.CONE;
 
         if (!hexBox.isFocused()) {
             syncingWidgets = true;
@@ -221,8 +265,13 @@ public class LightEmitterScreen extends Screen {
         int swatchColor = working.rainbow ? currentRainbowColor() : working.color;
         graphics.fill(previewX, previewY, previewX + 150, previewY + 26, 0xFF181824);
         graphics.fill(previewX + 2, previewY + 2, previewX + 148, previewY + 24, 0xFF000000 | swatchColor);
-        graphics.drawCenteredString(this.font, String.format("#%06X", working.color & 0xFFFFFF),
-                previewX + 75, previewY + 32, 0x9A9AA8);
+
+        // target info line
+        Component info = working.hasTarget
+                ? text("target").append(": " + String.format("%.1f, %.1f, %.1f",
+                        working.targetX, working.targetY, working.targetZ))
+                : text("target").append(": ").append(text("target_none"));
+        graphics.drawString(this.font, info, previewX, targetInfoY + 6, 0x9A9AA8);
     }
 
     private int currentRainbowColor() {

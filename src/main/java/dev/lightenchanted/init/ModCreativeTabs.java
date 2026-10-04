@@ -17,7 +17,10 @@ public final class ModCreativeTabs {
             () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
                     .title(Component.translatable("itemGroup.lightenchanted"))
                     .icon(() -> new ItemStack(ModItems.LIGHT_EMITTER.get()))
-                    .displayItems((parameters, output) -> output.accept(ModItems.LIGHT_EMITTER.get()))
+                    .displayItems((parameters, output) -> {
+                        output.accept(ModItems.LIGHT_EMITTER.get());
+                        output.accept(ModItems.BEAM_TUNER.get());
+                    })
                     .build());
 
     private ModCreativeTabs() {

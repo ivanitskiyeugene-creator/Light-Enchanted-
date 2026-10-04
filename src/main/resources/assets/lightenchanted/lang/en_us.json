@@ -1,5 +1,7 @@
 {
     "block.lightenchanted.light_emitter": "Light Emitter",
+    "item.lightenchanted.beam_tuner": "Beam Tuner",
+    "item.lightenchanted.beam_tuner.tooltip": "Right-click an emitter, then right-click the target point",
     "itemGroup.lightenchanted": "Light Enchanted",
 
     "screen.lightenchanted.title": "Light Beam Setup",
@@ -8,6 +10,7 @@
     "screen.lightenchanted.blue": "Blue",
     "screen.lightenchanted.alpha": "Opacity",
     "screen.lightenchanted.width": "Width",
+    "screen.lightenchanted.spread": "Spread",
     "screen.lightenchanted.glow": "Glow",
     "screen.lightenchanted.height": "Height",
     "screen.lightenchanted.pulse": "Pulse",
@@ -19,10 +22,19 @@
     "screen.lightenchanted.hex": "Hex color",
     "screen.lightenchanted.apply": "Apply",
     "screen.lightenchanted.done": "Done",
+    "screen.lightenchanted.aim": "Target from crosshair",
+    "screen.lightenchanted.clear_target": "Clear target",
+    "screen.lightenchanted.target": "Target",
+    "screen.lightenchanted.target_none": "not set",
+
+    "message.lightenchanted.tuner_linked": "Emitter bound: %d, %d, %d",
+    "message.lightenchanted.tuner_target_set": "Beam target set",
+    "message.lightenchanted.tuner_too_far": "Too far away (max %d blocks)",
+    "message.lightenchanted.tuner_missing": "Bound emitter not found",
 
     "shape.lightenchanted.classic": "Classic",
     "shape.lightenchanted.cylinder": "Cylinder",
-    "shape.lightenchanted.cone": "Cone",
+    "shape.lightenchanted.cone": "Spotlight",
     "shape.lightenchanted.helix": "Helix",
     "shape.lightenchanted.sheet": "Sheet",
     "shape.lightenchanted.star": "Star"
