@@ -1,0 +1,29 @@
+{
+    "block.lightenchanted.light_emitter": "Light Emitter",
+    "itemGroup.lightenchanted": "Light Enchanted",
+
+    "screen.lightenchanted.title": "Light Beam Setup",
+    "screen.lightenchanted.red": "Red",
+    "screen.lightenchanted.green": "Green",
+    "screen.lightenchanted.blue": "Blue",
+    "screen.lightenchanted.alpha": "Opacity",
+    "screen.lightenchanted.width": "Width",
+    "screen.lightenchanted.glow": "Glow",
+    "screen.lightenchanted.height": "Height",
+    "screen.lightenchanted.pulse": "Pulse",
+    "screen.lightenchanted.rotation": "Rotation",
+    "screen.lightenchanted.enabled": "Beam enabled",
+    "screen.lightenchanted.rainbow": "Rainbow",
+    "screen.lightenchanted.to_sky": "Reach the sky",
+    "screen.lightenchanted.shape": "Shape",
+    "screen.lightenchanted.hex": "Hex color",
+    "screen.lightenchanted.apply": "Apply",
+    "screen.lightenchanted.done": "Done",
+
+    "shape.lightenchanted.classic": "Classic",
+    "shape.lightenchanted.cylinder": "Cylinder",
+    "shape.lightenchanted.cone": "Cone",
+    "shape.lightenchanted.helix": "Helix",
+    "shape.lightenchanted.sheet": "Sheet",
+    "shape.lightenchanted.star": "Star"
+}

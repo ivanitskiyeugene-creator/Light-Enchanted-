@@ -1,0 +1,29 @@
+{
+    "block.lightenchanted.light_emitter": "Излучатель света",
+    "itemGroup.lightenchanted": "Light Enchanted",
+
+    "screen.lightenchanted.title": "Настройка луча",
+    "screen.lightenchanted.red": "Красный",
+    "screen.lightenchanted.green": "Зелёный",
+    "screen.lightenchanted.blue": "Синий",
+    "screen.lightenchanted.alpha": "Яркость",
+    "screen.lightenchanted.width": "Ширина",
+    "screen.lightenchanted.glow": "Свечение",
+    "screen.lightenchanted.height": "Высота",
+    "screen.lightenchanted.pulse": "Пульсация",
+    "screen.lightenchanted.rotation": "Вращение",
+    "screen.lightenchanted.enabled": "Луч включён",
+    "screen.lightenchanted.rainbow": "Радуга",
+    "screen.lightenchanted.to_sky": "До неба",
+    "screen.lightenchanted.shape": "Форма",
+    "screen.lightenchanted.hex": "HEX-цвет",
+    "screen.lightenchanted.apply": "Применить",
+    "screen.lightenchanted.done": "Готово",
+
+    "shape.lightenchanted.classic": "Классика",
+    "shape.lightenchanted.cylinder": "Цилиндр",
+    "shape.lightenchanted.cone": "Конус",
+    "shape.lightenchanted.helix": "Спираль",
+    "shape.lightenchanted.sheet": "Плоскость",
+    "shape.lightenchanted.star": "Звезда"
+}

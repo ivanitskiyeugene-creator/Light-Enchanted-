@@ -1,0 +1,28 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "category": "misc",
+    "pattern": [
+        " G ",
+        "GLG",
+        "IAI"
+    ],
+    "key": {
+        "G": {
+            "item": "minecraft:glass"
+        },
+        "L": {
+            "item": "minecraft:glowstone"
+        },
+        "A": {
+            "item": "minecraft:amethyst_shard"
+        },
+        "I": {
+            "item": "minecraft:iron_ingot"
+        }
+    },
+    "result": {
+        "item": "lightenchanted:light_emitter",
+        "count": 1
+    },
+    "show_notification": true
+}
