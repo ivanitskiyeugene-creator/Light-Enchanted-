@@ -27,10 +27,17 @@ jobs:
           gradle-version: '8.8'
 
       - name: Build with Gradle
-        run: gradle build --no-daemon
+        shell: bash
+        run: |
+          gradle build --no-daemon --console=plain --stacktrace > build_output.txt 2>&1 || {
+            echo "Gradle build failed — publishing log tail as an annotation"
+            tail -c 6000 build_output.txt | python3 -c "import sys,urllib.parse;print('::error title=Gradle build failed::'+urllib.parse.quote(sys.stdin.read()))"
+            exit 1
+          }
 
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: lightenchanted-jar
           path: build/libs/*.jar
