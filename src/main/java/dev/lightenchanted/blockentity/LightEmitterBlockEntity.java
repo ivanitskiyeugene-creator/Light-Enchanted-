@@ -17,10 +17,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Stores the beam configuration of one emitter block and manages real
+ * Stores the beam configuration of one emitter block and safely manages real
  * Minecraft block lighting at the beam's impact / target point.
  *
- * Syncs to tracking clients through the vanilla block-entity update packet.
+ * Fully protected against chunk loading deadlocks and world save hangs.
  */
 public class LightEmitterBlockEntity extends BlockEntity {
     private final BeamConfig config = new BeamConfig();
@@ -41,8 +41,8 @@ public class LightEmitterBlockEntity extends BlockEntity {
     }
 
     /**
-     * Authoritative config replacement (call on the server or locally on client).
-     * Saves, broadcasts updates to tracking clients, and immediately updates impact lighting.
+     * Authoritative config replacement. Saves, broadcasts updates to tracking clients,
+     * and safely updates impact lighting.
      */
     public void applyConfig(BeamConfig newConfig) {
         config.copyFrom(newConfig);
@@ -68,29 +68,42 @@ public class LightEmitterBlockEntity extends BlockEntity {
             return;
         }
 
+        // Never access blocks if the chunk is not loaded or during server shutdown
+        if (!level.hasChunkAt(pos)) {
+            return;
+        }
+        if (level.getServer() != null && !level.getServer().isRunning()) {
+            return;
+        }
+
         BlockPos desiredLightPos = null;
 
         if (config.enabled) {
             if (config.hasTarget) {
-                // Aimed at a point in the world: locate closest air/light space
                 BlockPos targetBlock = BlockPos.containing(config.targetX, config.targetY, config.targetZ);
-                BlockState targetState = level.getBlockState(targetBlock);
-                if (targetState.isAir() || targetState.canBeReplaced() || targetState.is(Blocks.LIGHT)) {
-                    desiredLightPos = targetBlock;
-                } else {
-                    BlockPos above = targetBlock.above();
-                    BlockState aboveState = level.getBlockState(above);
-                    if (aboveState.isAir() || aboveState.canBeReplaced() || aboveState.is(Blocks.LIGHT)) {
-                        desiredLightPos = above;
+                if (level.hasChunkAt(targetBlock)) {
+                    BlockState targetState = level.getBlockState(targetBlock);
+                    if (targetState.isAir() || targetState.canBeReplaced() || targetState.is(Blocks.LIGHT)) {
+                        desiredLightPos = targetBlock;
+                    } else {
+                        BlockPos above = targetBlock.above();
+                        if (level.hasChunkAt(above)) {
+                            BlockState aboveState = level.getBlockState(above);
+                            if (aboveState.isAir() || aboveState.canBeReplaced() || aboveState.is(Blocks.LIGHT)) {
+                                desiredLightPos = above;
+                            }
+                        }
                     }
                 }
             } else if (config.down) {
-                // Pointing down: drop down until we hit a solid block, place light right above floor
                 int maxDrop = config.toSky
                         ? Math.max(1, pos.getY() - level.getMinBuildHeight())
                         : Math.min(128, Math.max(1, (int) config.height));
                 for (int dy = 1; dy <= maxDrop; dy++) {
                     BlockPos check = pos.below(dy);
+                    if (!level.hasChunkAt(check)) {
+                        break;
+                    }
                     BlockState bs = level.getBlockState(check);
                     if (!bs.isAir() && !bs.canBeReplaced() && !bs.is(Blocks.LIGHT)) {
                         desiredLightPos = check.above();
@@ -111,21 +124,25 @@ public class LightEmitterBlockEntity extends BlockEntity {
             activeLightPos = null;
         }
 
-        // Place new light block
+        // Place new light block using UPDATE_CLIENTS (flag 2) to avoid physics cascades
         if (desiredLightPos != null && !desiredLightPos.equals(activeLightPos)) {
-            BlockState current = level.getBlockState(desiredLightPos);
-            if (current.isAir() || current.canBeReplaced() || current.is(Blocks.LIGHT)) {
-                level.setBlock(desiredLightPos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15), 3);
-                activeLightPos = desiredLightPos;
+            if (level.hasChunkAt(desiredLightPos)) {
+                BlockState current = level.getBlockState(desiredLightPos);
+                if (current.isAir() || current.canBeReplaced() || current.is(Blocks.LIGHT)) {
+                    level.setBlock(desiredLightPos, Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15), Block.UPDATE_CLIENTS);
+                    activeLightPos = desiredLightPos;
+                }
             }
         }
     }
 
     private static void cleanUpLight(Level level, BlockPos pos) {
         if (level != null && pos != null) {
-            BlockState state = level.getBlockState(pos);
-            if (state.is(Blocks.LIGHT)) {
-                level.removeBlock(pos, false);
+            if (level.hasChunkAt(pos)) {
+                BlockState state = level.getBlockState(pos);
+                if (state.is(Blocks.LIGHT)) {
+                    level.removeBlock(pos, false);
+                }
             }
         }
     }
@@ -133,7 +150,9 @@ public class LightEmitterBlockEntity extends BlockEntity {
     @Override
     public void setRemoved() {
         if (level != null && !level.isClientSide && activeLightPos != null) {
-            cleanUpLight(level, activeLightPos);
+            if (level.getServer() != null && level.getServer().isRunning()) {
+                cleanUpLight(level, activeLightPos);
+            }
             activeLightPos = null;
         }
         super.setRemoved();

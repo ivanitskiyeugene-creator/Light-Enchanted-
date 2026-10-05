@@ -163,28 +163,28 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             Matrix3f nmat = poseStack.last().normal();
 
             if (shadowTex != null) {
-                // ---- When obstacles exist: render volumetric god rays textured by shadow mask
+                // ---- Obstacles exist: render volumetric god rays textured by shadow mask
                 VertexConsumer shadowVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
                 float r0 = Math.max(0.03f, w * 0.15f);
                 float r1 = cfg.shape == BeamShape.CONE ? endW * 0.5f : w * 0.4f;
 
-                // 8 radial light shaft slices
-                for (int slice = 0; slice < 8; slice++) {
-                    float sliceRot = rot + slice * (TAU / 8.0f);
+                // 16 radial light shaft slices for dense volumetric shafts
+                for (int slice = 0; slice < 16; slice++) {
+                    float sliceRot = rot + slice * (TAU / 16.0f);
                     projectedShaftSlice(shadowVc, mat, nmat, r0, r1, renderHeight, sliceRot,
-                            coreR, coreG, coreB, alpha * 0.85f);
+                            coreR, coreG, coreB, alpha * 0.75f);
                 }
 
-                // 3 concentric cone layers
-                for (int layer = 1; layer <= 3; layer++) {
-                    float scale = layer / 3.0f;
-                    cylinder(shadowVc, mat, nmat, r0 * scale, r1 * scale, renderHeight, 14, rot,
-                            coreR, coreG, coreB, alpha * 0.55f);
+                // 4 concentric cone layers
+                for (int layer = 1; layer <= 4; layer++) {
+                    float scale = layer / 4.0f;
+                    cylinder(shadowVc, mat, nmat, r0 * scale, r1 * scale, renderHeight, 16, rot,
+                            coreR, coreG, coreB, alpha * 0.50f);
                 }
 
                 // Faint outer atmospheric halo
                 cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot,
-                        r, g, b, glowAlpha * 0.40f);
+                        r, g, b, glowAlpha * 0.35f);
             } else {
                 // ---- Standard clean beam geometry
                 switch (cfg.shape) {
@@ -205,7 +205,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     case HELIX -> {
                         helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
                         cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
-                                coreR, coreG, coreB, coreAlpha * 0.7f);
+                            coreR, coreG, coreB, coreAlpha * 0.7f);
                     }
                     case SHEET -> {
                         sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
@@ -216,7 +216,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                             sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
                         }
                         cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
-                                coreR, coreG, coreB, coreAlpha * 0.6f);
+                            coreR, coreG, coreB, coreAlpha * 0.6f);
                     }
                 }
             }

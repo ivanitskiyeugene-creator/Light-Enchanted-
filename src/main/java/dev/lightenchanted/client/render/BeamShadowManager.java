@@ -25,9 +25,9 @@ import net.minecraftforge.client.model.data.ModelData;
 import java.util.*;
 
 /**
- * High-performance geometry raytracer that extracts exact 3D polygon triangles
- * and AABBs from all blocks (vanilla and modded 3D models: gratings, fans,
- * meshes, fences, bars, stairs, custom obj/json models).
+ * Universal geometry raytracer that extracts exact 3D polygon triangles
+ * and AABBs from ALL blocks (vanilla and modded 3D models: gratings, fans,
+ * industrial meshes, fences, bars, stairs, custom modded blocks).
  *
  * Generates a high-fidelity 2D transmission mask (GOBO / Light Cookie)
  * uploaded to a {@link DynamicTexture} and cached per emitter.
@@ -259,6 +259,10 @@ public class BeamShadowManager {
                         continue; // Skip emitter block itself
                     }
 
+                    if (!level.hasChunkAt(mpos)) {
+                        continue;
+                    }
+
                     BlockState state = level.getBlockState(mpos);
                     if (state.isAir() || state.is(Blocks.LIGHT) || state.canBeReplaced()) {
                         continue;
@@ -266,17 +270,22 @@ public class BeamShadowManager {
 
                     hashAcc = hashAcc * 31 + state.hashCode() + mpos.hashCode();
 
-                    // 1. Try to extract exact 3D model polygons (BakedModel quads)
+                    // 1. Extract exact 3D model polygons (BakedModel quads) - NO artificial caps!
                     boolean gotPolygons = false;
                     try {
                         BakedModel model = brd.getBlockModel(state);
                         if (model != null) {
-                            List<BakedQuad> quads = new ArrayList<>(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
+                            List<BakedQuad> quads = new ArrayList<>();
+                            try {
+                                quads.addAll(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
+                            } catch (Exception ignored) {}
                             for (Direction d : Direction.values()) {
-                                quads.addAll(model.getQuads(state, d, RANDOM, ModelData.EMPTY, null));
+                                try {
+                                    quads.addAll(model.getQuads(state, d, RANDOM, ModelData.EMPTY, null));
+                                } catch (Exception ignored) {}
                             }
 
-                            if (!quads.isEmpty() && quads.size() <= 128) {
+                            if (!quads.isEmpty() && quads.size() <= 2048) {
                                 for (int qi = 0; qi < quads.size(); qi++) {
                                     BakedQuad q = quads.get(qi);
                                     int[] vData = q.getVertices();
@@ -307,7 +316,6 @@ public class BeamShadowManager {
                             }
                         }
                     } catch (Exception ignored) {
-                        // Fallback to VoxelShape below if model extraction fails
                     }
 
                     // 2. If no detailed model quads were extracted, fallback to detailed VoxelShapes
