@@ -31,15 +31,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * STR 2.0 (Simple Ray Tracing Renderer):
+ * STR 2.1.1 (Simple Ray Tracing Renderer):
  *
- * High-performance 300+ FPS renderer. Reads pre-calculated 3D ray fields and draws
- * 193 volumetric filament ribbons with zero per-frame CPU raytracing overhead.
+ * Cinematic Dust Simulation & Anamorphic Optical Lens Flare.
+ * High-performance 300+ FPS renderer.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
             new ResourceLocation(LightEnchanted.MOD_ID, "textures/entity/beam.png");
-    private static final int DUST_MOTE_COUNT = 32;
+    private static final int DUST_MOTE_COUNT = 48;
     private static final Map<BlockPos, RayTraceField> RAY_FIELDS = new HashMap<>();
 
     public LightEmitterRenderer(BlockEntityRendererProvider.Context context) {
@@ -140,9 +140,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         Vec3 camPos = camera.getPosition();
         Vec3 toCam = camPos.subtract(startVec).normalize();
         double cosAngle = toCam.dot(new Vec3(-dx, -dy, -dz));
-        float gMie = 0.55f;
+        float gMie = 0.58f;
         float miePhase = (float) ((1.0f - gMie * gMie) / Math.pow(1.0f + gMie * gMie - 2.0f * gMie * cosAngle, 1.5));
-        float mieBoost = Mth.clamp(miePhase * 0.65f, 0.70f, 2.2f);
+        float mieBoost = Mth.clamp(miePhase * 0.65f, 0.70f, 2.5f);
         alpha *= mieBoost;
 
         if (alpha < 0.005f) {
@@ -206,14 +206,15 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         r, g, b, alpha * 0.12f * (1.0f + 0.5f * cfg.glow));
             }
 
-            // ---- Cinematic floating dust motes
-            renderDustMotes(vc, mat, nmat, maxRayLen, w, endW, time, coreR, coreG, coreB, alpha);
+            // ---- Cinematic 3D Micro-Turbulence Dust Motes
+            renderCinematicDustMotes(vc, mat, nmat, maxRayLen, w, endW, time, camPos, startVec,
+                    coreR, coreG, coreB, alpha, mieBoost);
 
             poseStack.popPose();
 
-            // ---- Origin lens flare glow dot
-            glowDot(vc, poseStack, camOrientation, originX, originY, originZ,
-                    Math.max(0.10f, w * 0.35f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.75f * mieBoost));
+            // ---- Cinematic Anamorphic & Starburst Lens Flare System
+            renderCinematicLensFlare(vc, poseStack, camOrientation, originX, originY, originZ,
+                    w, r, g, b, coreR, coreG, coreB, alpha, mieBoost, cosAngle, cfg.glow);
 
             // ---- STR 2.0: Surface Photon Hit Impaction (Pixel-Accurate Shadow Silhouette on floor/walls)
             float photonRadius = Math.max(0.12f, (endW / w) * 0.15f);
@@ -274,39 +275,133 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
     }
 
-    private static void renderDustMotes(VertexConsumer vc, Matrix4f m, Matrix3f n,
-                                       float height, float w, float endW, float time,
-                                       float r, float g, float b, float alpha) {
-        if (alpha < 0.05f || height < 1.0f) {
+    /**
+     * Cinematic 3D Micro-Turbulence Dust System:
+     * - Micro-haze motes + macro glint motes.
+     * - Dynamic 3D vortex turbulence & Brownian thermal drift.
+     * - Forward-scatter sparkle when camera aligns with beam.
+     */
+    private static void renderCinematicDustMotes(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                                float height, float w, float endW, float time,
+                                                Vec3 camPos, Vec3 emitterWorldPos,
+                                                float r, float g, float b, float alpha, float mieBoost) {
+        if (alpha < 0.04f || height < 1.0f) {
             return;
         }
 
-        for (int i = 0; i < DUST_MOTE_COUNT; i++) {
-            float seed = i * 13.37f;
-            float speed = 0.035f + 0.025f * ((seed * 7.1f) % 1.0f);
+        double playerDistToEmitter = camPos.distanceTo(emitterWorldPos);
+        float playerTurbulence = playerDistToEmitter < 3.5 ? (float) (1.0 + (3.5 - playerDistToEmitter) * 0.8) : 1.0f;
 
+        for (int i = 0; i < DUST_MOTE_COUNT; i++) {
+            float seed = i * 17.13f;
+            boolean isMacroMote = (i % 4 == 0); // 25% are larger sparkling macro motes
+
+            float speed = (0.025f + 0.020f * ((seed * 5.7f) % 1.0f)) * playerTurbulence;
             float yNorm = ((time * speed + seed) % 1.0f + 1.0f) % 1.0f;
             float y = yNorm * height;
 
-            float currentRadius = Mth.lerp(yNorm, w * 0.35f, endW * 0.45f);
+            float currentConeRadius = Mth.lerp(yNorm, w * 0.40f, endW * 0.48f);
 
-            float angle = seed * 6.28f + time * 0.15f * (i % 2 == 0 ? 1 : -1);
-            float distFromCenter = ((seed * 3.3f) % 1.0f) * currentRadius;
-            float x = distFromCenter * Mth.cos(angle) + 0.03f * Mth.sin(time * 0.8f + seed);
-            float z = distFromCenter * Mth.sin(angle) + 0.03f * Mth.cos(time * 0.9f + seed);
+            // 3D Vortex / Brownian Swirl Harmonics
+            float angle = seed * 6.28f + (time * 0.12f * (i % 2 == 0 ? 1.0f : -1.0f) * playerTurbulence);
+            float radialOffset = ((seed * 2.9f) % 1.0f) * 0.85f;
+            float distFromCenter = currentConeRadius * radialOffset;
 
-            float shimmer = 0.55f + 0.45f * Mth.sin(time * 2.5f + seed * 9.0f);
-            float endFade = smoothstep(0.0f, 0.1f, yNorm) * smoothstep(1.0f, 0.88f, yNorm);
-            float moteAlpha = alpha * shimmer * endFade * 0.60f;
+            float microVortexX = 0.04f * Mth.sin(time * 0.9f + seed * 3.1f);
+            float microVortexZ = 0.04f * Mth.cos(time * 0.8f + seed * 2.7f);
 
-            float sz = 0.025f + 0.015f * ((seed * 5.5f) % 1.0f);
+            float x = distFromCenter * Mth.cos(angle) + microVortexX;
+            float z = distFromCenter * Mth.sin(angle) + microVortexZ;
+
+            // Soft radial cone boundary falloff (no clipping at cone edge)
+            float radialRatio = distFromCenter / Math.max(0.01f, currentConeRadius);
+            float edgeFade = smoothstep(1.0f, 0.75f, radialRatio);
+
+            // Smooth vertical fade at source and end
+            float heightFade = smoothstep(0.0f, 0.08f, yNorm) * smoothstep(1.0f, 0.90f, yNorm);
+
+            // Shimmer and scintillation
+            float shimmer = 0.50f + 0.50f * Mth.sin(time * (isMacroMote ? 3.5f : 1.8f) + seed * 11.0f);
+            float moteAlpha = alpha * shimmer * heightFade * edgeFade * (isMacroMote ? 0.85f : 0.50f) * mieBoost;
+
+            float sz = isMacroMote
+                    ? (0.035f + 0.015f * ((seed * 4.3f) % 1.0f))
+                    : (0.018f + 0.010f * ((seed * 2.1f) % 1.0f));
 
             twoSidedQuad(vc, m, n,
                     x - sz, y, z - sz,
                     x + sz, y, z - sz,
                     x + sz, y, z + sz,
                     x - sz, y, z + sz,
-                    r, g, b, moteAlpha, 0.0f, 1.0f, 0.0f, 1.0f);
+                    r, g, b, Math.min(1.0f, moteAlpha), 0.0f, 1.0f, 0.0f, 1.0f);
+        }
+    }
+
+    /**
+     * Cinematic Anamorphic & Starburst Lens Flare System:
+     * - Multi-tier optical flares: Hot core orb + Starburst spikes + Anamorphic streak + Chromatic halo.
+     */
+    private static void renderCinematicLensFlare(VertexConsumer vc, PoseStack poseStack, Quaternionf cam,
+                                                float originX, float originY, float originZ,
+                                                float w, float r, float g, float b,
+                                                float coreR, float coreG, float coreB,
+                                                float alpha, float mieBoost, double cosAngle, float glowSetting) {
+        float directLook = Mth.clamp((float) (cosAngle * 0.5 + 0.5), 0.0f, 1.0f);
+        float flareIntensity = Math.min(1.0f, alpha * (0.6f + 0.6f * directLook) * mieBoost * (1.0f + 0.4f * glowSetting));
+
+        float baseRadius = Math.max(0.12f, w * 0.40f);
+
+        // 1. Ultra-bright Core Orb
+        glowDot(vc, poseStack, cam, originX, originY, originZ,
+                baseRadius, coreR, coreG, coreB, Math.min(1.0f, flareIntensity * 0.95f));
+
+        // 2. Soft Atmospheric Halo Glow
+        glowDot(vc, poseStack, cam, originX, originY, originZ,
+                baseRadius * 2.2f, r, g, b, Math.min(1.0f, flareIntensity * 0.35f));
+
+        // 3. Cinematic Anamorphic Horizontal Lens Streak
+        if (directLook > 0.30f && flareIntensity > 0.05f) {
+            float streakWidth = baseRadius * (3.5f + directLook * 4.0f);
+            float streakHeight = baseRadius * 0.18f;
+            float streakAlpha = flareIntensity * (directLook - 0.25f) * 0.70f;
+
+            poseStack.pushPose();
+            poseStack.translate(originX, originY, originZ);
+            poseStack.mulPose(cam);
+            Matrix4f m = poseStack.last().pose();
+            Matrix3f n = poseStack.last().normal();
+
+            // Horizontal anamorphic streak
+            twoSidedQuad(vc, m, n,
+                    -streakWidth, -streakHeight, 0.0f,
+                    streakWidth, -streakHeight, 0.0f,
+                    streakWidth, streakHeight, 0.0f,
+                    -streakWidth, streakHeight, 0.0f,
+                    coreR, coreG, coreB, Math.min(1.0f, streakAlpha),
+                    0.0f, 1.0f, 0.0f, 1.0f);
+
+            // Subtle 45-degree starburst cross-flare
+            float starRadius = baseRadius * (1.4f + directLook * 1.2f);
+            float starThick = baseRadius * 0.10f;
+            float starAlpha = streakAlpha * 0.45f;
+
+            twoSidedQuad(vc, m, n,
+                    -starRadius, -starThick, 0.0f,
+                    starRadius, -starThick, 0.0f,
+                    starRadius, starThick, 0.0f,
+                    -starRadius, starThick, 0.0f,
+                    coreR, coreG, coreB, Math.min(1.0f, starAlpha),
+                    0.0f, 1.0f, 0.0f, 1.0f);
+
+            twoSidedQuad(vc, m, n,
+                    -starThick, -starRadius, 0.0f,
+                    starThick, -starRadius, 0.0f,
+                    starThick, starRadius, 0.0f,
+                    -starThick, starRadius, 0.0f,
+                    coreR, coreG, coreB, Math.min(1.0f, starAlpha),
+                    0.0f, 1.0f, 0.0f, 1.0f);
+
+            poseStack.popPose();
         }
     }
 
