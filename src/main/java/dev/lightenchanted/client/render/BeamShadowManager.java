@@ -26,19 +26,25 @@ import net.minecraftforge.client.model.data.ModelData;
 import java.util.*;
 
 /**
- * Universal obstacle shadow raytracer.
+ * Photorealistic obstacle shadow raytracer with 5x5 Gaussian PCF penumbra filtering.
  *
  * Extracts exact 3D polygon triangles and AABBs from ALL blocks (vanilla and modded:
  * gratings, ventilation fans, catwalks, fences, bars, stairs, custom 3D models).
- *
- * Generates a high-resolution 2D transmission mask (GOBO / Light Cookie)
- * uploaded to a {@link DynamicTexture} and cached per emitter.
  */
 public class BeamShadowManager {
     private static final int MASK_SIZE = 64;
     private static final float SCAN_DIST = 16.0f;
     private static final Map<BlockPos, CacheEntry> CACHE = new HashMap<>();
     private static final RandomSource RANDOM = RandomSource.create(42L);
+
+    // 5x5 Gaussian kernel weights for realistic optical penumbra
+    private static final float[][] GAUSS_5X5 = {
+        { 0.0037f, 0.0147f, 0.0256f, 0.0147f, 0.0037f },
+        { 0.0147f, 0.0586f, 0.0952f, 0.0586f, 0.0147f },
+        { 0.0256f, 0.0952f, 0.1502f, 0.0952f, 0.0256f },
+        { 0.0147f, 0.0586f, 0.0952f, 0.0586f, 0.0147f },
+        { 0.0037f, 0.0147f, 0.0256f, 0.0147f, 0.0037f }
+    };
 
     public static class Triangle {
         public final float x0, y0, z0;
@@ -86,10 +92,6 @@ public class BeamShadowManager {
         }
     }
 
-    /**
-     * Retrieves or builds the shadow mask texture for the given emitter.
-     * Returns {@code null} if shadows are disabled or no obstacles intersect the beam.
-     */
     public static ResourceLocation getShadowTexture(LightEmitterBlockEntity be, Vec3 origin,
                                                    Vec3 beamDir, float spreadRadius) {
         BeamConfig cfg = be.getConfig();
@@ -116,7 +118,6 @@ public class BeamShadowManager {
             return ce;
         });
 
-        // Rebuild when direction changes or periodically (every 10 ticks = twice a second)
         boolean dirChanged = entry.lastDir == null || entry.lastDir.distanceToSqr(beamDir) > 0.0002;
         boolean timeExpired = currentTick - entry.lastCheckTick > 10L;
 
@@ -129,7 +130,6 @@ public class BeamShadowManager {
         return entry.hasObstacles ? entry.location : null;
     }
 
-    /** Scans obstacles and renders the 2D transmission mask. */
     private static void bakeShadowMask(Level level, BlockPos emitterPos, Vec3 origin,
                                        Vec3 dir, float spreadRadius, CacheEntry entry) {
         ObstacleData obstacles = collectObstacles(level, emitterPos, origin, dir, SCAN_DIST);
@@ -146,7 +146,6 @@ public class BeamShadowManager {
 
         entry.hasObstacles = true;
 
-        // Basis vectors perpendicular to the beam direction
         Vec3 up = Math.abs(dir.y) > 0.95 ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
         Vec3 right = dir.cross(up).normalize();
         Vec3 actualUp = right.cross(dir).normalize();
@@ -178,7 +177,7 @@ public class BeamShadowManager {
 
                 boolean blocked = false;
 
-                // 1. Test against 3D polygon triangles (exact model geometry)
+                // 1. Exact 3D model polygons
                 for (int i = 0; i < triCount; i++) {
                     Triangle t = tris.get(i);
                     if (intersectRayTriangle(ox, oy, oz, rdx, rdy, rdz,
@@ -188,7 +187,7 @@ public class BeamShadowManager {
                     }
                 }
 
-                // 2. Test against AABB boxes (for vanilla/simple blocks)
+                // 2. AABB boxes
                 if (!blocked && boxCount > 0) {
                     double invDx = Math.abs(rdx) > 1e-6 ? 1.0 / rdx : 1e6;
                     double invDy = Math.abs(rdy) > 1e-6 ? 1.0 / rdy : 1e6;
@@ -204,29 +203,29 @@ public class BeamShadowManager {
                     }
                 }
 
-                // Smooth edge falloff
                 float edgeFalloff = 1.0f - smoothstep(0.85f, 1.0f, rDist);
                 rawMask[py][px] = blocked ? 0.0f : edgeFalloff;
             }
         }
 
-        // Apply separable 3x3 blur for soft penumbra
+        // Apply 5x5 Gaussian PCF filter for soft, cinematic optical penumbra
         NativeImage img = entry.image;
         for (int py = 0; py < MASK_SIZE; py++) {
             for (int px = 0; px < MASK_SIZE; px++) {
                 float sum = 0.0f;
-                int count = 0;
-                for (int dy = -1; dy <= 1; dy++) {
+                float weightSum = 0.0f;
+                for (int dy = -2; dy <= 2; dy++) {
                     int ny = py + dy;
                     if (ny < 0 || ny >= MASK_SIZE) continue;
-                    for (int dx = -1; dx <= 1; dx++) {
+                    for (int dx = -2; dx <= 2; dx++) {
                         int nx = px + dx;
                         if (nx < 0 || nx >= MASK_SIZE) continue;
-                        sum += rawMask[ny][nx];
-                        count++;
+                        float w = GAUSS_5X5[dy + 2][dx + 2];
+                        sum += rawMask[ny][nx] * w;
+                        weightSum += w;
                     }
                 }
-                float val = count > 0 ? sum / count : rawMask[py][px];
+                float val = weightSum > 0 ? sum / weightSum : rawMask[py][px];
                 int a = (int) (clamp(val) * 255.0f);
                 int color = (a << 24) | 0x00FFFFFF;
                 img.setPixelRGBA(px, py, color);
@@ -236,7 +235,6 @@ public class BeamShadowManager {
         entry.texture.upload();
     }
 
-    /** Extracts 3D model triangles and AABBs from all obstacles in the beam path. */
     private static ObstacleData collectObstacles(Level level, BlockPos emitterPos, Vec3 origin,
                                                  Vec3 dir, float maxDist) {
         ObstacleData data = new ObstacleData();
@@ -258,7 +256,7 @@ public class BeamShadowManager {
                 for (int x = minX; x <= maxX; x++) {
                     mpos.set(x, y, z);
                     if (mpos.equals(emitterPos)) {
-                        continue; // Skip emitter block itself
+                        continue;
                     }
 
                     if (!level.hasChunkAt(mpos)) {
@@ -272,23 +270,19 @@ public class BeamShadowManager {
 
                     hashAcc = hashAcc * 31 + state.hashCode() + mpos.hashCode();
 
-                    // 1. Extract exact 3D model polygons (BakedModel quads across all layers)
                     boolean gotPolygons = false;
                     try {
                         BakedModel model = brd.getBlockModel(state);
                         if (model != null) {
                             List<BakedQuad> quads = new ArrayList<>();
-                            // Unculled quads
                             try {
                                 quads.addAll(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
                             } catch (Exception ignored) {}
-                            // Directional quads
                             for (Direction d : Direction.values()) {
                                 try {
                                     quads.addAll(model.getQuads(state, d, RANDOM, ModelData.EMPTY, null));
                                 } catch (Exception ignored) {}
                             }
-                            // Also check Forge chunk buffer layers (solid, cutout, cutoutMipped, translucent)
                             for (RenderType rt : RenderType.chunkBufferLayers()) {
                                 try {
                                     List<BakedQuad> layerQuads = model.getQuads(state, null, RANDOM, ModelData.EMPTY, rt);
@@ -319,9 +313,7 @@ public class BeamShadowManager {
                                         float y3 = y + Float.intBitsToFloat(vData[25]);
                                         float z3 = z + Float.intBitsToFloat(vData[26]);
 
-                                        // Triangle 1: (v0, v1, v2)
                                         data.triangles.add(new Triangle(x0, y0, z0, x1, y1, z1, x2, y2, z2));
-                                        // Triangle 2: (v0, v2, v3)
                                         data.triangles.add(new Triangle(x0, y0, z0, x2, y2, z2, x3, y3, z3));
                                         gotPolygons = true;
                                     }
@@ -331,7 +323,6 @@ public class BeamShadowManager {
                     } catch (Exception ignored) {
                     }
 
-                    // 2. Fallback to detailed VoxelShapes
                     if (!gotPolygons) {
                         VoxelShape shape = state.getVisualShape(level, mpos, CollisionContext.empty());
                         if (shape.isEmpty()) {
@@ -360,7 +351,6 @@ public class BeamShadowManager {
         return data;
     }
 
-    /** Fast ray-triangle intersection (Möller–Trumbore). */
     private static boolean intersectRayTriangle(double ox, double oy, double oz,
                                                double rdx, double rdy, double rdz,
                                                float x0, float y0, float z0,
@@ -387,7 +377,6 @@ public class BeamShadowManager {
         return t >= 0.01 && t <= maxDist;
     }
 
-    /** Fast ray-AABB intersection test. */
     private static boolean intersectRayAABB(double ox, double oy, double oz,
                                             double invDx, double invDy, double invDz,
                                             double minX, double minY, double minZ,

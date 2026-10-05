@@ -84,28 +84,40 @@ def gen_block_texture(path, size=16):
     write_png(path, size, size, pixels)
 
 
-def gen_beam_texture(path, size=64):
-    """Beam gradient: soft horizontal edges, faint vertical energy streaks,
-    and smooth vertical fade-out at both ends (especially the impact end)
-    so the cone/cylinder melts into surfaces and the sky without hard cuts.
+def gen_beam_texture(path, size=128):
+    """Photorealistic beam texture:
+    - Gaussian core energy profile with smooth exponential halo
+    - Multi-octave atmospheric haze and turbulent smoke streaks
+    - Exponential top & bottom soft fade for seamless surface integration
     """
     pixels = []
     for y in range(size):
         row = []
-        v = y / (size - 1)  # 0 at emitter origin, 1 at target/end
-        # Smooth vertical fade: stays full in middle, fades out at ends
-        fade_top = smoothstep(0.0, 0.04, v)
-        fade_bottom = smoothstep(1.0, 0.78, v)
+        v = y / (size - 1.0)
+
+        # Smooth vertical atmospheric fade (both ends softly dissolve)
+        fade_top = smoothstep(0.0, 0.05, v)
+        fade_bottom = smoothstep(1.0, 0.82, v)
         v_fade = fade_top * fade_bottom
 
         for x in range(size):
-            u = x / (size - 1)
-            # Center-heavy horizontal falloff (smooth power curve)
-            edge = math.pow(math.sin(math.pi * u), 2.2)
-            streak = 0.88 + 0.12 * hash01(x * 19 + 7)
-            shimmer = 0.94 + 0.06 * math.sin(v * 16.0 + hash01(x) * 6.2831)
-            a = clamp(edge * streak * shimmer * v_fade)
-            brightness = 0.85 + 0.15 * edge
+            u = x / (size - 1.0)
+            center_dist = abs(u - 0.5) * 2.0  # 0 at center, 1 at edge
+
+            # Physically-based Gaussian + Exponential core
+            core = math.exp(-4.5 * center_dist * center_dist)
+            halo = math.pow(math.cos(center_dist * (math.pi / 2.0)), 1.8) * 0.45
+            edge = core * 0.75 + halo * 0.25
+
+            # Multi-octave atmospheric turbulence (smoke / dust density)
+            streak1 = 0.90 + 0.10 * hash01(int(x * 3.7 + 11))
+            streak2 = 0.93 + 0.07 * math.sin(v * 24.0 + hash01(x * 7) * 6.28)
+            streak3 = 0.95 + 0.05 * math.cos(v * 48.0 + u * 12.0)
+            turbulence = streak1 * streak2 * streak3
+
+            a = clamp(edge * turbulence * v_fade)
+            # Brightness stays high (hot white core)
+            brightness = 0.88 + 0.12 * core
             row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255),
                         int(a * 255)))
         pixels.append(row)
