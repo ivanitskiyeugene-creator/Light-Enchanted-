@@ -108,10 +108,10 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
-        // ---- STR 2.0: Lazy Cached Raytracing (0% CPU cost per frame!)
+        // ---- STR 2.0: Lazy Cached Raytracing (0% CPU cost per frame, real-time fan shadow rotation!)
         RayTraceField rayField = RAY_FIELDS.computeIfAbsent(pos, p -> new RayTraceField());
-        if (rayField.needsRetrace(currentTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows)) {
-            rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows, currentTick);
+        if (rayField.needsRetrace(currentTick, partialTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows)) {
+            rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows, currentTick, partialTick);
         }
 
         // ---- Color

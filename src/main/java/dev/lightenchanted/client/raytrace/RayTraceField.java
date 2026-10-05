@@ -26,10 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * STR 2.2.4 High-Precision 3D Raytracer:
+ * STR 2.2.5 High-Precision 3D Raytracer:
  *
- * True pixel-accurate raymarching with robust barycentric triangle intersection,
- * transparent block light pass-through, 6-axis fan blade shadow casting, and floor photon decals.
+ * True pixel-accurate raymarching with sub-frame blade angle interpolation,
+ * 3D pitched blade aerodynamic shadow casting, and crisp floor shadow silhouettes.
  */
 public class RayTraceField {
     public static final int RINGS = 8;
@@ -72,6 +72,7 @@ public class RayTraceField {
     private boolean lastShadows;
     private BeamShape lastShape;
     private long lastTraceTick = -100L;
+    private float lastTraceAngle = -999.0f;
     private int triangleCount = 0;
     private int boxCount = 0;
     private boolean hasDynamicFan = false;
@@ -90,12 +91,12 @@ public class RayTraceField {
         return rays;
     }
 
-    public boolean needsRetrace(long currentTick, Vec3 origin, Vec3 dir,
+    public boolean needsRetrace(long currentTick, float partialTick, Vec3 origin, Vec3 dir,
                                 float width, float endWidth, float maxDist,
                                 BeamShape shape, boolean shadows) {
         if (lastOrigin == null || lastDir == null) return true;
-        long maxInterval = hasDynamicFan ? 1L : 20L;
-        if (currentTick - lastTraceTick >= maxInterval) return true;
+        if (hasDynamicFan) return true; // Smooth real-time shadow rotation when fan is active!
+        if (currentTick - lastTraceTick >= 20L) return true;
         if (lastShadows != shadows || lastShape != shape) return true;
         if (Math.abs(lastW - width) > 0.01f || Math.abs(lastEndW - endWidth) > 0.01f || Math.abs(lastMaxDist - maxDist) > 0.1f) return true;
         if (lastOrigin.distanceToSqr(origin) > 0.0001) return true;
@@ -104,7 +105,7 @@ public class RayTraceField {
 
     public void trace(Level level, BlockPos emitterPos, Vec3 origin, Vec3 dir,
                       float width, float endWidth, float maxDist, BeamShape shape,
-                      boolean shadows, long currentTick) {
+                      boolean shadows, long currentTick, float partialTick) {
         lastOrigin = origin;
         lastDir = dir;
         lastW = width;
@@ -123,7 +124,7 @@ public class RayTraceField {
                 ? Math.max(0.05f, endWidth * 0.5f) : r0;
 
         if (shadows) {
-            collectObstacles(level, emitterPos, origin, dir, Math.max(r0, r1), Math.min(32.0f, maxDist));
+            collectObstacles(level, emitterPos, origin, dir, Math.max(r0, r1), Math.min(32.0f, maxDist), partialTick);
         } else {
             triangleCount = 0;
             boxCount = 0;
@@ -211,7 +212,7 @@ public class RayTraceField {
                         if (triHit > 0.02 && triHit < hitDist) {
                             hitDist = triHit;
                             solidHit = true;
-                            hitFloor = false; // Blocked in mid-air by obstacle!
+                            hitFloor = false; // Blocked by fan blade / obstacle!
                         }
                     }
                 }
@@ -259,7 +260,6 @@ public class RayTraceField {
             if (!level.hasChunkAt(mpos)) break;
 
             BlockState bs = level.getBlockState(mpos);
-            // Ignore air, lights, fans, emitters, and transparent/non-solid blocks
             if (bs.isAir() || bs.is(Blocks.LIGHT) || bs.canBeReplaced()
                     || bs.getBlock() instanceof IndustrialFanBlock
                     || bs.getBlock() instanceof IndustrialFanSlaveBlock
@@ -268,7 +268,6 @@ public class RayTraceField {
                 continue;
             }
 
-            // Stop only on truly solid full ground/wall blocks
             if (bs.isSolidRender(level, mpos)) {
                 return d;
             }
@@ -285,7 +284,7 @@ public class RayTraceField {
     }
 
     private void collectObstacles(Level level, BlockPos emitterPos, Vec3 origin,
-                                  Vec3 dir, float radius, float maxDist) {
+                                  Vec3 dir, float radius, float maxDist, float partialTick) {
         triangleCount = 0;
         obstacleBoxes.clear();
         hasDynamicFan = false;
@@ -319,22 +318,25 @@ public class RayTraceField {
 
                     // Dynamic 6-Directional SCP:SL HCZ Industrial Fan Physics
                     if (level.getBlockEntity(mpos) instanceof IndustrialFanBlockEntity fan && fan.isMaster()) {
-                        hasDynamicFan = true;
+                        hasDynamicFan = fan.isSpinning();
                         Direction fFacing = fan.getFacing();
                         Vec3 fCenter = new Vec3(x + 0.5, y + 0.5, z + 0.5);
-                        float fAngle = fan.getSpinAngle(0.0f);
+                        float fAngle = fan.getSpinAngle(partialTick);
 
                         // Basis vectors for fan plane
-                        Vec3 uAxis, vAxis;
+                        Vec3 uAxis, vAxis, nAxis;
                         if (fFacing.getAxis() == Direction.Axis.Y) {
                             uAxis = new Vec3(1, 0, 0);
                             vAxis = new Vec3(0, 0, 1);
+                            nAxis = new Vec3(0, 1, 0);
                         } else if (fFacing.getAxis() == Direction.Axis.Z) {
                             uAxis = new Vec3(1, 0, 0);
                             vAxis = new Vec3(0, 1, 0);
+                            nAxis = new Vec3(0, 0, 1);
                         } else {
                             uAxis = new Vec3(0, 0, 1);
                             vAxis = new Vec3(0, 1, 0);
+                            nAxis = new Vec3(1, 0, 0);
                         }
 
                         // 1. Solid Outer 3x3 Shroud Bevel (Leaves center circular duct open)
@@ -361,11 +363,12 @@ public class RayTraceField {
                                 fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
                                 fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(rInner)));
 
-                        // 2. Rotating 5-Blade Impeller Assembly (Wide, bold blades)
+                        // 2. Rotating 5-Blade Impeller Assembly with aerodynamic pitch
                         int bCount = 5;
                         float tau = (float) (Math.PI * 2.0);
-                        float rHub = 0.35f, rBlade = 1.22f;
-                        float rootW = 0.35f, tipW = 0.58f;
+                        float rHub = 0.32f, rBlade = 1.22f;
+                        float rootW = 0.36f, tipW = 0.58f;
+                        float pitchZ = 0.12f;
 
                         for (int bi = 0; bi < bCount; bi++) {
                             float ba = tau * bi / bCount + (float) Math.toRadians(fAngle);
@@ -374,10 +377,10 @@ public class RayTraceField {
                             Vec3 lDir = uAxis.scale(cos).add(vAxis.scale(sin));
                             Vec3 wDir = uAxis.scale(-sin).add(vAxis.scale(cos));
 
-                            Vec3 p0 = fCenter.add(lDir.scale(rHub)).subtract(wDir.scale(rootW * 0.5));
-                            Vec3 p1 = fCenter.add(lDir.scale(rHub)).add(wDir.scale(rootW * 0.5));
-                            Vec3 p2 = fCenter.add(lDir.scale(rBlade)).add(wDir.scale(tipW * 0.5));
-                            Vec3 p3 = fCenter.add(lDir.scale(rBlade)).subtract(wDir.scale(tipW * 0.5));
+                            Vec3 p0 = fCenter.add(lDir.scale(rHub)).subtract(wDir.scale(rootW * 0.5)).subtract(nAxis.scale(pitchZ * 0.5));
+                            Vec3 p1 = fCenter.add(lDir.scale(rHub)).add(wDir.scale(rootW * 0.5)).add(nAxis.scale(pitchZ * 0.5));
+                            Vec3 p2 = fCenter.add(lDir.scale(rBlade)).add(wDir.scale(tipW * 0.5)).add(nAxis.scale(pitchZ));
+                            Vec3 p3 = fCenter.add(lDir.scale(rBlade)).subtract(wDir.scale(tipW * 0.5)).subtract(nAxis.scale(pitchZ));
 
                             addQuadTriangles(p0, p1, p2, p3);
                         }
