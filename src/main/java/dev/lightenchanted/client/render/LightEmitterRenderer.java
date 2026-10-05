@@ -21,24 +21,16 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
 /**
- * Renders the beam.
+ * Renders the beam, volumetric god-ray shafts, and projected obstacle shadows.
  *
- * Uses {@link RenderType#beaconBeam(ResourceLocation, boolean)} with a custom
- * soft gradient texture. This standard pipeline is fully recognized and hooked
- * by Iris, Oculus, OptiFine, and vanilla shaders for post-process bloom,
- * volumetric god-rays, depth-buffer sorting, and distance fog.
- *
- * Geometry features:
- * - Aimed spotlight cone penetrates slightly into surfaces and fades vertically
- *   to avoid any floating circular cutoffs.
- * - Flat glowing ground disc at the impact point.
- * - Smooth distance fade for long-range beams (smooth falloff beyond 30-50 blocks).
- * - Per-axis creative offset and ghost preview box.
+ * Fully compatible with vanilla, Iris, Oculus, OptiFine, and shader packs
+ * (Complementary, BSL, SEUS) via the standard {@link RenderType#beaconBeam} pass.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
@@ -91,15 +83,12 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 dx /= len;
                 dy /= len;
                 dz /= len;
-                // Extend cone slightly past impact point so the tilted circular rim
-                // sinks into the ground rather than floating as an arc in mid-air.
                 float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
                 renderHeight = actualDist + Math.max(0.6f, endW * 0.45f);
             }
         }
         if (!aimed) {
             if (cfg.toSky) {
-                // To-sky beams fade gracefully into the atmosphere over 60-80 blocks
                 renderHeight = 72.0f;
                 actualDist = renderHeight;
             } else {
@@ -135,7 +124,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             alpha *= 0.60f + 0.40f * Mth.sin(time * cfg.pulse * 2.4f);
         }
         if (actualDist > 30.0f) {
-            // Smooth attenuation beyond 30 blocks: 50 blocks -> ~65%, 80 blocks -> ~45%
             float distFactor = 1.0f / (1.0f + 0.022f * (actualDist - 30.0f));
             alpha *= distFactor;
         }
@@ -145,7 +133,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float rot = cfg.rotation > 0.001f ? time * cfg.rotation * 1.3f : 0.0f;
 
-        // Core is hotter/whiter; shell provides the soft colored halo
         float coreR = r * 0.5f + 0.5f;
         float coreG = g * 0.5f + 0.5f;
         float coreB = b * 0.5f + 0.5f;
@@ -156,9 +143,13 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
         float glowScale = 1.0f + 0.50f * cfg.glow;
 
-        // Standard beacon-beam render type (full shader & Iris/Oculus compatibility)
-        RenderType beamType = RenderType.beaconBeam(BEAM_TEXTURE, true);
-        VertexConsumer vc = buffers.getBuffer(beamType);
+        // ---- Shadow / GOBO mask calculation
+        Vec3 originVec = new Vec3(originBaseWorldX, pos.getY() + originY + cfg.offsetY, originBaseWorldZ);
+        Vec3 dirVec = new Vec3(dx, dy, dz);
+        ResourceLocation shadowTex = BeamShadowManager.getShadowTexture(be, originVec, dirVec, endW);
+
+        // Standard render buffer
+        VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
 
         if (alpha > 0.0f) {
             poseStack.pushPose();
@@ -204,6 +195,21 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                             coreR, coreG, coreB, coreAlpha * 0.6f);
                 }
             }
+
+            // ---- Volumetric God-Ray Shafts passing through obstacle holes
+            if (shadowTex != null) {
+                VertexConsumer shadowVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
+                float r0 = Math.max(0.03f, w * 0.15f);
+                float r1 = cfg.shape == BeamShape.CONE ? endW * 0.5f : w * 0.4f;
+
+                // Render internal cross-sectional light shafts
+                for (int slice = 0; slice < 6; slice++) {
+                    float sliceRot = rot + slice * (TAU / 12.0f);
+                    projectedShaftSlice(shadowVc, mat, nmat, r0, r1, renderHeight, sliceRot,
+                            coreR, coreG, coreB, alpha * 0.65f);
+                }
+            }
+
             poseStack.popPose();
 
             // ---- glow dots at origin and impact
@@ -212,7 +218,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     Math.max(0.08f, w * 0.32f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.6f));
 
             if (aimed) {
-                // Impact ground pool disc
+                // Impact ground pool disc / projected obstacle shadow decal
                 double hitRelX = cfg.targetX - pos.getX();
                 double hitRelY = cfg.targetY - pos.getY() + 0.02;
                 double hitRelZ = cfg.targetZ - pos.getZ();
@@ -220,8 +226,13 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         ? Math.max(0.25f, endW * 0.48f)
                         : Math.max(0.20f, w * 0.45f);
 
-                flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
-                        coreR, coreG, coreB, Math.min(1.0f, alpha * 0.75f));
+                ResourceLocation decalTex = (shadowTex != null) ? shadowTex : BEAM_TEXTURE;
+                VertexConsumer decalVc = (shadowTex != null)
+                        ? buffers.getBuffer(RenderType.beaconBeam(shadowTex, true))
+                        : vc;
+
+                flatGroundDisc(decalVc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
+                        coreR, coreG, coreB, Math.min(1.0f, alpha * 0.80f));
             }
         }
 
@@ -250,7 +261,21 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
     // ------------------------------------------------------------ geometry
 
-    /** Four-sided square tube (two-sided for clean interior and exterior). */
+    /** Longitudinal volumetric slice mapped to the shadow mask texture. */
+    private static void projectedShaftSlice(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                           float r0, float r1, float height, float angle,
+                                           float r, float g, float b, float a) {
+        float c = Mth.cos(angle);
+        float s = Mth.sin(angle);
+        twoSidedQuad(vc, m, n,
+                -r0 * c, 0, -r0 * s,
+                r0 * c, 0, r0 * s,
+                r1 * c, height, r1 * s,
+                -r1 * c, height, -r1 * s,
+                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
+    }
+
+    /** Four-sided square tube. */
     private static void squareColumn(VertexConsumer vc, Matrix4f m, Matrix3f n, float half, float height,
                                      float rot, float r, float g, float b, float a) {
         for (int i = 0; i < 4; i++) {
@@ -267,7 +292,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
     }
 
-    /** Polygonal prism/cone (two-sided). */
+    /** Polygonal prism/cone. */
     private static void cylinder(VertexConsumer vc, Matrix4f m, Matrix3f n, float rBottom, float rTop,
                                  float height, int segments, float rot,
                                  float r, float g, float b, float a) {
@@ -342,7 +367,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.popPose();
     }
 
-    /** Flat glowing disc lying on the floor at the impact location. */
+    /** Flat glowing disc / shadow decal lying on the floor at the impact location. */
     private static void flatGroundDisc(VertexConsumer vc, PoseStack poseStack,
                                       double x, double y, double z, float radius,
                                       float r, float g, float b, float a) {
@@ -392,7 +417,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
     // ------------------------------------------------------------ plumbing
 
-    /** Emits a two-sided quad (both front and back windings). */
     private static void twoSidedQuad(VertexConsumer vc, Matrix4f m, Matrix3f n,
                                     float x1, float y1, float z1, float x2, float y2, float z2,
                                     float x3, float y3, float z3, float x4, float y4, float z4,

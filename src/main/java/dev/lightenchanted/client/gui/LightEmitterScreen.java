@@ -43,6 +43,7 @@ public class LightEmitterScreen extends Screen {
     private ForgeSlider pulseSlider;
     private ForgeSlider rotateSlider;
     private Checkbox enabledBox;
+    private Checkbox shadowsBox;
     private Checkbox rainbowBox;
     private Checkbox downBox;
     private Checkbox toSkyBox;
@@ -115,6 +116,8 @@ public class LightEmitterScreen extends Screen {
         // ---- right column: toggles, shape, hex
         int ry = 44;
         enabledBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("enabled"), working.enabled));
+        ry += gap;
+        shadowsBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("shadows"), working.shadows));
         ry += gap;
         rainbowBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("rainbow"), working.rainbow));
         ry += gap;
@@ -221,6 +224,7 @@ public class LightEmitterScreen extends Screen {
             return;
         }
         working.enabled = enabledBox.selected();
+        working.shadows = shadowsBox.selected();
         working.rainbow = rainbowBox.selected();
         working.down = downBox.selected();
         working.toSky = toSkyBox.selected();

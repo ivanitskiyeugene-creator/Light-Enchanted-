@@ -41,6 +41,8 @@ public class BeamConfig {
     public float offsetX = 0.0f;
     public float offsetY = 0.0f;
     public float offsetZ = 0.0f;
+    /** Cast projected shadows through obstacles (gratings, 3D models, fences, bars). */
+    public boolean shadows = true;
     /** Opacity, 0..255. */
     public int alpha = 230;
     /** Pulse speed, 0 = steady beam. */
@@ -74,6 +76,7 @@ public class BeamConfig {
         this.offsetX = other.offsetX;
         this.offsetY = other.offsetY;
         this.offsetZ = other.offsetZ;
+        this.shadows = other.shadows;
         this.alpha = other.alpha;
         this.pulse = other.pulse;
         this.rotation = other.rotation;
@@ -121,6 +124,7 @@ public class BeamConfig {
         tag.putFloat("OffsetX", offsetX);
         tag.putFloat("OffsetY", offsetY);
         tag.putFloat("OffsetZ", offsetZ);
+        tag.putBoolean("Shadows", shadows);
         tag.putInt("Alpha", alpha);
         tag.putFloat("Pulse", pulse);
         tag.putFloat("Rotation", rotation);
@@ -149,6 +153,7 @@ public class BeamConfig {
         if (tag.contains("OffsetX")) cfg.offsetX = tag.getFloat("OffsetX");
         if (tag.contains("OffsetY")) cfg.offsetY = tag.getFloat("OffsetY");
         if (tag.contains("OffsetZ")) cfg.offsetZ = tag.getFloat("OffsetZ");
+        if (tag.contains("Shadows")) cfg.shadows = tag.getBoolean("Shadows");
         if (tag.contains("Alpha")) cfg.alpha = tag.getInt("Alpha");
         if (tag.contains("Pulse")) cfg.pulse = tag.getFloat("Pulse");
         if (tag.contains("Rotation")) cfg.rotation = tag.getFloat("Rotation");
@@ -176,6 +181,7 @@ public class BeamConfig {
         buf.writeFloat(offsetX);
         buf.writeFloat(offsetY);
         buf.writeFloat(offsetZ);
+        buf.writeBoolean(shadows);
         buf.writeInt(alpha);
         buf.writeFloat(pulse);
         buf.writeFloat(rotation);
@@ -200,6 +206,7 @@ public class BeamConfig {
         cfg.offsetX = buf.readFloat();
         cfg.offsetY = buf.readFloat();
         cfg.offsetZ = buf.readFloat();
+        cfg.shadows = buf.readBoolean();
         cfg.alpha = buf.readInt();
         cfg.pulse = buf.readFloat();
         cfg.rotation = buf.readFloat();
