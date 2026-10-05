@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import dev.lightenchanted.beam.BeamConfig;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -25,11 +26,12 @@ import net.minecraftforge.client.model.data.ModelData;
 import java.util.*;
 
 /**
- * Universal geometry raytracer that extracts exact 3D polygon triangles
- * and AABBs from ALL blocks (vanilla and modded 3D models: gratings, fans,
- * industrial meshes, fences, bars, stairs, custom modded blocks).
+ * Universal obstacle shadow raytracer.
  *
- * Generates a high-fidelity 2D transmission mask (GOBO / Light Cookie)
+ * Extracts exact 3D polygon triangles and AABBs from ALL blocks (vanilla and modded:
+ * gratings, ventilation fans, catwalks, fences, bars, stairs, custom 3D models).
+ *
+ * Generates a high-resolution 2D transmission mask (GOBO / Light Cookie)
  * uploaded to a {@link DynamicTexture} and cached per emitter.
  */
 public class BeamShadowManager {
@@ -114,9 +116,9 @@ public class BeamShadowManager {
             return ce;
         });
 
-        // Rebuild when direction changes or periodically (every 20 ticks)
-        boolean dirChanged = entry.lastDir == null || entry.lastDir.distanceToSqr(beamDir) > 0.0005;
-        boolean timeExpired = currentTick - entry.lastCheckTick > 20L;
+        // Rebuild when direction changes or periodically (every 10 ticks = twice a second)
+        boolean dirChanged = entry.lastDir == null || entry.lastDir.distanceToSqr(beamDir) > 0.0002;
+        boolean timeExpired = currentTick - entry.lastCheckTick > 10L;
 
         if (dirChanged || timeExpired) {
             entry.lastDir = beamDir;
@@ -149,7 +151,7 @@ public class BeamShadowManager {
         Vec3 right = dir.cross(up).normalize();
         Vec3 actualUp = right.cross(dir).normalize();
 
-        float tanFov = Math.max(0.18f, spreadRadius * 0.42f);
+        float tanFov = Math.max(0.18f, spreadRadius * 0.45f);
 
         float[][] rawMask = new float[MASK_SIZE][MASK_SIZE];
         double ox = origin.x, oy = origin.y, oz = origin.z;
@@ -270,22 +272,33 @@ public class BeamShadowManager {
 
                     hashAcc = hashAcc * 31 + state.hashCode() + mpos.hashCode();
 
-                    // 1. Extract exact 3D model polygons (BakedModel quads) - NO artificial caps!
+                    // 1. Extract exact 3D model polygons (BakedModel quads across all layers)
                     boolean gotPolygons = false;
                     try {
                         BakedModel model = brd.getBlockModel(state);
                         if (model != null) {
                             List<BakedQuad> quads = new ArrayList<>();
+                            // Unculled quads
                             try {
                                 quads.addAll(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
                             } catch (Exception ignored) {}
+                            // Directional quads
                             for (Direction d : Direction.values()) {
                                 try {
                                     quads.addAll(model.getQuads(state, d, RANDOM, ModelData.EMPTY, null));
                                 } catch (Exception ignored) {}
                             }
+                            // Also check Forge chunk buffer layers (solid, cutout, cutoutMipped, translucent)
+                            for (RenderType rt : RenderType.chunkBufferLayers()) {
+                                try {
+                                    List<BakedQuad> layerQuads = model.getQuads(state, null, RANDOM, ModelData.EMPTY, rt);
+                                    if (layerQuads != null && !layerQuads.isEmpty()) {
+                                        quads.addAll(layerQuads);
+                                    }
+                                } catch (Exception ignored) {}
+                            }
 
-                            if (!quads.isEmpty() && quads.size() <= 2048) {
+                            if (!quads.isEmpty() && quads.size() <= 4096) {
                                 for (int qi = 0; qi < quads.size(); qi++) {
                                     BakedQuad q = quads.get(qi);
                                     int[] vData = q.getVertices();
@@ -318,7 +331,7 @@ public class BeamShadowManager {
                     } catch (Exception ignored) {
                     }
 
-                    // 2. If no detailed model quads were extracted, fallback to detailed VoxelShapes
+                    // 2. Fallback to detailed VoxelShapes
                     if (!gotPolygons) {
                         VoxelShape shape = state.getVisualShape(level, mpos, CollisionContext.empty());
                         if (shape.isEmpty()) {
@@ -371,7 +384,7 @@ public class BeamShadowManager {
         double v = f * (rdx * qx + rdy * qy + rdz * qz);
         if (v < 0.0 || u + v > 1.0) return false;
         double t = f * (e2x * qx + e2y * qy + e2z * qz);
-        return t >= 0.03 && t <= maxDist;
+        return t >= 0.01 && t <= maxDist;
     }
 
     /** Fast ray-AABB intersection test. */
@@ -393,7 +406,7 @@ public class BeamShadowManager {
         if (tmax < 0 || tmin > tmax) {
             return false;
         }
-        return tmin >= 0.05 && tmin <= maxDist;
+        return tmin >= 0.01 && tmin <= maxDist;
     }
 
     private static float smoothstep(float edge0, float edge1, float x) {

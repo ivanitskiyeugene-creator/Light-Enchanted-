@@ -20,7 +20,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -29,8 +32,8 @@ import org.joml.Quaternionf;
 /**
  * Renders the beam, volumetric god-ray shafts, and projected obstacle shadows.
  *
- * Fully compatible with vanilla, Iris, Oculus, OptiFine, and shader packs
- * (Complementary, BSL, SEUS) via the standard {@link RenderType#beaconBeam} pass.
+ * Automatically stops at solid walls/pillars and cuts volumetric light shafts
+ * through gratings and 3D obstacle models.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
@@ -66,10 +69,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         double worldOriginY = pos.getY() + originY;
         double worldOriginZ = pos.getZ() + originZ;
 
-        // ---- Direction & length
+        // ---- Direction & target calculation
         double dx = 0.0, dy = 1.0, dz = 0.0;
-        float actualDist = 0.0f;
-        float renderHeight = 0.0f;
+        double maxDist = 128.0;
 
         if (aimed) {
             dx = cfg.targetX - worldOriginX;
@@ -80,26 +82,50 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 aimed = false;
             } else {
                 double len = Math.sqrt(lenSq);
-                actualDist = (float) len;
+                maxDist = len;
                 dx /= len;
                 dy /= len;
                 dz /= len;
-                float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
-                renderHeight = actualDist + Math.max(0.6f, endW * 0.45f);
             }
         }
         if (!aimed) {
             if (cfg.toSky) {
-                renderHeight = 72.0f;
-                actualDist = renderHeight;
+                maxDist = 72.0;
             } else {
-                renderHeight = Math.max(BeamConfig.MIN_HEIGHT, cfg.height);
-                actualDist = renderHeight;
+                maxDist = Math.max(BeamConfig.MIN_HEIGHT, cfg.height);
             }
             if (cfg.down) {
                 dy = -1.0;
             }
         }
+
+        // ---- Raycast against solid terrain to stop beam at walls/pillars
+        Vec3 startVec = new Vec3(worldOriginX, worldOriginY, worldOriginZ);
+        Vec3 endVec = startVec.add(dx * maxDist, dy * maxDist, dz * maxDist);
+
+        double impactX = endVec.x;
+        double impactY = endVec.y;
+        double impactZ = endVec.z;
+        float actualDist = (float) maxDist;
+        boolean hitSolid = false;
+
+        BlockHitResult hit = level.clip(new ClipContext(
+                startVec, endVec, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
+
+        if (hit.getType() != HitResult.Type.MISS) {
+            Vec3 hitPos = hit.getLocation();
+            double distToHit = startVec.distanceTo(hitPos);
+            if (distToHit > 0.1 && distToHit <= maxDist) {
+                actualDist = (float) distToHit;
+                impactX = hitPos.x;
+                impactY = hitPos.y;
+                impactZ = hitPos.z;
+                hitSolid = true;
+            }
+        }
+
+        float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
+        float renderHeight = (aimed || hitSolid) ? actualDist + Math.max(0.5f, endW * 0.40f) : actualDist;
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
@@ -140,20 +166,18 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         float glowAlpha = Math.min(1.0f, alpha * (0.18f + 0.12f * cfg.glow));
 
         float w = Math.max(BeamConfig.MIN_WIDTH, cfg.width);
-        float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
         float glowScale = 1.0f + 0.50f * cfg.glow;
 
         // ---- Shadow mask raytracing
-        Vec3 originVec = new Vec3(worldOriginX, worldOriginY, worldOriginZ);
         Vec3 dirVec = new Vec3(dx, dy, dz);
-        ResourceLocation shadowTex = BeamShadowManager.getShadowTexture(be, originVec, dirVec, endW);
+        ResourceLocation shadowTex = BeamShadowManager.getShadowTexture(be, startVec, dirVec, endW);
 
         VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
 
         if (alpha > 0.0f) {
             poseStack.pushPose();
             poseStack.translate(originX, originY, originZ);
-            if (aimed) {
+            if (aimed || hitSolid) {
                 poseStack.mulPose(new Quaternionf().rotationTo(
                         0.0f, 1.0f, 0.0f, (float) dx, (float) dy, (float) dz));
             } else if (cfg.down) {
@@ -163,16 +187,16 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             Matrix3f nmat = poseStack.last().normal();
 
             if (shadowTex != null) {
-                // ---- Obstacles exist: render volumetric god rays textured by shadow mask
+                // ---- Obstacles exist: render dense volumetric god rays textured by shadow mask
                 VertexConsumer shadowVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
                 float r0 = Math.max(0.03f, w * 0.15f);
                 float r1 = cfg.shape == BeamShape.CONE ? endW * 0.5f : w * 0.4f;
 
-                // 16 radial light shaft slices for dense volumetric shafts
+                // 16 radial light shaft slices
                 for (int slice = 0; slice < 16; slice++) {
                     float sliceRot = rot + slice * (TAU / 16.0f);
                     projectedShaftSlice(shadowVc, mat, nmat, r0, r1, renderHeight, sliceRot,
-                            coreR, coreG, coreB, alpha * 0.75f);
+                            coreR, coreG, coreB, alpha * 0.80f);
                 }
 
                 // 4 concentric cone layers
@@ -182,7 +206,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                             coreR, coreG, coreB, alpha * 0.50f);
                 }
 
-                // Faint outer atmospheric halo
+                // Soft outer atmospheric halo
                 cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot,
                         r, g, b, glowAlpha * 0.35f);
             } else {
@@ -205,7 +229,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     case HELIX -> {
                         helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
                         cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
-                            coreR, coreG, coreB, coreAlpha * 0.7f);
+                                coreR, coreG, coreB, coreAlpha * 0.7f);
                     }
                     case SHEET -> {
                         sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
@@ -216,7 +240,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                             sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
                         }
                         cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
-                            coreR, coreG, coreB, coreAlpha * 0.6f);
+                                coreR, coreG, coreB, coreAlpha * 0.6f);
                     }
                 }
             }
@@ -228,11 +252,11 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             glowDot(vc, poseStack, cam, originX, originY, originZ,
                     Math.max(0.08f, w * 0.32f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.6f));
 
-            if (aimed) {
-                // ---- Impact pool disc / Projected obstacle shadow silhouette
-                double hitRelX = cfg.targetX - pos.getX();
-                double hitRelY = cfg.targetY - pos.getY() + 0.02;
-                double hitRelZ = cfg.targetZ - pos.getZ();
+            if (aimed || hitSolid) {
+                // ---- Impact pool disc / Projected obstacle shadow silhouette on target surface
+                double hitRelX = impactX - pos.getX();
+                double hitRelY = impactY - pos.getY() + 0.02;
+                double hitRelZ = impactZ - pos.getZ();
                 float groundRadius = cfg.shape == BeamShape.CONE
                         ? Math.max(0.25f, endW * 0.48f)
                         : Math.max(0.20f, w * 0.45f);
