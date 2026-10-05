@@ -3,6 +3,7 @@ package dev.lightenchanted.block;
 import dev.lightenchanted.beam.BeamConfig;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
 import dev.lightenchanted.client.ClientHooks;
+import dev.lightenchanted.item.BeamTunerItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -43,6 +44,12 @@ public class LightEmitterBlock extends BaseEntityBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {
         if (!(level.getBlockEntity(pos) instanceof LightEmitterBlockEntity emitter)) {
+            return InteractionResult.PASS;
+        }
+
+        // With a tuner in hand, the item must get the interaction first
+        // (binding / target setting). Otherwise the GUI would swallow the click.
+        if (player.getItemInHand(hand).getItem() instanceof BeamTunerItem) {
             return InteractionResult.PASS;
         }
 

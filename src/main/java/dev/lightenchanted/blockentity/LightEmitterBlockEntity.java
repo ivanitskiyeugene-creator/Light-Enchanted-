@@ -1,6 +1,7 @@
 package dev.lightenchanted.blockentity;
 
 import dev.lightenchanted.beam.BeamConfig;
+import dev.lightenchanted.block.CreativeLightEmitterBlock;
 import dev.lightenchanted.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -24,6 +25,11 @@ public class LightEmitterBlockEntity extends BlockEntity {
 
     public BeamConfig getConfig() {
         return config;
+    }
+
+    /** True for the invisible creative-only variant (enables offset editing). */
+    public boolean isCreative() {
+        return getBlockState().getBlock() instanceof CreativeLightEmitterBlock;
     }
 
     /**

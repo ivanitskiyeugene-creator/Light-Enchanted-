@@ -1,6 +1,7 @@
 package dev.lightenchanted.init;
 
 import dev.lightenchanted.LightEnchanted;
+import dev.lightenchanted.block.CreativeLightEmitterBlock;
 import dev.lightenchanted.block.LightEmitterBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -23,6 +24,17 @@ public final class ModBlocks {
                     .lightLevel(state -> 15)
                     .noOcclusion()
                     .requiresCorrectToolForDrops()));
+
+    /** Invisible creative-only emitter; drops nothing, walk-through. */
+    public static final RegistryObject<CreativeLightEmitterBlock> LIGHT_EMITTER_CREATIVE =
+            BLOCKS.register("light_emitter_creative",
+                    () -> new CreativeLightEmitterBlock(BlockBehaviour.Properties.of()
+                            .strength(0.3f)
+                            .sound(SoundType.GLASS)
+                            .lightLevel(state -> 15)
+                            .noOcclusion()
+                            .noCollission()
+                            .noLootTable()));
 
     private ModBlocks() {
     }

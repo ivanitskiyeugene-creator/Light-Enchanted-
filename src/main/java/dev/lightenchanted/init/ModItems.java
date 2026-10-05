@@ -19,6 +19,9 @@ public final class ModItems {
     public static final RegistryObject<BeamTunerItem> BEAM_TUNER = ITEMS.register("beam_tuner",
             () -> new BeamTunerItem(new Item.Properties().stacksTo(1)));
 
+    public static final RegistryObject<BlockItem> LIGHT_EMITTER_CREATIVE = ITEMS.register("light_emitter_creative",
+            () -> new BlockItem(ModBlocks.LIGHT_EMITTER_CREATIVE.get(), new Item.Properties()));
+
     private ModItems() {
     }
 

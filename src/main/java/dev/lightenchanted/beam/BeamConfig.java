@@ -19,7 +19,7 @@ public class BeamConfig {
     /** RGB color, 0xRRGGBB. Ignored while {@link #rainbow} is on. */
     public int color = 0x67C7FF;
     /** Beam geometry. */
-    public BeamShape shape = BeamShape.CLASSIC;
+    public BeamShape shape = BeamShape.CONE;
     /** Beam diameter in blocks (fractional). */
     public float width = 0.6f;
     /** Beam radius at the far end for the CONE (spotlight) shape, in blocks. */
@@ -30,11 +30,17 @@ public class BeamConfig {
     public int height = 24;
     /** Stretch the beam up to the build limit. Used only while no target point is set. */
     public boolean toSky = false;
+    /** Without a target: fire downwards instead of upwards. */
+    public boolean down = true;
     /** World-space aim point of the beam. */
     public boolean hasTarget = false;
     public double targetX = 0.0;
     public double targetY = 0.0;
     public double targetZ = 0.0;
+    /** Shift of the beam's origin point, in blocks (the block itself stays put). */
+    public float offsetX = 0.0f;
+    public float offsetY = 0.0f;
+    public float offsetZ = 0.0f;
     /** Opacity, 0..255. */
     public int alpha = 230;
     /** Pulse speed, 0 = steady beam. */
@@ -60,10 +66,14 @@ public class BeamConfig {
         this.glow = other.glow;
         this.height = other.height;
         this.toSky = other.toSky;
+        this.down = other.down;
         this.hasTarget = other.hasTarget;
         this.targetX = other.targetX;
         this.targetY = other.targetY;
         this.targetZ = other.targetZ;
+        this.offsetX = other.offsetX;
+        this.offsetY = other.offsetY;
+        this.offsetZ = other.offsetZ;
         this.alpha = other.alpha;
         this.pulse = other.pulse;
         this.rotation = other.rotation;
@@ -76,6 +86,9 @@ public class BeamConfig {
         endWidth = Mth.clamp(endWidth, MIN_WIDTH, 4.0f);
         glow = Mth.clamp(glow, 0.0f, 2.0f);
         height = Mth.clamp(height, MIN_HEIGHT, MAX_HEIGHT);
+        offsetX = Mth.clamp(offsetX, -8.0f, 8.0f);
+        offsetY = Mth.clamp(offsetY, -8.0f, 8.0f);
+        offsetZ = Mth.clamp(offsetZ, -8.0f, 8.0f);
         alpha = Mth.clamp(alpha, 0, 255);
         pulse = Mth.clamp(pulse, 0.0f, 2.0f);
         rotation = Mth.clamp(rotation, 0.0f, 2.0f);
@@ -100,10 +113,14 @@ public class BeamConfig {
         tag.putFloat("Glow", glow);
         tag.putInt("Height", height);
         tag.putBoolean("ToSky", toSky);
+        tag.putBoolean("Down", down);
         tag.putBoolean("HasTarget", hasTarget);
         tag.putDouble("TargetX", targetX);
         tag.putDouble("TargetY", targetY);
         tag.putDouble("TargetZ", targetZ);
+        tag.putFloat("OffsetX", offsetX);
+        tag.putFloat("OffsetY", offsetY);
+        tag.putFloat("OffsetZ", offsetZ);
         tag.putInt("Alpha", alpha);
         tag.putFloat("Pulse", pulse);
         tag.putFloat("Rotation", rotation);
@@ -124,10 +141,14 @@ public class BeamConfig {
         if (tag.contains("Glow")) cfg.glow = tag.getFloat("Glow");
         if (tag.contains("Height")) cfg.height = tag.getInt("Height");
         if (tag.contains("ToSky")) cfg.toSky = tag.getBoolean("ToSky");
+        if (tag.contains("Down")) cfg.down = tag.getBoolean("Down");
         if (tag.contains("HasTarget")) cfg.hasTarget = tag.getBoolean("HasTarget");
         if (tag.contains("TargetX")) cfg.targetX = tag.getDouble("TargetX");
         if (tag.contains("TargetY")) cfg.targetY = tag.getDouble("TargetY");
         if (tag.contains("TargetZ")) cfg.targetZ = tag.getDouble("TargetZ");
+        if (tag.contains("OffsetX")) cfg.offsetX = tag.getFloat("OffsetX");
+        if (tag.contains("OffsetY")) cfg.offsetY = tag.getFloat("OffsetY");
+        if (tag.contains("OffsetZ")) cfg.offsetZ = tag.getFloat("OffsetZ");
         if (tag.contains("Alpha")) cfg.alpha = tag.getInt("Alpha");
         if (tag.contains("Pulse")) cfg.pulse = tag.getFloat("Pulse");
         if (tag.contains("Rotation")) cfg.rotation = tag.getFloat("Rotation");
@@ -147,10 +168,14 @@ public class BeamConfig {
         buf.writeFloat(glow);
         buf.writeInt(height);
         buf.writeBoolean(toSky);
+        buf.writeBoolean(down);
         buf.writeBoolean(hasTarget);
         buf.writeDouble(targetX);
         buf.writeDouble(targetY);
         buf.writeDouble(targetZ);
+        buf.writeFloat(offsetX);
+        buf.writeFloat(offsetY);
+        buf.writeFloat(offsetZ);
         buf.writeInt(alpha);
         buf.writeFloat(pulse);
         buf.writeFloat(rotation);
@@ -167,10 +192,14 @@ public class BeamConfig {
         cfg.glow = buf.readFloat();
         cfg.height = buf.readInt();
         cfg.toSky = buf.readBoolean();
+        cfg.down = buf.readBoolean();
         cfg.hasTarget = buf.readBoolean();
         cfg.targetX = buf.readDouble();
         cfg.targetY = buf.readDouble();
         cfg.targetZ = buf.readDouble();
+        cfg.offsetX = buf.readFloat();
+        cfg.offsetY = buf.readFloat();
+        cfg.offsetZ = buf.readFloat();
         cfg.alpha = buf.readInt();
         cfg.pulse = buf.readFloat();
         cfg.rotation = buf.readFloat();

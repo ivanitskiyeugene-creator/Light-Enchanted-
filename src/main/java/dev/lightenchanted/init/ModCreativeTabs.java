@@ -20,6 +20,7 @@ public final class ModCreativeTabs {
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.LIGHT_EMITTER.get());
                         output.accept(ModItems.BEAM_TUNER.get());
+                        output.accept(ModItems.LIGHT_EMITTER_CREATIVE.get());
                     })
                     .build());
 

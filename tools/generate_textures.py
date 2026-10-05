@@ -85,10 +85,11 @@ def gen_block_texture(path, size=16):
 
 
 def gen_beam_texture(path, size=64):
-    """Beam gradient: soft horizontal edges, subtle vertical energy streaks.
+    """Beam gradient: very soft horizontal edges, faint vertical energy streaks.
 
     Alpha controls the glow falloff; RGB stays near-white so the render
-    can tint it to any configured color.
+    can tint it to any configured color. Tuned for additive blending:
+    a hot narrow core that melts into a wide faint halo.
     """
     pixels = []
     for y in range(size):
@@ -96,13 +97,42 @@ def gen_beam_texture(path, size=64):
         v = y / (size - 1)
         for x in range(size):
             u = x / (size - 1)
-            edge = math.pow(math.sin(math.pi * u), 1.6)          # soft side falloff
-            streak = 0.78 + 0.22 * hash01(x * 17 + 3)            # per-column energy
-            shimmer = 0.90 + 0.10 * math.sin(v * 20.0 + hash01(x) * 6.2831)
+            edge = math.pow(math.sin(math.pi * u), 2.6)          # strong center glow
+            streak = 0.86 + 0.14 * hash01(x * 17 + 3)            # per-column energy
+            shimmer = 0.93 + 0.07 * math.sin(v * 20.0 + hash01(x) * 6.2831)
             a = clamp(edge * streak * shimmer)
             brightness = 0.82 + 0.18 * edge
             row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255),
                         int(a * 255)))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
+def gen_ghost_item_texture(path, size=16):
+    """Creative (invisible) emitter item: the regular lens inside dashed frame."""
+    pixels = []
+    c = (size - 1) / 2.0
+    for y in range(size):
+        row = []
+        for x in range(size):
+            r = g = b = 0.0
+            a = 0.0
+            # dashed border: two-pixel dashes along the outer ring
+            on_edge = x in (0, 1, size - 2, size - 1) or y in (0, 1, size - 2, size - 1)
+            dash = ((x + y) // 2) % 2 == 0
+            if on_edge and dash:
+                r, g, b, a = 0.45, 0.75, 1.0, 0.9
+            # glowing lens in the middle
+            d = math.hypot(x - c, y - c) / c
+            lens = smoothstep(0.75, 0.1, d)
+            core = smoothstep(0.35, 0.0, d)
+            if lens > 0.02:
+                r = max(r, lens * 0.45 + core * 0.55)
+                g = max(g, lens * 0.60 + core * 0.55)
+                b = max(b, lens * 0.85 + core * 0.55)
+                a = 1.0
+            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255),
+                        int(clamp(a) * 255)))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
@@ -164,6 +194,7 @@ def main():
     gen_block_texture(os.path.join(block_dir, "light_emitter.png"))
     gen_beam_texture(os.path.join(entity_dir, "beam.png"))
     gen_tuner_texture(os.path.join(item_dir, "beam_tuner.png"))
+    gen_ghost_item_texture(os.path.join(item_dir, "light_emitter_creative.png"))
 
 
 if __name__ == "__main__":

@@ -26,10 +26,11 @@ import net.minecraftforge.client.gui.widget.ForgeSlider;
  * beam live. The config is sent to the server on Apply / Done / closing.
  */
 public class LightEmitterScreen extends Screen {
-    private final LightEmitterBlockEntity emitter;
-    private BeamConfig working = new BeamConfig();
-
     private static final double AIM_REACH = 160.0;
+
+    private final LightEmitterBlockEntity emitter;
+    private final boolean creative;
+    private BeamConfig working = new BeamConfig();
 
     private ForgeSlider redSlider;
     private ForgeSlider greenSlider;
@@ -43,9 +44,15 @@ public class LightEmitterScreen extends Screen {
     private ForgeSlider rotateSlider;
     private Checkbox enabledBox;
     private Checkbox rainbowBox;
+    private Checkbox downBox;
     private Checkbox toSkyBox;
     private CycleButton<BeamShape> shapeButton;
     private EditBox hexBox;
+
+    // creative-only offset controls (null on the regular emitter)
+    private ForgeSlider offsetXSlider;
+    private ForgeSlider offsetYSlider;
+    private ForgeSlider offsetZSlider;
 
     private int previewX;
     private int previewY;
@@ -55,6 +62,7 @@ public class LightEmitterScreen extends Screen {
     public LightEmitterScreen(LightEmitterBlockEntity emitter) {
         super(Component.translatable("screen.lightenchanted.title"));
         this.emitter = emitter;
+        this.creative = emitter.isCreative();
     }
 
     private static MutableComponent text(String key) {
@@ -110,6 +118,8 @@ public class LightEmitterScreen extends Screen {
         ry += gap;
         rainbowBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("rainbow"), working.rainbow));
         ry += gap;
+        downBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("down"), working.down));
+        ry += gap;
         toSkyBox = addRenderableWidget(new Checkbox(right, ry, 20, 20, text("to_sky"), working.toSky));
         ry += gap + 4;
         shapeButton = addRenderableWidget(CycleButton.builder(BeamShape::displayName)
@@ -137,6 +147,19 @@ public class LightEmitterScreen extends Screen {
                 .bounds(right, ry, w, h).build());
         ry += gap - 2;
         targetInfoY = ry;
+        ry += 18;
+
+        // ---- creative-only: beam origin offset
+        if (creative) {
+            offsetXSlider = addRenderableWidget(new ForgeSlider(right, ry, w, h,
+                    text("offset_x").append(": "), Component.empty(), -8.0, 8.0, working.offsetX, 0.1, 1, true));
+            ry += gap;
+            offsetYSlider = addRenderableWidget(new ForgeSlider(right, ry, w, h,
+                    text("offset_y").append(": "), Component.empty(), -8.0, 8.0, working.offsetY, 0.1, 1, true));
+            ry += gap;
+            offsetZSlider = addRenderableWidget(new ForgeSlider(right, ry, w, h,
+                    text("offset_z").append(": "), Component.empty(), -8.0, 8.0, working.offsetZ, 0.1, 1, true));
+        }
 
         // ---- bottom buttons
         int by = this.height - 34;
@@ -144,28 +167,6 @@ public class LightEmitterScreen extends Screen {
                 .bounds(this.width / 2 - 110, by, 100, 20).build());
         addRenderableWidget(Button.builder(text("apply"), button -> sendToServer())
                 .bounds(this.width / 2 + 10, by, 100, 20).build());
-    }
-
-    /** Set the beam target to the block the player is currently looking at. */
-    private void aimFromCrosshair() {
-        Player player = this.minecraft != null ? this.minecraft.player : null;
-        if (player == null) {
-            return;
-        }
-        HitResult hit = player.pick(AIM_REACH, 0.0f, false);
-        if (hit.getType() == HitResult.Type.BLOCK) {
-            Vec3 loc = hit.getLocation();
-            working.hasTarget = true;
-            working.targetX = loc.x;
-            working.targetY = loc.y;
-            working.targetZ = loc.z;
-            applyPreview();
-        }
-    }
-
-    private void clearTarget() {
-        working.hasTarget = false;
-        applyPreview();
     }
 
     private void onHexChanged(String raw) {
@@ -192,6 +193,28 @@ public class LightEmitterScreen extends Screen {
         }
     }
 
+    /** Set the beam target to the block the player is currently looking at. */
+    private void aimFromCrosshair() {
+        Player player = this.minecraft != null ? this.minecraft.player : null;
+        if (player == null) {
+            return;
+        }
+        HitResult hit = player.pick(AIM_REACH, 0.0f, false);
+        if (hit.getType() == HitResult.Type.BLOCK) {
+            Vec3 loc = hit.getLocation();
+            working.hasTarget = true;
+            working.targetX = loc.x;
+            working.targetY = loc.y;
+            working.targetZ = loc.z;
+            applyPreview();
+        }
+    }
+
+    private void clearTarget() {
+        working.hasTarget = false;
+        applyPreview();
+    }
+
     /** Read every widget into {@link #working} and update inter-widget states. */
     private void pollWidgets() {
         if (syncingWidgets) {
@@ -199,6 +222,7 @@ public class LightEmitterScreen extends Screen {
         }
         working.enabled = enabledBox.selected();
         working.rainbow = rainbowBox.selected();
+        working.down = downBox.selected();
         working.toSky = toSkyBox.selected();
         working.shape = shapeButton.getValue();
         working.color = ((int) redSlider.getValue() << 16)
@@ -211,6 +235,11 @@ public class LightEmitterScreen extends Screen {
         working.height = heightSlider.getValueInt();
         working.pulse = (float) pulseSlider.getValue();
         working.rotation = (float) rotateSlider.getValue();
+        if (creative && offsetXSlider != null) {
+            working.offsetX = (float) offsetXSlider.getValue();
+            working.offsetY = (float) offsetYSlider.getValue();
+            working.offsetZ = (float) offsetZSlider.getValue();
+        }
         working.sanitize();
 
         boolean colorEditable = !working.rainbow;
@@ -220,6 +249,8 @@ public class LightEmitterScreen extends Screen {
         hexBox.active = colorEditable;
         heightSlider.active = !working.toSky && !working.hasTarget;
         spreadSlider.active = working.shape == BeamShape.CONE;
+        downBox.active = !working.hasTarget;
+        toSkyBox.active = !working.hasTarget;
 
         if (!hexBox.isFocused()) {
             syncingWidgets = true;

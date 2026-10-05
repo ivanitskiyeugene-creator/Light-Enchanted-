@@ -14,7 +14,9 @@ public final class ModBlockEntities {
 
     public static final RegistryObject<BlockEntityType<LightEmitterBlockEntity>> LIGHT_EMITTER =
             BLOCK_ENTITIES.register("light_emitter",
-                    () -> BlockEntityType.Builder.of(LightEmitterBlockEntity::new, ModBlocks.LIGHT_EMITTER.get())
+                    () -> BlockEntityType.Builder.of(LightEmitterBlockEntity::new,
+                                    ModBlocks.LIGHT_EMITTER.get(),
+                                    ModBlocks.LIGHT_EMITTER_CREATIVE.get())
                             .build(null));
 
     private ModBlockEntities() {
