@@ -45,7 +45,6 @@ def smoothstep(edge0, edge1, x):
 
 
 def hash01(n):
-    """Deterministic pseudo-random in [0, 1)."""
     n = (n * 2654435761) & 0xFFFFFFFF
     n ^= n >> 13
     n = (n * 1274126177) & 0xFFFFFFFF
@@ -54,7 +53,6 @@ def hash01(n):
 
 
 def gen_block_texture(path, size=16):
-    """Emitter block face: dark frame with a glowing lens in the middle."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
@@ -179,39 +177,33 @@ def gen_tuner_texture(path, size=16):
 
 
 def gen_industrial_fan_casing(path, size=32):
-    """SCP SL HCZ Heavy Containment Fan Casing: Dark gunmetal steel with yellow hazard stripes and rivets."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
-            # Base dark heavy containment steel plate
             noise = hash01(x * 73 + y * 19)
             base = 0.16 + 0.05 * noise
             r, g, b = base * 0.9, base * 0.95, base * 1.05
 
-            # Outer border bevel
             is_border = (x < 2 or x >= size - 2 or y < 2 or y >= size - 2)
             if is_border:
                 r *= 0.7
                 g *= 0.7
                 b *= 0.7
 
-            # Heavy steel rivets in corners
             for cx, cy in [(2, 2), (size - 3, 2), (2, size - 3), (size - 3, size - 3)]:
                 if math.hypot(x - cx, y - cy) < 1.4:
                     r, g, b = 0.45, 0.48, 0.52
 
-            # Industrial hazard warning stripes along the outer 4px rim
             is_rim = (x < 4 or x >= size - 4 or y < 4 or y >= size - 4) and not is_border
             if is_rim:
                 stripe = ((x + y) // 3) % 2
                 if stripe == 0:
-                    r, g, b = 0.85, 0.72, 0.08  # Warning Yellow
+                    r, g, b = 0.85, 0.72, 0.08
                 else:
-                    r, g, b = 0.12, 0.12, 0.14  # Charcoal Black
+                    r, g, b = 0.12, 0.12, 0.14
 
-            # Circular ventilation opening bevel
             d = math.hypot(x - c, y - c)
             if d < (size * 0.44):
                 inner_shade = 0.14 + 0.04 * hash01(x * 13 + y * 41)
@@ -225,19 +217,16 @@ def gen_industrial_fan_casing(path, size=32):
 
 
 def gen_industrial_fan_blade(path, size=32):
-    """Aerodynamic heavy steel fan blade texture."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
             noise = hash01(x * 17 + y * 29)
-            base = 0.28 + 0.08 * noise
-            # Brushed steel highlights along blade curvature
-            spec = smoothstep(0.0, 1.0, (x / size)) * 0.15
+            base = 0.35 + 0.10 * noise
+            spec = smoothstep(0.0, 1.0, (x / size)) * 0.20
             r = base * 0.92 + spec
             g = base * 0.96 + spec
             b = base * 1.05 + spec
-            # Edge highlight
             if x == 0 or x == size - 1 or y == 0 or y == size - 1:
                 r *= 0.6
                 g *= 0.6
@@ -248,17 +237,18 @@ def gen_industrial_fan_blade(path, size=32):
 
 
 def gen_industrial_fan_grate(path, size=32):
-    """Heavy industrial steel rebar safety grating."""
+    """Heavy industrial steel rebar safety grating with large open air cells."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            is_bar_x = (x % 6 == 0 or x % 6 == 1)
-            is_bar_y = (y % 6 == 0 or y % 6 == 1)
+            # Clean rebar grid: 2px bar every 8 pixels (lots of open space for rays!)
+            is_bar_x = (x % 8 in (0, 1))
+            is_bar_y = (y % 8 in (0, 1))
             if is_bar_x or is_bar_y:
                 noise = hash01(x * 37 + y * 13)
-                shade = 0.32 + 0.08 * noise
-                r, g, b = shade * 0.95, shade * 0.98, shade * 1.05
+                shade = 0.42 + 0.12 * noise
+                r, g, b = shade * 0.95, shade * 0.98, shade * 1.08
                 a = 255
             else:
                 r = g = b = a = 0
@@ -268,7 +258,6 @@ def gen_industrial_fan_grate(path, size=32):
 
 
 def gen_light_truss(path, size=16):
-    """Galvanized stage/industrial modular scaffolding truss."""
     pixels = []
     for y in range(size):
         row = []
@@ -289,20 +278,17 @@ def gen_light_truss(path, size=16):
 
 
 def gen_recessed_downlight(path, size=16):
-    """Clean flush-mounted architectural ceiling downlight."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             d = math.hypot(x - c, y - c) / c
-            # Outer white/metal ceiling bezel
             if d > 0.85:
                 r, g, b = 0.78, 0.80, 0.82
             elif d > 0.70:
-                r, g, b = 0.30, 0.32, 0.35  # Black inner step
+                r, g, b = 0.30, 0.32, 0.35
             else:
-                # Glowing downlight lens
                 core = smoothstep(0.70, 0.0, d)
                 r = 0.92 + 0.08 * core
                 g = 0.94 + 0.06 * core
@@ -325,14 +311,12 @@ def main():
     gen_tuner_texture(os.path.join(item_dir, "beam_tuner.png"))
     gen_ghost_item_texture(os.path.join(item_dir, "light_emitter_creative.png"))
 
-    # v2.2.0 New Textures
     gen_industrial_fan_casing(os.path.join(block_dir, "industrial_fan_casing.png"))
     gen_industrial_fan_blade(os.path.join(block_dir, "industrial_fan_blade.png"))
     gen_industrial_fan_grate(os.path.join(block_dir, "industrial_fan_grate.png"))
     gen_light_truss(os.path.join(block_dir, "light_truss.png"))
     gen_recessed_downlight(os.path.join(block_dir, "recessed_downlight.png"))
 
-    # Item icons
     gen_industrial_fan_casing(os.path.join(item_dir, "industrial_fan.png"))
     gen_light_truss(os.path.join(item_dir, "light_truss.png"))
     gen_recessed_downlight(os.path.join(item_dir, "recessed_downlight.png"))

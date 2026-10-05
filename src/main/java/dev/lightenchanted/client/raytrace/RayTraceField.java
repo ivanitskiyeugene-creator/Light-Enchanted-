@@ -1,6 +1,9 @@
 package dev.lightenchanted.client.raytrace;
 
 import dev.lightenchanted.beam.BeamShape;
+import dev.lightenchanted.block.IndustrialFanBlock;
+import dev.lightenchanted.block.IndustrialFanSlaveBlock;
+import dev.lightenchanted.block.LightEmitterBlock;
 import dev.lightenchanted.blockentity.IndustrialFanBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
@@ -10,13 +13,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -26,13 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * STR 2.2 High-Performance Raytracer:
+ * STR 2.2.1 High-Performance Raytracer:
  *
- * Fully optimized with lazy evaluation, spatial bounding box early rejection,
- * pre-allocated memory pools, and periodic caching.
- *
- * Supports custom beam shapes (CONE, SQUARE, OVAL, SLIT, SHEET, STAR) and dynamic
- * rotating obstacle testing (SCP:SL HCZ Industrial Fans).
+ * True 3D Micro-Raytracing with full 6-direction dynamic fan blade collision,
+ * hollow pass-through support, and real-time rotating volumetric shadows.
  */
 public class RayTraceField {
     public static final int RINGS = 8;
@@ -95,7 +92,7 @@ public class RayTraceField {
                                 float width, float endWidth, float maxDist,
                                 BeamShape shape, boolean shadows) {
         if (lastOrigin == null || lastDir == null) return true;
-        if (currentTick - lastTraceTick > 20L) return true; // periodic 1 sec refresh
+        if (currentTick - lastTraceTick > 3L) return true; // 3-tick refresh for smooth fan rotation
         if (lastShadows != shadows || lastShape != shape) return true;
         if (Math.abs(lastW - width) > 0.01f || Math.abs(lastEndW - endWidth) > 0.01f || Math.abs(lastMaxDist - maxDist) > 0.1f) return true;
         if (lastOrigin.distanceToSqr(origin) > 0.0001) return true;
@@ -123,7 +120,7 @@ public class RayTraceField {
                 ? Math.max(0.05f, endWidth * 0.5f) : r0;
 
         if (shadows) {
-            collectObstacles(level, emitterPos, origin, dir, Math.max(r0, r1), Math.min(16.0f, maxDist));
+            collectObstacles(level, emitterPos, origin, dir, Math.max(r0, r1), Math.min(24.0f, maxDist));
         } else {
             triangleCount = 0;
             boxCount = 0;
@@ -149,7 +146,6 @@ public class RayTraceField {
                 float lx1 = ringR1 * c;
                 float lz1 = ringR1 * s;
 
-                // Shape-specific profile modifications
                 if (shape == BeamShape.SQUARE) {
                     float maxCoord = Math.max(Math.abs(c), Math.abs(s));
                     if (maxCoord > 0.01f) {
@@ -172,15 +168,10 @@ public class RayTraceField {
             }
         }
 
-        // Central terrain depth raycast
-        Vec3 centralTarget = origin.add(dir.scale(maxDist));
-        BlockHitResult mainHit = level.clip(new ClipContext(
-                origin, centralTarget, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
-        double defaultTerrainDist = mainHit.getType() != HitResult.Type.MISS
-                ? origin.distanceTo(mainHit.getLocation())
-                : maxDist;
+        // Fast terrain floor raycast that passes through hollow/transparent blocks
+        double defaultTerrainDist = findTerrainFloorDist(level, emitterPos, origin, dir, maxDist);
 
-        // March all 193 rays with BVH / early bounds rejection
+        // March all 193 rays
         for (int i = 0; i < TOTAL_RAYS; i++) {
             Ray ray = rays[i];
 
@@ -193,9 +184,9 @@ public class RayTraceField {
             double rdx = rayDir.x, rdy = rayDir.y, rdz = rayDir.z;
 
             double hitDist = defaultTerrainDist;
-            boolean solidHit = mainHit.getType() != HitResult.Type.MISS;
+            boolean solidHit = defaultTerrainDist < (maxDist - 0.1);
 
-            // Only test 3D obstacle triangles if ray intersects obstacle bounding box
+            // Test 3D obstacle triangles (fan blades, shroud, detailed models)
             if (shadows && triangleCount > 0 && combinedBounds != null) {
                 double invDx = Math.abs(rdx) > 1e-6 ? 1.0 / rdx : 1e6;
                 double invDy = Math.abs(rdy) > 1e-6 ? 1.0 / rdy : 1e6;
@@ -247,6 +238,32 @@ public class RayTraceField {
         }
     }
 
+    private static double findTerrainFloorDist(Level level, BlockPos emitterPos, Vec3 origin, Vec3 dir, double maxDist) {
+        double step = 0.5;
+        BlockPos.MutableBlockPos mpos = new BlockPos.MutableBlockPos();
+
+        for (double d = 0.5; d < maxDist; d += step) {
+            Vec3 p = origin.add(dir.scale(d));
+            mpos.set((int) Math.floor(p.x), (int) Math.floor(p.y), (int) Math.floor(p.z));
+
+            if (mpos.equals(emitterPos)) continue;
+            if (!level.hasChunkAt(mpos)) break;
+
+            BlockState bs = level.getBlockState(mpos);
+            if (bs.isAir() || bs.is(Blocks.LIGHT) || bs.canBeReplaced()
+                    || bs.getBlock() instanceof IndustrialFanBlock
+                    || bs.getBlock() instanceof IndustrialFanSlaveBlock
+                    || bs.getBlock() instanceof LightEmitterBlock) {
+                continue;
+            }
+
+            if (bs.isSolidRender(level, mpos) || !bs.getVisualShape(level, mpos, CollisionContext.empty()).isEmpty()) {
+                return d;
+            }
+        }
+        return maxDist;
+    }
+
     private static void setupRay(Ray ray, float lx0, float lz0, float lx1, float lz1, float intensity) {
         ray.localX = lx0;
         ray.localZ = lz0;
@@ -287,47 +304,86 @@ public class RayTraceField {
                         continue;
                     }
 
-                    // Dynamic Fan Obstacles
+                    // Dynamic 6-Directional SCP:SL HCZ Industrial Fan Physics
                     if (level.getBlockEntity(mpos) instanceof IndustrialFanBlockEntity fan && fan.isMaster()) {
                         Direction fFacing = fan.getFacing();
-                        float cx = x + 0.5f, cy = y + 0.5f, cz = z + 0.5f;
+                        Vec3 fCenter = new Vec3(x + 0.5, y + 0.5, z + 0.5);
                         float fAngle = fan.getSpinAngle(0.0f);
 
-                        // Add fan blade collision triangles
+                        // Basis vectors for fan plane
+                        Vec3 uAxis, vAxis;
+                        if (fFacing.getAxis() == Direction.Axis.Y) {
+                            uAxis = new Vec3(1, 0, 0);
+                            vAxis = new Vec3(0, 0, 1);
+                        } else if (fFacing.getAxis() == Direction.Axis.Z) {
+                            uAxis = new Vec3(1, 0, 0);
+                            vAxis = new Vec3(0, 1, 0);
+                        } else {
+                            uAxis = new Vec3(0, 0, 1);
+                            vAxis = new Vec3(0, 1, 0);
+                        }
+
+                        // 1. Solid Outer 3x3 Shroud Bevel (Leaves center circular duct open)
+                        float rOuter = 1.48f;
+                        float rInner = 1.25f;
+
+                        // Shroud frame 4 outer corner quads
+                        addQuadTriangles(fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(rInner)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rOuter)),
+                                fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(rOuter)));
+
+                        addQuadTriangles(fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(-rOuter)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(-rOuter)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(-rInner)),
+                                fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(-rInner)));
+
+                        addQuadTriangles(fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(-rInner)),
+                                fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(-rInner)),
+                                fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(rInner)),
+                                fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(rInner)));
+
+                        addQuadTriangles(fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(-rInner)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(-rInner)),
+                                fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
+                                fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(rInner)));
+
+                        // 2. Rotating 5-Blade Impeller Assembly
                         int bCount = 5;
                         float tau = (float) (Math.PI * 2.0);
-                        float rHub = 0.35f, rBlade = 1.35f;
+                        float rHub = 0.35f, rBlade = 1.22f;
+                        float rootW = 0.22f, tipW = 0.44f;
 
                         for (int bi = 0; bi < bCount; bi++) {
                             float ba = tau * bi / bCount + (float) Math.toRadians(fAngle);
                             float cos = Mth.cos(ba), sin = Mth.sin(ba);
-                            float pCos = -sin * 0.25f, pSin = cos * 0.25f;
 
-                            float bx0 = cx + cos * rHub - pCos;
-                            float by0 = cy + sin * rHub - pSin;
-                            float bx1 = cx + cos * rHub + pCos;
-                            float by1 = cy + sin * rHub + pSin;
-                            float bx2 = cx + cos * rBlade + pCos * 1.5f;
-                            float by2 = cy + sin * rBlade + pSin * 1.5f;
-                            float bx3 = cx + cos * rBlade - pCos * 1.5f;
-                            float by3 = cy + sin * rBlade - pSin * 1.5f;
+                            Vec3 lDir = uAxis.scale(cos).add(vAxis.scale(sin));
+                            Vec3 wDir = uAxis.scale(-sin).add(vAxis.scale(cos));
 
-                            if (triangleCount + 2 < obstacleTriangles.size()) {
-                                obstacleTriangles.get(triangleCount++).set(bx0, by0, cz, bx1, by1, cz, bx2, by2, cz);
-                                obstacleTriangles.get(triangleCount++).set(bx0, by0, cz, bx2, by2, cz, bx3, by3, cz);
+                            Vec3 p0 = fCenter.add(lDir.scale(rHub)).subtract(wDir.scale(rootW * 0.5));
+                            Vec3 p1 = fCenter.add(lDir.scale(rHub)).add(wDir.scale(rootW * 0.5));
+                            Vec3 p2 = fCenter.add(lDir.scale(rBlade)).add(wDir.scale(tipW * 0.5));
+                            Vec3 p3 = fCenter.add(lDir.scale(rBlade)).subtract(wDir.scale(tipW * 0.5));
 
-                                bMinX = Math.min(bMinX, Math.min(bx0, bx2));
-                                bMinY = Math.min(bMinY, Math.min(by0, by2));
-                                bMinZ = Math.min(bMinZ, cz - 0.5);
-                                bMaxX = Math.max(bMaxX, Math.max(bx1, bx3));
-                                bMaxY = Math.max(bMaxY, Math.max(by1, by3));
-                                bMaxZ = Math.max(bMaxZ, cz + 0.5);
-                            }
+                            addQuadTriangles(p0, p1, p2, p3);
                         }
+
+                        // Update combined bounds
+                        bMinX = Math.min(bMinX, fCenter.x - 1.6);
+                        bMinY = Math.min(bMinY, fCenter.y - 1.6);
+                        bMinZ = Math.min(bMinZ, fCenter.z - 1.6);
+                        bMaxX = Math.max(bMaxX, fCenter.x + 1.6);
+                        bMaxY = Math.max(bMaxY, fCenter.y + 1.6);
+                        bMaxZ = Math.max(bMaxZ, fCenter.z + 1.6);
+                        continue;
                     }
 
                     BlockState state = level.getBlockState(mpos);
-                    if (state.isAir() || state.is(Blocks.LIGHT) || state.canBeReplaced()) {
+                    if (state.isAir() || state.is(Blocks.LIGHT) || state.canBeReplaced()
+                            || state.getBlock() instanceof IndustrialFanBlock
+                            || state.getBlock() instanceof IndustrialFanSlaveBlock
+                            || state.getBlock() instanceof LightEmitterBlock) {
                         continue;
                     }
 
@@ -412,6 +468,19 @@ public class RayTraceField {
             combinedBounds = new AABB(bMinX - 0.1, bMinY - 0.1, bMinZ - 0.1, bMaxX + 0.1, bMaxY + 0.1, bMaxZ + 0.1);
         } else {
             combinedBounds = null;
+        }
+    }
+
+    private void addQuadTriangles(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3) {
+        if (triangleCount + 2 < obstacleTriangles.size()) {
+            obstacleTriangles.get(triangleCount++).set(
+                    (float) p0.x, (float) p0.y, (float) p0.z,
+                    (float) p1.x, (float) p1.y, (float) p1.z,
+                    (float) p2.x, (float) p2.y, (float) p2.z);
+            obstacleTriangles.get(triangleCount++).set(
+                    (float) p0.x, (float) p0.y, (float) p0.z,
+                    (float) p2.x, (float) p2.y, (float) p2.z,
+                    (float) p3.x, (float) p3.y, (float) p3.z);
         }
     }
 

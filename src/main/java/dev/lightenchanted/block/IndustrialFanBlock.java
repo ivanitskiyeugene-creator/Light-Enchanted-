@@ -31,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * SCP:SL Heavy Containment Zone (HCZ) 3x3 Industrial Ventilation Fan (Master Block).
+ * Fully hollow for light pass-through and god ray casting.
  */
 public class IndustrialFanBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
@@ -52,7 +53,6 @@ public class IndustrialFanBlock extends BaseEntityBlock {
         Level level = context.getLevel();
         BlockPos center = context.getClickedPos();
 
-        // Check if 3x3 area is clear
         if (!canPlace3x3(level, center, facing)) {
             return null;
         }
@@ -163,8 +163,23 @@ public class IndustrialFanBlock extends BaseEntityBlock {
     }
 
     @Override
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return Shapes.empty(); // Hollow shape for click/target through
+    }
+
+    @Override
+    public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return Shapes.empty(); // Hollow so rays and players can pass through
+    }
+
+    @Override
     public VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         return Shapes.empty(); // Pass-through visual shape for god rays!
+    }
+
+    @Override
+    public boolean propagatesSkylightDown(BlockState state, BlockGetter reader, BlockPos pos) {
+        return true;
     }
 
     @Nullable

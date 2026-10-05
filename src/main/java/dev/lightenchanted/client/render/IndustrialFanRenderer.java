@@ -39,17 +39,15 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
     public void render(IndustrialFanBlockEntity be, float partialTick, PoseStack poseStack,
                        MultiBufferSource buffers, int packedLight, int packedOverlay) {
         if (!be.isMaster()) {
-            return; // Slave blocks don't render; master renders the full 3x3 assembly
+            return;
         }
 
         Direction facing = be.getFacing();
         float spinAngle = be.getSpinAngle(partialTick);
 
         poseStack.pushPose();
-        // Translate to the center of the 3x3 block (offset 0.5, 0.5, 0.5)
         poseStack.translate(0.5, 0.5, 0.5);
 
-        // Rotate to match block facing direction
         applyFacingRotation(poseStack, facing);
 
         VertexConsumer vcCasing = buffers.getBuffer(RenderType.entitySolid(CASING_TEX));
@@ -83,7 +81,7 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
 
     private static void applyFacingRotation(PoseStack poseStack, Direction facing) {
         switch (facing) {
-            case NORTH -> {} // Default
+            case NORTH -> {}
             case SOUTH -> poseStack.mulPose(new Quaternionf().rotationY((float) Math.PI));
             case WEST -> poseStack.mulPose(new Quaternionf().rotationY((float) (Math.PI / 2.0)));
             case EAST -> poseStack.mulPose(new Quaternionf().rotationY((float) (-Math.PI / 2.0)));
@@ -93,17 +91,17 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
     }
 
     private static void renderCasingBox(VertexConsumer vc, Matrix4f m, Matrix3f n, int light) {
-        float r = 1.48f; // Half-width for 3x3 span (~2.96 blocks)
-        float d = 0.48f; // Half-depth (~0.96 blocks)
+        float r = 1.48f;
+        float d = 0.48f;
         float innerR = 1.25f;
 
-        // Front Face Frame Bevels (North: z = -d)
+        // Front Face Frame Bevels (z = -d)
         quad(vc, m, n, -r, r, -d, r, r, -d, r, innerR, -d, -r, innerR, -d, 0, 1, 0, 0.2f, light);
         quad(vc, m, n, -r, -innerR, -d, r, -innerR, -d, r, -r, -d, -r, -r, -d, 0, 1, 0.8f, 1, light);
         quad(vc, m, n, -r, innerR, -d, -innerR, innerR, -d, -innerR, -innerR, -d, -r, -innerR, -d, 0, 0.2f, 0.2f, 0.8f, light);
         quad(vc, m, n, innerR, innerR, -d, r, innerR, -d, r, -innerR, -d, innerR, -innerR, -d, 0.8f, 1, 0.2f, 0.8f, light);
 
-        // Rear Face Frame Bevels (South: z = +d)
+        // Rear Face Frame Bevels (z = +d)
         quad(vc, m, n, r, r, d, -r, r, d, -r, innerR, d, r, innerR, d, 0, 1, 0, 0.2f, light);
         quad(vc, m, n, r, -innerR, d, -r, -innerR, d, -r, -r, d, r, -r, d, 0, 1, 0.8f, 1, light);
         quad(vc, m, n, r, innerR, d, innerR, innerR, d, innerR, -innerR, d, r, -innerR, d, 0, 0.2f, 0.2f, 0.8f, light);
@@ -131,7 +129,7 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
 
     private static void renderMotorHub(VertexConsumer vc, Matrix4f m, Matrix3f n, int light) {
         float hr = 0.38f;
-        float hd = 0.30f;
+        float hd = 0.28f;
         int segs = 8;
         float tau = (float) (Math.PI * 2.0);
 
@@ -155,10 +153,10 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
         int bladeCount = 5;
         float tau = (float) (Math.PI * 2.0);
         float hubRadius = 0.32f;
-        float bladeLength = 1.18f;
+        float bladeLength = 0.90f;
         float rootWidth = 0.22f;
         float tipWidth = 0.42f;
-        float pitchAngle = 0.38f; // ~22 degrees pitch for realistic aerodynamics
+        float pitchAngle = 0.38f;
 
         for (int i = 0; i < bladeCount; i++) {
             float baseAngle = tau * i / bladeCount;
@@ -167,10 +165,8 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
             float pCos = -sin;
             float pSin = cos;
 
-            // Pitch offset in z
             float zPitch = Mth.sin(pitchAngle) * tipWidth * 0.5f;
 
-            // Root coordinates (attached to hub)
             float rx0 = cos * hubRadius - pCos * (rootWidth * 0.5f);
             float ry0 = sin * hubRadius - pSin * (rootWidth * 0.5f);
             float rz0 = -zPitch * 0.5f;
@@ -179,7 +175,6 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
             float ry1 = sin * hubRadius + pSin * (rootWidth * 0.5f);
             float rz1 = zPitch * 0.5f;
 
-            // Tip coordinates (near outer rim)
             float tx0 = cos * (hubRadius + bladeLength) - pCos * (tipWidth * 0.5f);
             float ty0 = sin * (hubRadius + bladeLength) - pSin * (tipWidth * 0.5f);
             float tz0 = -zPitch;
@@ -188,7 +183,6 @@ public class IndustrialFanRenderer implements BlockEntityRenderer<IndustrialFanB
             float ty1 = sin * (hubRadius + bladeLength) + pSin * (tipWidth * 0.5f);
             float tz1 = zPitch;
 
-            // Two-sided blade quad
             quad(vc, m, n, rx0, ry0, rz0, rx1, ry1, rz1, tx1, ty1, tz1, tx0, ty0, tz0, 0, 1, 0, 1, light);
             quad(vc, m, n, tx0, ty0, tz0, tx1, ty1, tz1, rx1, ry1, rz1, rx0, ry0, rz0, 0, 1, 0, 1, light);
         }
