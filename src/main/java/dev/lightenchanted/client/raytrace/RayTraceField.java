@@ -26,10 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * STR 2.2.3 High-Precision 3D Raytracer:
+ * STR 2.2.4 High-Precision 3D Raytracer:
  *
  * True pixel-accurate raymarching with robust barycentric triangle intersection,
- * 6-axis fan blade shadow casting, obstacle collection, and floor photon decals.
+ * transparent block light pass-through, 6-axis fan blade shadow casting, and floor photon decals.
  */
 public class RayTraceField {
     public static final int RINGS = 8;
@@ -172,7 +172,7 @@ public class RayTraceField {
             }
         }
 
-        // Fast terrain floor raycast that passes through hollow/transparent blocks
+        // Fast terrain floor raycast that passes through all transparent/hollow blocks to the true ground
         double defaultTerrainDist = findTerrainFloorDist(level, emitterPos, origin, dir, maxDist);
 
         // March all 193 rays
@@ -259,14 +259,17 @@ public class RayTraceField {
             if (!level.hasChunkAt(mpos)) break;
 
             BlockState bs = level.getBlockState(mpos);
+            // Ignore air, lights, fans, emitters, and transparent/non-solid blocks
             if (bs.isAir() || bs.is(Blocks.LIGHT) || bs.canBeReplaced()
                     || bs.getBlock() instanceof IndustrialFanBlock
                     || bs.getBlock() instanceof IndustrialFanSlaveBlock
-                    || bs.getBlock() instanceof LightEmitterBlock) {
+                    || bs.getBlock() instanceof LightEmitterBlock
+                    || !bs.isSolidRender(level, mpos)) {
                 continue;
             }
 
-            if (bs.isSolidRender(level, mpos) || !bs.getVisualShape(level, mpos, CollisionContext.empty()).isEmpty()) {
+            // Stop only on truly solid full ground/wall blocks
+            if (bs.isSolidRender(level, mpos)) {
                 return d;
             }
         }

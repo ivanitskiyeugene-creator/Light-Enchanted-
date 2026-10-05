@@ -177,39 +177,43 @@ def gen_tuner_texture(path, size=16):
 
 
 def gen_industrial_fan_casing(path, size=32):
+    """SCP SL HCZ Heavy Containment Fan Casing: Pure dark gunmetal containment steel with rivets and beveled plates (NO yellow stripes)."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             noise = hash01(x * 73 + y * 19)
-            base = 0.16 + 0.05 * noise
-            r, g, b = base * 0.9, base * 0.95, base * 1.05
+            base = 0.20 + 0.06 * noise
+            r, g, b = base * 0.92, base * 0.96, base * 1.04
 
+            # Outer border bevel
             is_border = (x < 2 or x >= size - 2 or y < 2 or y >= size - 2)
             if is_border:
-                r *= 0.7
-                g *= 0.7
-                b *= 0.7
+                r *= 0.65
+                g *= 0.65
+                b *= 0.65
 
-            for cx, cy in [(2, 2), (size - 3, 2), (2, size - 3), (size - 3, size - 3)]:
-                if math.hypot(x - cx, y - cy) < 1.4:
-                    r, g, b = 0.45, 0.48, 0.52
+            # Heavy steel rivets in corners and along bevels
+            for cx, cy in [(3, 3), (size - 4, 3), (3, size - 4), (size - 4, size - 4),
+                           (16, 2), (16, size - 3), (2, 16), (size - 3, 16)]:
+                if math.hypot(x - cx, y - cy) < 1.3:
+                    r, g, b = 0.50, 0.54, 0.60
 
-            is_rim = (x < 4 or x >= size - 4 or y < 4 or y >= size - 4) and not is_border
+            # Subtle brushed metal rim bevel (pure gunmetal steel)
+            is_rim = (x in (3, 4, size - 5, size - 4) or y in (3, 4, size - 5, size - 4))
             if is_rim:
-                stripe = ((x + y) // 3) % 2
-                if stripe == 0:
-                    r, g, b = 0.85, 0.72, 0.08
-                else:
-                    r, g, b = 0.12, 0.12, 0.14
+                r *= 1.25
+                g *= 1.25
+                b *= 1.25
 
+            # Circular opening bevel
             d = math.hypot(x - c, y - c)
             if d < (size * 0.44):
-                inner_shade = 0.14 + 0.04 * hash01(x * 13 + y * 41)
-                r, g, b = inner_shade * 0.9, inner_shade * 0.95, inner_shade * 1.05
-            if abs(d - (size * 0.44)) < 1.0:
-                r, g, b = 0.35, 0.38, 0.42
+                inner_shade = 0.15 + 0.05 * hash01(x * 13 + y * 41)
+                r, g, b = inner_shade * 0.92, inner_shade * 0.96, inner_shade * 1.04
+            if abs(d - (size * 0.44)) < 1.2:
+                r, g, b = 0.42, 0.46, 0.52
 
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
@@ -222,32 +226,31 @@ def gen_industrial_fan_blade(path, size=32):
         row = []
         for x in range(size):
             noise = hash01(x * 17 + y * 29)
-            base = 0.35 + 0.10 * noise
-            spec = smoothstep(0.0, 1.0, (x / size)) * 0.20
+            base = 0.38 + 0.10 * noise
+            spec = smoothstep(0.0, 1.0, (x / size)) * 0.22
             r = base * 0.92 + spec
             g = base * 0.96 + spec
             b = base * 1.05 + spec
             if x == 0 or x == size - 1 or y == 0 or y == size - 1:
-                r *= 0.6
-                g *= 0.6
-                b *= 0.6
+                r *= 0.55
+                g *= 0.55
+                b *= 0.55
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
 def gen_industrial_fan_grate(path, size=32):
-    """Heavy industrial steel rebar safety grating with large open air cells."""
+    """Heavy industrial steel rebar safety grating with clean open air cells."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            # Clean rebar grid: 2px bar every 8 pixels (lots of open space for rays!)
             is_bar_x = (x % 8 in (0, 1))
             is_bar_y = (y % 8 in (0, 1))
             if is_bar_x or is_bar_y:
                 noise = hash01(x * 37 + y * 13)
-                shade = 0.42 + 0.12 * noise
+                shade = 0.45 + 0.12 * noise
                 r, g, b = shade * 0.95, shade * 0.98, shade * 1.08
                 a = 255
             else:

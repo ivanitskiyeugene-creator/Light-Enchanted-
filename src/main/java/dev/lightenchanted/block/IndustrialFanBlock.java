@@ -15,7 +15,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -31,7 +33,6 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * SCP:SL Heavy Containment Zone (HCZ) 3x3 Industrial Ventilation Fan (Master Block).
- * Fully hollow for light pass-through and god ray casting.
  */
 public class IndustrialFanBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
@@ -162,19 +163,22 @@ public class IndustrialFanBlock extends BaseEntityBlock {
         return RenderShape.MODEL;
     }
 
+    // Selection outline so player can aim at, right click, and mine/break the block
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return Shapes.empty(); // Hollow shape for click/target through
+        return Shapes.block();
     }
 
+    // Collision box (walkable)
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return Shapes.empty(); // Hollow so rays and players can pass through
+        return Shapes.block();
     }
 
+    // Visual shape for light propagation: empty so Minecraft lighting and skylight pass through
     @Override
     public VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return Shapes.empty(); // Pass-through visual shape for god rays!
+        return Shapes.empty();
     }
 
     @Override
