@@ -34,6 +34,8 @@
 
     "message.lightenchanted.tuner_linked": "Emitter bound: %d, %d, %d",
     "message.lightenchanted.tuner_target_set": "Beam target set",
+    "message.lightenchanted.tuner_cleared": "Tuner binding cleared",
+    "message.lightenchanted.target_cleared": "Beam target cleared",
     "message.lightenchanted.tuner_too_far": "Too far away (max %d blocks)",
     "message.lightenchanted.tuner_missing": "Bound emitter not found",
 

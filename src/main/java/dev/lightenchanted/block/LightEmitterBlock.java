@@ -3,6 +3,7 @@ package dev.lightenchanted.block;
 import dev.lightenchanted.beam.BeamConfig;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
 import dev.lightenchanted.client.ClientHooks;
+import dev.lightenchanted.init.ModBlockEntities;
 import dev.lightenchanted.item.BeamTunerItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
@@ -14,6 +15,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
@@ -40,6 +43,15 @@ public class LightEmitterBlock extends BaseEntityBlock {
         return new LightEmitterBlockEntity(pos, state);
     }
 
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide) {
+            return null;
+        }
+        return createTickerHelper(type, ModBlockEntities.LIGHT_EMITTER.get(), LightEmitterBlockEntity::serverTick);
+    }
+
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {
@@ -47,8 +59,7 @@ public class LightEmitterBlock extends BaseEntityBlock {
             return InteractionResult.PASS;
         }
 
-        // With a tuner in hand, the item must get the interaction first
-        // (binding / target setting). Otherwise the GUI would swallow the click.
+        // With a tuner in hand, pass through so the item's useOn can bind/set targets
         if (player.getItemInHand(hand).getItem() instanceof BeamTunerItem) {
             return InteractionResult.PASS;
         }

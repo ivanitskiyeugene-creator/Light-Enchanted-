@@ -85,23 +85,27 @@ def gen_block_texture(path, size=16):
 
 
 def gen_beam_texture(path, size=64):
-    """Beam gradient: very soft horizontal edges, faint vertical energy streaks.
-
-    Alpha controls the glow falloff; RGB stays near-white so the render
-    can tint it to any configured color. Tuned for additive blending:
-    a hot narrow core that melts into a wide faint halo.
+    """Beam gradient: soft horizontal edges, faint vertical energy streaks,
+    and smooth vertical fade-out at both ends (especially the impact end)
+    so the cone/cylinder melts into surfaces and the sky without hard cuts.
     """
     pixels = []
     for y in range(size):
         row = []
-        v = y / (size - 1)
+        v = y / (size - 1)  # 0 at emitter origin, 1 at target/end
+        # Smooth vertical fade: stays full in middle, fades out at ends
+        fade_top = smoothstep(0.0, 0.04, v)
+        fade_bottom = smoothstep(1.0, 0.78, v)
+        v_fade = fade_top * fade_bottom
+
         for x in range(size):
             u = x / (size - 1)
-            edge = math.pow(math.sin(math.pi * u), 2.6)          # strong center glow
-            streak = 0.86 + 0.14 * hash01(x * 17 + 3)            # per-column energy
-            shimmer = 0.93 + 0.07 * math.sin(v * 20.0 + hash01(x) * 6.2831)
-            a = clamp(edge * streak * shimmer)
-            brightness = 0.82 + 0.18 * edge
+            # Center-heavy horizontal falloff (smooth power curve)
+            edge = math.pow(math.sin(math.pi * u), 2.2)
+            streak = 0.88 + 0.12 * hash01(x * 19 + 7)
+            shimmer = 0.94 + 0.06 * math.sin(v * 16.0 + hash01(x) * 6.2831)
+            a = clamp(edge * streak * shimmer * v_fade)
+            brightness = 0.85 + 0.15 * edge
             row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255),
                         int(a * 255)))
         pixels.append(row)

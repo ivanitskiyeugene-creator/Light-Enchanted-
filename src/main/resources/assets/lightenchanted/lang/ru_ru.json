@@ -34,6 +34,8 @@
 
     "message.lightenchanted.tuner_linked": "Излучатель привязан: %d, %d, %d",
     "message.lightenchanted.tuner_target_set": "Цель луча установлена",
+    "message.lightenchanted.tuner_cleared": "Привязка тюнера сброшена",
+    "message.lightenchanted.target_cleared": "Цель луча сброшена",
     "message.lightenchanted.tuner_too_far": "Слишком далеко (макс. %d блоков)",
     "message.lightenchanted.tuner_missing": "Привязанный излучатель не найден",
 

@@ -28,14 +28,17 @@ import org.joml.Quaternionf;
 /**
  * Renders the beam.
  *
- * The beam is built in a local space stretched along +Y. If a target point is
- * set, that space is rotated so +Y points from the origin to the target;
- * otherwise the beam goes straight up or down (default: down). The origin can
- * be shifted per-axis (used by the invisible creative emitter). Soft additive
- * billboard "glow dots" mark the source and the impact point.
+ * Uses {@link RenderType#beaconBeam(ResourceLocation, boolean)} with a custom
+ * soft gradient texture. This standard pipeline is fully recognized and hooked
+ * by Iris, Oculus, OptiFine, and vanilla shaders for post-process bloom,
+ * volumetric god-rays, depth-buffer sorting, and distance fog.
  *
- * Everything renders through our additive, no-cull render type with a soft
- * gradient texture tinted per-vertex.
+ * Geometry features:
+ * - Aimed spotlight cone penetrates slightly into surfaces and fades vertically
+ *   to avoid any floating circular cutoffs.
+ * - Flat glowing ground disc at the impact point.
+ * - Smooth distance fade for long-range beams (smooth falloff beyond 30-50 blocks).
+ * - Per-axis creative offset and ghost preview box.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
@@ -72,40 +75,42 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         boolean aimed = cfg.hasTarget;
         double dx = 0.0, dy = 1.0, dz = 0.0;
         float originY = 1.0f + cfg.offsetY;
-        float height = 0.0f;
+        float actualDist = 0.0f;
+        float renderHeight = 0.0f;
 
         if (aimed) {
             dx = cfg.targetX - originBaseWorldX;
             dy = cfg.targetY - originBaseWorldY;
             dz = cfg.targetZ - originBaseWorldZ;
             double lenSq = dx * dx + dy * dy + dz * dz;
-            if (lenSq < 0.0625) { // less than 0.25 blocks: degenerate, fall back
+            if (lenSq < 0.0625) { // less than 0.25 blocks: degenerate
                 aimed = false;
             } else {
                 double len = Math.sqrt(lenSq);
-                height = (float) len;
+                actualDist = (float) len;
                 dx /= len;
                 dy /= len;
                 dz /= len;
+                // Extend cone slightly past impact point so the tilted circular rim
+                // sinks into the ground rather than floating as an arc in mid-air.
+                float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
+                renderHeight = actualDist + Math.max(0.6f, endW * 0.45f);
             }
         }
         if (!aimed) {
             if (cfg.toSky) {
-                height = cfg.down
-                        ? Math.max(BeamConfig.MIN_HEIGHT, (float) (pos.getY() - level.getMinBuildHeight()) + cfg.offsetY)
-                        : Math.max(BeamConfig.MIN_HEIGHT, level.getMaxBuildHeight() - pos.getY() - 1.0f + cfg.offsetY);
+                // To-sky beams fade gracefully into the atmosphere over 60-80 blocks
+                renderHeight = 72.0f;
+                actualDist = renderHeight;
             } else {
-                height = Math.max(BeamConfig.MIN_HEIGHT, cfg.height);
+                renderHeight = Math.max(BeamConfig.MIN_HEIGHT, cfg.height);
+                actualDist = renderHeight;
             }
             if (cfg.down) {
                 dy = -1.0;
                 originY = 0.0f + cfg.offsetY;
             }
         }
-
-        float endRelX = originX + (float) dx * height;
-        float endRelY = originY + (float) dy * height;
-        float endRelZ = originZ + (float) dz * height;
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
@@ -124,10 +129,15 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             b = (cfg.color & 0xFF) / 255.0f;
         }
 
-        // ---- alpha & pulse (additive stacking: keep singles modest)
+        // ---- alpha & smooth distance falloff (> 30-50 blocks)
         float alpha = cfg.alpha / 255.0f;
         if (cfg.pulse > 0.001f) {
-            alpha *= 0.55f + 0.45f * Mth.sin(time * cfg.pulse * 2.4f);
+            alpha *= 0.60f + 0.40f * Mth.sin(time * cfg.pulse * 2.4f);
+        }
+        if (actualDist > 30.0f) {
+            // Smooth attenuation beyond 30 blocks: 50 blocks -> ~65%, 80 blocks -> ~45%
+            float distFactor = 1.0f / (1.0f + 0.022f * (actualDist - 30.0f));
+            alpha *= distFactor;
         }
         if (alpha < 0.005f) {
             alpha = 0.0f;
@@ -135,19 +145,19 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float rot = cfg.rotation > 0.001f ? time * cfg.rotation * 1.3f : 0.0f;
 
-        // Core is whiter/hotter than the shell; shells stay faint because the
-        // additive blending stacks every overlapping quad on top.
-        float coreR = r * 0.6f + 0.4f;
-        float coreG = g * 0.6f + 0.4f;
-        float coreB = b * 0.6f + 0.4f;
-        float coreAlpha = alpha * 0.55f;
-        float glowAlpha = Math.min(1.0f, alpha * (0.13f + 0.10f * cfg.glow));
+        // Core is hotter/whiter; shell provides the soft colored halo
+        float coreR = r * 0.5f + 0.5f;
+        float coreG = g * 0.5f + 0.5f;
+        float coreB = b * 0.5f + 0.5f;
+        float coreAlpha = alpha * 0.70f;
+        float glowAlpha = Math.min(1.0f, alpha * (0.18f + 0.12f * cfg.glow));
 
         float w = Math.max(BeamConfig.MIN_WIDTH, cfg.width);
         float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
-        float glowScale = 1.0f + 0.45f * cfg.glow;
+        float glowScale = 1.0f + 0.50f * cfg.glow;
 
-        RenderType beamType = ModRenderTypes.beam(BEAM_TEXTURE);
+        // Standard beacon-beam render type (full shader & Iris/Oculus compatibility)
+        RenderType beamType = RenderType.beaconBeam(BEAM_TEXTURE, true);
         VertexConsumer vc = buffers.getBuffer(beamType);
 
         if (alpha > 0.0f) {
@@ -164,56 +174,63 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
             switch (cfg.shape) {
                 case CLASSIC -> {
-                    squareColumn(vc, mat, nmat, w * 0.5f, height, rot, coreR, coreG, coreB, coreAlpha);
-                    squareColumn(vc, mat, nmat, w * 0.5f * glowScale, height, rot, r, g, b, glowAlpha);
+                    squareColumn(vc, mat, nmat, w * 0.5f, renderHeight, rot, coreR, coreG, coreB, coreAlpha);
+                    squareColumn(vc, mat, nmat, w * 0.5f * glowScale, renderHeight, rot, r, g, b, glowAlpha);
                 }
-                case CYLINDER -> { // constant-radius "laser"
-                    cylinder(vc, mat, nmat, w * 0.4f, w * 0.4f, height, 12, rot, coreR, coreG, coreB, coreAlpha);
-                    cylinder(vc, mat, nmat, w * 0.4f * glowScale, w * 0.4f * glowScale, height, 12, rot, r, g, b, glowAlpha);
+                case CYLINDER -> {
+                    cylinder(vc, mat, nmat, w * 0.4f, w * 0.4f, renderHeight, 14, rot, coreR, coreG, coreB, coreAlpha);
+                    cylinder(vc, mat, nmat, w * 0.4f * glowScale, w * 0.4f * glowScale, renderHeight, 14, rot, r, g, b, glowAlpha);
                 }
-                case CONE -> { // spotlight: narrow at the source, wide at the target
-                    float r0 = Math.max(0.02f, w * 0.15f);
+                case CONE -> {
+                    float r0 = Math.max(0.03f, w * 0.15f);
                     float r1 = endW * 0.5f;
-                    cylinder(vc, mat, nmat, r0, r1, height, 16, rot, coreR, coreG, coreB, coreAlpha);
-                    cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, height, 16, rot, r, g, b, glowAlpha);
+                    cylinder(vc, mat, nmat, r0, r1, renderHeight, 16, rot, coreR, coreG, coreB, coreAlpha);
+                    cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot, r, g, b, glowAlpha);
                 }
                 case HELIX -> {
-                    helix(vc, mat, nmat, w * 0.5f, height, rot, r, g, b, alpha * 0.7f);
-                    cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, height, 8, rot,
+                    helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
+                    cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
                             coreR, coreG, coreB, coreAlpha * 0.7f);
                 }
                 case SHEET -> {
-                    sheet(vc, mat, nmat, w, height, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
-                    sheet(vc, mat, nmat, w * glowScale, height, rot + HALF_PI, r, g, b, glowAlpha);
+                    sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
+                    sheet(vc, mat, nmat, w * glowScale, renderHeight, rot + HALF_PI, r, g, b, glowAlpha);
                 }
                 case STAR -> {
                     for (int i = 0; i < 4; i++) {
-                        sheet(vc, mat, nmat, w, height, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
+                        sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
                     }
-                    cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, height, 8, rot,
+                    cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
                             coreR, coreG, coreB, coreAlpha * 0.6f);
                 }
             }
             poseStack.popPose();
 
-            // ---- glow dots at both ends (camera-facing billboards)
+            // ---- glow dots at origin and impact
             Quaternionf cam = Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation();
-            float endRadius = cfg.shape == BeamShape.CONE
-                    ? Math.max(0.12f, endW * 0.40f)
-                    : Math.max(0.10f, w * 0.45f);
-
             glowDot(vc, poseStack, cam, originX, originY, originZ,
-                    Math.max(0.08f, w * 0.30f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.5f));
-            glowDot(vc, poseStack, cam, endRelX, endRelY, endRelZ,
-                    endRadius, coreR, coreG, coreB, alpha * 0.30f);
+                    Math.max(0.08f, w * 0.32f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.6f));
+
+            if (aimed) {
+                // Impact ground pool disc
+                double hitRelX = cfg.targetX - pos.getX();
+                double hitRelY = cfg.targetY - pos.getY() + 0.02;
+                double hitRelZ = cfg.targetZ - pos.getZ();
+                float groundRadius = cfg.shape == BeamShape.CONE
+                        ? Math.max(0.25f, endW * 0.48f)
+                        : Math.max(0.20f, w * 0.45f);
+
+                flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
+                        coreR, coreG, coreB, Math.min(1.0f, alpha * 0.75f));
+            }
         }
 
         // ---- creative ghost box + origin marker while holding a tool
         if (showGhost) {
-            ghostCube(vc, poseStack, 0.55f, 0.85f, 1.0f, 0.10f);
+            ghostCube(vc, poseStack, 0.55f, 0.85f, 1.0f, 0.12f);
             Quaternionf cam = Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation();
             glowDot(vc, poseStack, cam, originX, originY, originZ,
-                    0.10f, 0.6f, 1.0f, 1.0f, 0.6f);
+                    0.12f, 0.6f, 1.0f, 1.0f, 0.7f);
         }
     }
 
@@ -233,7 +250,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
     // ------------------------------------------------------------ geometry
 
-    /** Four-sided square tube. */
+    /** Four-sided square tube (two-sided for clean interior and exterior). */
     private static void squareColumn(VertexConsumer vc, Matrix4f m, Matrix3f n, float half, float height,
                                      float rot, float r, float g, float b, float a) {
         for (int i = 0; i < 4; i++) {
@@ -243,14 +260,14 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             float z0 = half * Mth.sin(a0);
             float x1 = half * Mth.cos(a1);
             float z1 = half * Mth.sin(a1);
-            quad(vc, m, n,
+            twoSidedQuad(vc, m, n,
                     x0, 0, z0, x1, 0, z1,
                     x1, height, z1, x0, height, z0,
-                    r, g, b, a, 0.0f, 1.0f, 0.0f, height);
+                    r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
         }
     }
 
-    /** Polygonal prism; different top/bottom radii turn it into a cone. */
+    /** Polygonal prism/cone (two-sided). */
     private static void cylinder(VertexConsumer vc, Matrix4f m, Matrix3f n, float rBottom, float rTop,
                                  float height, int segments, float rot,
                                  float r, float g, float b, float a) {
@@ -259,20 +276,20 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             float a1 = rot + TAU * (i + 1) / segments;
             float cb0 = Mth.cos(a0), sb0 = Mth.sin(a0);
             float cb1 = Mth.cos(a1), sb1 = Mth.sin(a1);
-            quad(vc, m, n,
+            twoSidedQuad(vc, m, n,
                     rBottom * cb0, 0, rBottom * sb0,
                     rBottom * cb1, 0, rBottom * sb1,
                     rTop * cb1, height, rTop * sb1,
                     rTop * cb0, height, rTop * sb0,
                     r, g, b, a,
-                    (float) i / segments, (float) (i + 1) / segments, 0.0f, height);
+                    (float) i / segments, (float) (i + 1) / segments, 0.0f, 1.0f);
         }
     }
 
-    /** Two ribbons spiralling around the core, 180 degrees apart. */
+    /** Two ribbons spiralling around the core. */
     private static void helix(VertexConsumer vc, Matrix4f m, Matrix3f n, float radius, float height,
                               float rot, float r, float g, float b, float a) {
-        int slices = Mth.clamp(Mth.ceil(height / 0.3f), 8, 1500);
+        int slices = Mth.clamp(Mth.ceil(height / 0.35f), 8, 800);
         float step = height / slices;
         float halfWidth = Math.max(0.05f, radius * 0.35f);
         float inner = Math.max(0.02f, radius - halfWidth);
@@ -285,31 +302,31 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 float y1 = y0 + step;
                 float ang0 = rot + phase + y0 * 1.1f;
                 float ang1 = rot + phase + y1 * 1.1f;
-                quad(vc, m, n,
+                twoSidedQuad(vc, m, n,
                         inner * Mth.cos(ang0), y0, inner * Mth.sin(ang0),
                         outer * Mth.cos(ang0), y0, outer * Mth.sin(ang0),
                         outer * Mth.cos(ang1), y1, outer * Mth.sin(ang1),
                         inner * Mth.cos(ang1), y1, inner * Mth.sin(ang1),
-                        r, g, b, a, 0.0f, 1.0f, y0, y1);
+                        r, g, b, a, 0.0f, 1.0f, y0 / height, y1 / height);
             }
         }
     }
 
-    /** Single vertical plane of given width, rotated by {@code angle} around the beam axis. */
+    /** Single vertical plane of given width. */
     private static void sheet(VertexConsumer vc, Matrix4f m, Matrix3f n, float width, float height,
                               float angle, float r, float g, float b, float a) {
         float c = Mth.cos(angle);
         float s = Mth.sin(angle);
         float hw = width * 0.5f;
-        quad(vc, m, n,
+        twoSidedQuad(vc, m, n,
                 -hw * c, 0, -hw * s,
                 hw * c, 0, hw * s,
                 hw * c, height, hw * s,
                 -hw * c, height, -hw * s,
-                r, g, b, a, 0.0f, 1.0f, 0.0f, height);
+                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
     }
 
-    /** Camera-facing glowing dot. */
+    /** Camera-facing billboard glowing dot. */
     private static void glowDot(VertexConsumer vc, PoseStack poseStack, Quaternionf cam,
                                 double x, double y, double z, float radius,
                                 float r, float g, float b, float a) {
@@ -318,9 +335,26 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.mulPose(cam);
         Matrix4f m = poseStack.last().pose();
         Matrix3f n = poseStack.last().normal();
-        quad(vc, m, n,
+        twoSidedQuad(vc, m, n,
                 -radius, -radius, 0.0f, radius, -radius, 0.0f,
                 radius, radius, 0.0f, -radius, radius, 0.0f,
+                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
+        poseStack.popPose();
+    }
+
+    /** Flat glowing disc lying on the floor at the impact location. */
+    private static void flatGroundDisc(VertexConsumer vc, PoseStack poseStack,
+                                      double x, double y, double z, float radius,
+                                      float r, float g, float b, float a) {
+        poseStack.pushPose();
+        poseStack.translate(x, y, z);
+        Matrix4f m = poseStack.last().pose();
+        Matrix3f n = poseStack.last().normal();
+        twoSidedQuad(vc, m, n,
+                -radius, 0.0f, -radius,
+                radius, 0.0f, -radius,
+                radius, 0.0f, radius,
+                -radius, 0.0f, radius,
                 r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
         poseStack.popPose();
     }
@@ -329,25 +363,20 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
     private static void ghostCube(VertexConsumer vc, PoseStack poseStack,
                                   float r, float g, float b, float a) {
         poseStack.pushPose();
-        poseStack.scale(1.0f, 1.0f, 1.0f);
         Matrix4f m = poseStack.last().pose();
         Matrix3f n = poseStack.last().normal();
         float o = -0.002f;
         float p = 1.002f;
-        // bottom / top
-        quad(vc, m, n, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, r, g, b, a, 0, 1, 0, 1);
-        quad(vc, m, n, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, r, g, b, a, 0, 1, 0, 1);
-        // sides
-        quad(vc, m, n, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, r, g, b, a, 0, 1, 0, 1);
-        quad(vc, m, n, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, r, g, b, a, 0, 1, 0, 1);
-        quad(vc, m, n, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, r, g, b, a, 0, 1, 0, 1);
-        quad(vc, m, n, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, r, g, b, a, 0, 1, 0, 1);
-        // thin edge frame so the box reads clearly
+        twoSidedQuad(vc, m, n, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, r, g, b, a, 0, 1, 0, 1);
+        twoSidedQuad(vc, m, n, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, r, g, b, a, 0, 1, 0, 1);
+        twoSidedQuad(vc, m, n, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, r, g, b, a, 0, 1, 0, 1);
+        twoSidedQuad(vc, m, n, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, r, g, b, a, 0, 1, 0, 1);
+        twoSidedQuad(vc, m, n, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, r, g, b, a, 0, 1, 0, 1);
+        twoSidedQuad(vc, m, n, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, r, g, b, a, 0, 1, 0, 1);
         frame(vc, m, n, o, p, r, g, b, Math.min(1.0f, a * 2.5f));
         poseStack.popPose();
     }
 
-    /** Four upright corner strips acting as a bright frame of the ghost cube. */
     private static void frame(VertexConsumer vc, Matrix4f m, Matrix3f n,
                               float o, float p, float r, float g, float b, float a) {
         float t = 0.015f;
@@ -356,23 +385,30 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             float z = (i < 2) ? o : p;
             float x1 = (i == 0 || i == 3) ? t : -t;
             float z1 = (i < 2) ? t : -t;
-            quad(vc, m, n, x, 0, z, x + x1, 0, z, x + x1, 1, z, x, 1, z, r, g, b, a, 0, 1, 0, 1);
-            quad(vc, m, n, x, 0, z, x, 0, z + z1, x, 1, z + z1, x, 1, z, r, g, b, a, 0, 1, 0, 1);
+            twoSidedQuad(vc, m, n, x, 0, z, x + x1, 0, z, x + x1, 1, z, x, 1, z, r, g, b, a, 0, 1, 0, 1);
+            twoSidedQuad(vc, m, n, x, 0, z, x, 0, z + z1, x, 1, z + z1, x, 1, z, r, g, b, a, 0, 1, 0, 1);
         }
     }
 
     // ------------------------------------------------------------ plumbing
 
-    /** Emits a single-winding quad; the render type disables culling. */
-    private static void quad(VertexConsumer vc, Matrix4f m, Matrix3f n,
-                             float x1, float y1, float z1, float x2, float y2, float z2,
-                             float x3, float y3, float z3, float x4, float y4, float z4,
-                             float r, float g, float b, float a,
-                             float u0, float u1, float v0, float v1) {
+    /** Emits a two-sided quad (both front and back windings). */
+    private static void twoSidedQuad(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                    float x1, float y1, float z1, float x2, float y2, float z2,
+                                    float x3, float y3, float z3, float x4, float y4, float z4,
+                                    float r, float g, float b, float a,
+                                    float u0, float u1, float v0, float v1) {
+        // Front face
         vertex(vc, m, n, x1, y1, z1, r, g, b, a, u0, v0);
         vertex(vc, m, n, x2, y2, z2, r, g, b, a, u1, v0);
         vertex(vc, m, n, x3, y3, z3, r, g, b, a, u1, v1);
         vertex(vc, m, n, x4, y4, z4, r, g, b, a, u0, v1);
+
+        // Back face
+        vertex(vc, m, n, x4, y4, z4, r, g, b, a, u0, v1);
+        vertex(vc, m, n, x3, y3, z3, r, g, b, a, u1, v1);
+        vertex(vc, m, n, x2, y2, z2, r, g, b, a, u1, v0);
+        vertex(vc, m, n, x1, y1, z1, r, g, b, a, u0, v0);
     }
 
     private static void vertex(VertexConsumer vc, Matrix4f m, Matrix3f n,
@@ -407,7 +443,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
     @Override
     public boolean shouldRenderOffScreen(LightEmitterBlockEntity be) {
-        // The beam can extend far away from the block itself.
         return true;
     }
 
