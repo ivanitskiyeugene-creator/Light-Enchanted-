@@ -56,26 +56,27 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
         BlockPos pos = be.getBlockPos();
 
-        // ---- origin (block-relative, includes the creative offset)
+        // ---- Origin in block-space and world-space
         float originX = 0.5f + cfg.offsetX;
         float originZ = 0.5f + cfg.offsetZ;
-        double originBaseWorldX = pos.getX() + 0.5 + cfg.offsetX;
-        double originBaseWorldY = pos.getY() + 1.0 + cfg.offsetY;
-        double originBaseWorldZ = pos.getZ() + 0.5 + cfg.offsetZ;
-
-        // ---- direction & length
         boolean aimed = cfg.hasTarget;
+        float originY = (aimed || !cfg.down) ? (1.0f + cfg.offsetY) : (0.0f + cfg.offsetY);
+
+        double worldOriginX = pos.getX() + originX;
+        double worldOriginY = pos.getY() + originY;
+        double worldOriginZ = pos.getZ() + originZ;
+
+        // ---- Direction & length
         double dx = 0.0, dy = 1.0, dz = 0.0;
-        float originY = 1.0f + cfg.offsetY;
         float actualDist = 0.0f;
         float renderHeight = 0.0f;
 
         if (aimed) {
-            dx = cfg.targetX - originBaseWorldX;
-            dy = cfg.targetY - originBaseWorldY;
-            dz = cfg.targetZ - originBaseWorldZ;
+            dx = cfg.targetX - worldOriginX;
+            dy = cfg.targetY - worldOriginY;
+            dz = cfg.targetZ - worldOriginZ;
             double lenSq = dx * dx + dy * dy + dz * dz;
-            if (lenSq < 0.0625) { // less than 0.25 blocks: degenerate
+            if (lenSq < 0.0625) {
                 aimed = false;
             } else {
                 double len = Math.sqrt(lenSq);
@@ -97,13 +98,12 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             }
             if (cfg.down) {
                 dy = -1.0;
-                originY = 0.0f + cfg.offsetY;
             }
         }
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
-        // ---- color
+        // ---- Color
         float r, g, b;
         if (cfg.rainbow) {
             float hue = (time * 0.02f) % 1.0f;
@@ -118,7 +118,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             b = (cfg.color & 0xFF) / 255.0f;
         }
 
-        // ---- alpha & smooth distance falloff (> 30-50 blocks)
+        // ---- Alpha & distance falloff
         float alpha = cfg.alpha / 255.0f;
         if (cfg.pulse > 0.001f) {
             alpha *= 0.60f + 0.40f * Mth.sin(time * cfg.pulse * 2.4f);
@@ -143,12 +143,11 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
         float glowScale = 1.0f + 0.50f * cfg.glow;
 
-        // ---- Shadow / GOBO mask calculation
-        Vec3 originVec = new Vec3(originBaseWorldX, pos.getY() + originY + cfg.offsetY, originBaseWorldZ);
+        // ---- Shadow mask raytracing
+        Vec3 originVec = new Vec3(worldOriginX, worldOriginY, worldOriginZ);
         Vec3 dirVec = new Vec3(dx, dy, dz);
         ResourceLocation shadowTex = BeamShadowManager.getShadowTexture(be, originVec, dirVec, endW);
 
-        // Standard render buffer
         VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
 
         if (alpha > 0.0f) {
@@ -163,62 +162,74 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             Matrix4f mat = poseStack.last().pose();
             Matrix3f nmat = poseStack.last().normal();
 
-            switch (cfg.shape) {
-                case CLASSIC -> {
-                    squareColumn(vc, mat, nmat, w * 0.5f, renderHeight, rot, coreR, coreG, coreB, coreAlpha);
-                    squareColumn(vc, mat, nmat, w * 0.5f * glowScale, renderHeight, rot, r, g, b, glowAlpha);
-                }
-                case CYLINDER -> {
-                    cylinder(vc, mat, nmat, w * 0.4f, w * 0.4f, renderHeight, 14, rot, coreR, coreG, coreB, coreAlpha);
-                    cylinder(vc, mat, nmat, w * 0.4f * glowScale, w * 0.4f * glowScale, renderHeight, 14, rot, r, g, b, glowAlpha);
-                }
-                case CONE -> {
-                    float r0 = Math.max(0.03f, w * 0.15f);
-                    float r1 = endW * 0.5f;
-                    cylinder(vc, mat, nmat, r0, r1, renderHeight, 16, rot, coreR, coreG, coreB, coreAlpha);
-                    cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot, r, g, b, glowAlpha);
-                }
-                case HELIX -> {
-                    helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
-                    cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
-                            coreR, coreG, coreB, coreAlpha * 0.7f);
-                }
-                case SHEET -> {
-                    sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
-                    sheet(vc, mat, nmat, w * glowScale, renderHeight, rot + HALF_PI, r, g, b, glowAlpha);
-                }
-                case STAR -> {
-                    for (int i = 0; i < 4; i++) {
-                        sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
-                    }
-                    cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
-                            coreR, coreG, coreB, coreAlpha * 0.6f);
-                }
-            }
-
-            // ---- Volumetric God-Ray Shafts passing through obstacle holes
             if (shadowTex != null) {
+                // ---- When obstacles exist: render volumetric god rays textured by shadow mask
                 VertexConsumer shadowVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
                 float r0 = Math.max(0.03f, w * 0.15f);
                 float r1 = cfg.shape == BeamShape.CONE ? endW * 0.5f : w * 0.4f;
 
-                // Render internal cross-sectional light shafts
-                for (int slice = 0; slice < 6; slice++) {
-                    float sliceRot = rot + slice * (TAU / 12.0f);
+                // 8 radial light shaft slices
+                for (int slice = 0; slice < 8; slice++) {
+                    float sliceRot = rot + slice * (TAU / 8.0f);
                     projectedShaftSlice(shadowVc, mat, nmat, r0, r1, renderHeight, sliceRot,
-                            coreR, coreG, coreB, alpha * 0.65f);
+                            coreR, coreG, coreB, alpha * 0.85f);
+                }
+
+                // 3 concentric cone layers
+                for (int layer = 1; layer <= 3; layer++) {
+                    float scale = layer / 3.0f;
+                    cylinder(shadowVc, mat, nmat, r0 * scale, r1 * scale, renderHeight, 14, rot,
+                            coreR, coreG, coreB, alpha * 0.55f);
+                }
+
+                // Faint outer atmospheric halo
+                cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot,
+                        r, g, b, glowAlpha * 0.40f);
+            } else {
+                // ---- Standard clean beam geometry
+                switch (cfg.shape) {
+                    case CLASSIC -> {
+                        squareColumn(vc, mat, nmat, w * 0.5f, renderHeight, rot, coreR, coreG, coreB, coreAlpha);
+                        squareColumn(vc, mat, nmat, w * 0.5f * glowScale, renderHeight, rot, r, g, b, glowAlpha);
+                    }
+                    case CYLINDER -> {
+                        cylinder(vc, mat, nmat, w * 0.4f, w * 0.4f, renderHeight, 14, rot, coreR, coreG, coreB, coreAlpha);
+                        cylinder(vc, mat, nmat, w * 0.4f * glowScale, w * 0.4f * glowScale, renderHeight, 14, rot, r, g, b, glowAlpha);
+                    }
+                    case CONE -> {
+                        float r0 = Math.max(0.03f, w * 0.15f);
+                        float r1 = endW * 0.5f;
+                        cylinder(vc, mat, nmat, r0, r1, renderHeight, 16, rot, coreR, coreG, coreB, coreAlpha);
+                        cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 16, rot, r, g, b, glowAlpha);
+                    }
+                    case HELIX -> {
+                        helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
+                        cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
+                                coreR, coreG, coreB, coreAlpha * 0.7f);
+                    }
+                    case SHEET -> {
+                        sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
+                        sheet(vc, mat, nmat, w * glowScale, renderHeight, rot + HALF_PI, r, g, b, glowAlpha);
+                    }
+                    case STAR -> {
+                        for (int i = 0; i < 4; i++) {
+                            sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
+                        }
+                        cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
+                                coreR, coreG, coreB, coreAlpha * 0.6f);
+                    }
                 }
             }
 
             poseStack.popPose();
 
-            // ---- glow dots at origin and impact
+            // ---- Origin glow dot
             Quaternionf cam = Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation();
             glowDot(vc, poseStack, cam, originX, originY, originZ,
                     Math.max(0.08f, w * 0.32f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.6f));
 
             if (aimed) {
-                // Impact ground pool disc / projected obstacle shadow decal
+                // ---- Impact pool disc / Projected obstacle shadow silhouette
                 double hitRelX = cfg.targetX - pos.getX();
                 double hitRelY = cfg.targetY - pos.getY() + 0.02;
                 double hitRelZ = cfg.targetZ - pos.getZ();
@@ -226,17 +237,18 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         ? Math.max(0.25f, endW * 0.48f)
                         : Math.max(0.20f, w * 0.45f);
 
-                ResourceLocation decalTex = (shadowTex != null) ? shadowTex : BEAM_TEXTURE;
-                VertexConsumer decalVc = (shadowTex != null)
-                        ? buffers.getBuffer(RenderType.beaconBeam(shadowTex, true))
-                        : vc;
-
-                flatGroundDisc(decalVc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
-                        coreR, coreG, coreB, Math.min(1.0f, alpha * 0.80f));
+                if (shadowTex != null) {
+                    VertexConsumer shadowDecalVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
+                    flatGroundDisc(shadowDecalVc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
+                            coreR, coreG, coreB, Math.min(1.0f, alpha * 0.90f));
+                } else {
+                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
+                            coreR, coreG, coreB, Math.min(1.0f, alpha * 0.75f));
+                }
             }
         }
 
-        // ---- creative ghost box + origin marker while holding a tool
+        // ---- Creative ghost preview box
         if (showGhost) {
             ghostCube(vc, poseStack, 0.55f, 0.85f, 1.0f, 0.12f);
             Quaternionf cam = Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation();
@@ -261,7 +273,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
     // ------------------------------------------------------------ geometry
 
-    /** Longitudinal volumetric slice mapped to the shadow mask texture. */
     private static void projectedShaftSlice(VertexConsumer vc, Matrix4f m, Matrix3f n,
                                            float r0, float r1, float height, float angle,
                                            float r, float g, float b, float a) {
@@ -275,7 +286,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
     }
 
-    /** Four-sided square tube. */
     private static void squareColumn(VertexConsumer vc, Matrix4f m, Matrix3f n, float half, float height,
                                      float rot, float r, float g, float b, float a) {
         for (int i = 0; i < 4; i++) {
@@ -292,7 +302,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
     }
 
-    /** Polygonal prism/cone. */
     private static void cylinder(VertexConsumer vc, Matrix4f m, Matrix3f n, float rBottom, float rTop,
                                  float height, int segments, float rot,
                                  float r, float g, float b, float a) {
@@ -311,7 +320,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
     }
 
-    /** Two ribbons spiralling around the core. */
     private static void helix(VertexConsumer vc, Matrix4f m, Matrix3f n, float radius, float height,
                               float rot, float r, float g, float b, float a) {
         int slices = Mth.clamp(Mth.ceil(height / 0.35f), 8, 800);
@@ -337,7 +345,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
     }
 
-    /** Single vertical plane of given width. */
     private static void sheet(VertexConsumer vc, Matrix4f m, Matrix3f n, float width, float height,
                               float angle, float r, float g, float b, float a) {
         float c = Mth.cos(angle);
@@ -351,7 +358,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
     }
 
-    /** Camera-facing billboard glowing dot. */
     private static void glowDot(VertexConsumer vc, PoseStack poseStack, Quaternionf cam,
                                 double x, double y, double z, float radius,
                                 float r, float g, float b, float a) {
@@ -367,7 +373,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.popPose();
     }
 
-    /** Flat glowing disc / shadow decal lying on the floor at the impact location. */
     private static void flatGroundDisc(VertexConsumer vc, PoseStack poseStack,
                                       double x, double y, double z, float radius,
                                       float r, float g, float b, float a) {
@@ -384,7 +389,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.popPose();
     }
 
-    /** Translucent unit cube drawn around the invisible creative emitter. */
     private static void ghostCube(VertexConsumer vc, PoseStack poseStack,
                                   float r, float g, float b, float a) {
         poseStack.pushPose();

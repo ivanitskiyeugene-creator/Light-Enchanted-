@@ -1,15 +1,18 @@
 package dev.lightenchanted.client.render;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import dev.lightenchanted.LightEnchanted;
 import dev.lightenchanted.beam.BeamConfig;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -17,22 +20,47 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.client.model.data.ModelData;
 
 import java.util.*;
 
 /**
- * Micro-raytracer that scans obstacle geometry in front of the emitter
- * (gratings, 3D models, fences, bars, stairs, custom modded blocks) and
- * generates a soft 2D shadow transmission mask (GOBO / Light Cookie).
+ * High-performance geometry raytracer that extracts exact 3D polygon triangles
+ * and AABBs from all blocks (vanilla and modded 3D models: gratings, fans,
+ * meshes, fences, bars, stairs, custom obj/json models).
  *
- * The mask is uploaded to a {@link DynamicTexture} and cached per emitter.
- * Volumetric god-rays and ground-projected shadows use this texture to
- * produce cinema-quality light shafts cutting through gratings and meshes.
+ * Generates a high-fidelity 2D transmission mask (GOBO / Light Cookie)
+ * uploaded to a {@link DynamicTexture} and cached per emitter.
  */
 public class BeamShadowManager {
     private static final int MASK_SIZE = 64;
     private static final float SCAN_DIST = 16.0f;
     private static final Map<BlockPos, CacheEntry> CACHE = new HashMap<>();
+    private static final RandomSource RANDOM = RandomSource.create(42L);
+
+    public static class Triangle {
+        public final float x0, y0, z0;
+        public final float x1, y1, z1;
+        public final float x2, y2, z2;
+
+        public Triangle(float x0, float y0, float z0,
+                        float x1, float y1, float z1,
+                        float x2, float y2, float z2) {
+            this.x0 = x0; this.y0 = y0; this.z0 = z0;
+            this.x1 = x1; this.y1 = y1; this.z1 = z1;
+            this.x2 = x2; this.y2 = y2; this.z2 = z2;
+        }
+    }
+
+    private static class ObstacleData {
+        final List<Triangle> triangles = new ArrayList<>();
+        final List<AABB> boxes = new ArrayList<>();
+        int hash;
+
+        boolean isEmpty() {
+            return triangles.isEmpty() && boxes.isEmpty();
+        }
+    }
 
     private static class CacheEntry {
         DynamicTexture texture;
@@ -86,8 +114,8 @@ public class BeamShadowManager {
             return ce;
         });
 
-        // Check if rebuild needed (every 20 ticks or when direction changes)
-        boolean dirChanged = entry.lastDir == null || entry.lastDir.distanceToSqr(beamDir) > 0.001;
+        // Rebuild when direction changes or periodically (every 20 ticks)
+        boolean dirChanged = entry.lastDir == null || entry.lastDir.distanceToSqr(beamDir) > 0.0005;
         boolean timeExpired = currentTick - entry.lastCheckTick > 20L;
 
         if (dirChanged || timeExpired) {
@@ -102,14 +130,12 @@ public class BeamShadowManager {
     /** Scans obstacles and renders the 2D transmission mask. */
     private static void bakeShadowMask(Level level, BlockPos emitterPos, Vec3 origin,
                                        Vec3 dir, float spreadRadius, CacheEntry entry) {
-        // Collect obstacle AABBs in the beam frustum
-        List<AABB> obstacles = collectObstacles(level, emitterPos, origin, dir, SCAN_DIST);
+        ObstacleData obstacles = collectObstacles(level, emitterPos, origin, dir, SCAN_DIST);
 
-        int hash = obstacles.hashCode();
-        if (hash == entry.lastObstacleHash && entry.lastDir != null) {
-            return; // No obstacle change
+        if (obstacles.hash == entry.lastObstacleHash && entry.lastDir != null && entry.hasObstacles) {
+            return;
         }
-        entry.lastObstacleHash = hash;
+        entry.lastObstacleHash = obstacles.hash;
 
         if (obstacles.isEmpty()) {
             entry.hasObstacles = false;
@@ -123,10 +149,15 @@ public class BeamShadowManager {
         Vec3 right = dir.cross(up).normalize();
         Vec3 actualUp = right.cross(dir).normalize();
 
-        float tanFov = Math.max(0.15f, spreadRadius * 0.40f);
+        float tanFov = Math.max(0.18f, spreadRadius * 0.42f);
 
         float[][] rawMask = new float[MASK_SIZE][MASK_SIZE];
         double ox = origin.x, oy = origin.y, oz = origin.z;
+
+        List<Triangle> tris = obstacles.triangles;
+        List<AABB> boxes = obstacles.boxes;
+        int triCount = tris.size();
+        int boxCount = boxes.size();
 
         // Micro-raycast 64x64 grid
         for (int py = 0; py < MASK_SIZE; py++) {
@@ -136,34 +167,48 @@ public class BeamShadowManager {
                 float rDist = (float) Math.sqrt(u * u + v * v);
 
                 if (rDist > 1.0f) {
-                    rawMask[py][px] = 0.0f; // Outside beam circle
+                    rawMask[py][px] = 0.0f;
                     continue;
                 }
 
-                // Ray direction through this pixel
                 Vec3 rayDir = dir.add(right.scale(u * tanFov)).add(actualUp.scale(v * tanFov)).normalize();
                 double rdx = rayDir.x, rdy = rayDir.y, rdz = rayDir.z;
-                double invDx = Math.abs(rdx) > 1e-6 ? 1.0 / rdx : 1e6;
-                double invDy = Math.abs(rdy) > 1e-6 ? 1.0 / rdy : 1e6;
-                double invDz = Math.abs(rdz) > 1e-6 ? 1.0 / rdz : 1e6;
 
                 boolean blocked = false;
-                for (int i = 0; i < obstacles.size(); i++) {
-                    AABB box = obstacles.get(i);
-                    if (intersectRayAABB(ox, oy, oz, invDx, invDy, invDz,
-                            box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, SCAN_DIST)) {
+
+                // 1. Test against 3D polygon triangles (exact model geometry)
+                for (int i = 0; i < triCount; i++) {
+                    Triangle t = tris.get(i);
+                    if (intersectRayTriangle(ox, oy, oz, rdx, rdy, rdz,
+                            t.x0, t.y0, t.z0, t.x1, t.y1, t.z1, t.x2, t.y2, t.z2, SCAN_DIST)) {
                         blocked = true;
                         break;
                     }
                 }
 
-                // Smooth radial vignette falloff at beam edges
+                // 2. Test against AABB boxes (for vanilla/simple blocks)
+                if (!blocked && boxCount > 0) {
+                    double invDx = Math.abs(rdx) > 1e-6 ? 1.0 / rdx : 1e6;
+                    double invDy = Math.abs(rdy) > 1e-6 ? 1.0 / rdy : 1e6;
+                    double invDz = Math.abs(rdz) > 1e-6 ? 1.0 / rdz : 1e6;
+
+                    for (int i = 0; i < boxCount; i++) {
+                        AABB b = boxes.get(i);
+                        if (intersectRayAABB(ox, oy, oz, invDx, invDy, invDz,
+                                b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, SCAN_DIST)) {
+                            blocked = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Smooth edge falloff
                 float edgeFalloff = 1.0f - smoothstep(0.85f, 1.0f, rDist);
                 rawMask[py][px] = blocked ? 0.0f : edgeFalloff;
             }
         }
 
-        // Apply 3x3 box blur for soft penumbra shadow edges
+        // Apply separable 3x3 blur for soft penumbra
         NativeImage img = entry.image;
         for (int py = 0; py < MASK_SIZE; py++) {
             for (int px = 0; px < MASK_SIZE; px++) {
@@ -181,7 +226,6 @@ public class BeamShadowManager {
                 }
                 float val = count > 0 ? sum / count : rawMask[py][px];
                 int a = (int) (clamp(val) * 255.0f);
-                // NativeImage stores ABGR / RGBA
                 int color = (a << 24) | 0x00FFFFFF;
                 img.setPixelRGBA(px, py, color);
             }
@@ -190,10 +234,11 @@ public class BeamShadowManager {
         entry.texture.upload();
     }
 
-    /** Collects all obstacle bounding boxes in the path of the beam. */
-    private static List<AABB> collectObstacles(Level level, BlockPos emitterPos, Vec3 origin,
-                                              Vec3 dir, float maxDist) {
-        List<AABB> list = new ArrayList<>();
+    /** Extracts 3D model triangles and AABBs from all obstacles in the beam path. */
+    private static ObstacleData collectObstacles(Level level, BlockPos emitterPos, Vec3 origin,
+                                                 Vec3 dir, float maxDist) {
+        ObstacleData data = new ObstacleData();
+        BlockRenderDispatcher brd = Minecraft.getInstance().getBlockRenderer();
 
         Vec3 end = origin.add(dir.scale(maxDist));
         int minX = (int) Math.floor(Math.min(origin.x, end.x) - 2);
@@ -203,13 +248,15 @@ public class BeamShadowManager {
         int minZ = (int) Math.floor(Math.min(origin.z, end.z) - 2);
         int maxZ = (int) Math.ceil(Math.max(origin.z, end.z) + 2);
 
+        int hashAcc = 17;
         BlockPos.MutableBlockPos mpos = new BlockPos.MutableBlockPos();
+
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int x = minX; x <= maxX; x++) {
                     mpos.set(x, y, z);
                     if (mpos.equals(emitterPos)) {
-                        continue; // Skip the emitter itself
+                        continue; // Skip emitter block itself
                     }
 
                     BlockState state = level.getBlockState(mpos);
@@ -217,29 +264,106 @@ public class BeamShadowManager {
                         continue;
                     }
 
-                    // Extract detailed visual voxel shapes (e.g. iron bars, fences, chains)
-                    VoxelShape shape = state.getVisualShape(level, mpos, CollisionContext.empty());
-                    if (shape.isEmpty()) {
-                        shape = state.getShape(level, mpos);
+                    hashAcc = hashAcc * 31 + state.hashCode() + mpos.hashCode();
+
+                    // 1. Try to extract exact 3D model polygons (BakedModel quads)
+                    boolean gotPolygons = false;
+                    try {
+                        BakedModel model = brd.getBlockModel(state);
+                        if (model != null) {
+                            List<BakedQuad> quads = new ArrayList<>(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
+                            for (Direction d : Direction.values()) {
+                                quads.addAll(model.getQuads(state, d, RANDOM, ModelData.EMPTY, null));
+                            }
+
+                            if (!quads.isEmpty() && quads.size() <= 128) {
+                                for (int qi = 0; qi < quads.size(); qi++) {
+                                    BakedQuad q = quads.get(qi);
+                                    int[] vData = q.getVertices();
+                                    if (vData.length >= 32) {
+                                        float x0 = x + Float.intBitsToFloat(vData[0]);
+                                        float y0 = y + Float.intBitsToFloat(vData[1]);
+                                        float z0 = z + Float.intBitsToFloat(vData[2]);
+
+                                        float x1 = x + Float.intBitsToFloat(vData[8]);
+                                        float y1 = y + Float.intBitsToFloat(vData[9]);
+                                        float z1 = z + Float.intBitsToFloat(vData[10]);
+
+                                        float x2 = x + Float.intBitsToFloat(vData[16]);
+                                        float y2 = y + Float.intBitsToFloat(vData[17]);
+                                        float z2 = z + Float.intBitsToFloat(vData[18]);
+
+                                        float x3 = x + Float.intBitsToFloat(vData[24]);
+                                        float y3 = y + Float.intBitsToFloat(vData[25]);
+                                        float z3 = z + Float.intBitsToFloat(vData[26]);
+
+                                        // Triangle 1: (v0, v1, v2)
+                                        data.triangles.add(new Triangle(x0, y0, z0, x1, y1, z1, x2, y2, z2));
+                                        // Triangle 2: (v0, v2, v3)
+                                        data.triangles.add(new Triangle(x0, y0, z0, x2, y2, z2, x3, y3, z3));
+                                        gotPolygons = true;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // Fallback to VoxelShape below if model extraction fails
                     }
 
-                    List<AABB> aabbs = shape.toAabbs();
-                    if (aabbs.isEmpty()) {
-                        if (state.isSolidRender(level, mpos) || !state.isAir()) {
-                            list.add(new AABB(x, y, z, x + 1, y + 1, z + 1));
+                    // 2. If no detailed model quads were extracted, fallback to detailed VoxelShapes
+                    if (!gotPolygons) {
+                        VoxelShape shape = state.getVisualShape(level, mpos, CollisionContext.empty());
+                        if (shape.isEmpty()) {
+                            shape = state.getShape(level, mpos);
                         }
-                    } else {
-                        for (int i = 0; i < aabbs.size(); i++) {
-                            AABB box = aabbs.get(i);
-                            list.add(new AABB(
-                                    x + box.minX, y + box.minY, z + box.minZ,
-                                    x + box.maxX, y + box.maxY, z + box.maxZ));
+
+                        List<AABB> aabbs = shape.toAabbs();
+                        if (aabbs.isEmpty()) {
+                            if (state.isSolidRender(level, mpos) || !state.isAir()) {
+                                data.boxes.add(new AABB(x, y, z, x + 1, y + 1, z + 1));
+                            }
+                        } else {
+                            for (int i = 0; i < aabbs.size(); i++) {
+                                AABB box = aabbs.get(i);
+                                data.boxes.add(new AABB(
+                                        x + box.minX, y + box.minY, z + box.minZ,
+                                        x + box.maxX, y + box.maxY, z + box.maxZ));
+                            }
                         }
                     }
                 }
             }
         }
-        return list;
+
+        data.hash = hashAcc;
+        return data;
+    }
+
+    /** Fast ray-triangle intersection (Möller–Trumbore). */
+    private static boolean intersectRayTriangle(double ox, double oy, double oz,
+                                               double rdx, double rdy, double rdz,
+                                               float x0, float y0, float z0,
+                                               float x1, float y1, float z1,
+                                               float x2, float y2, float z2,
+                                               double maxDist) {
+        double e1x = x1 - x0, e1y = y1 - y0, e1z = z1 - z0;
+        double e2x = x2 - x0, e2y = y2 - y0, e2z = z2 - z0;
+        double hx = rdy * e2z - rdz * e2y;
+        double hy = rdz * e1x - rdx * e2z;
+        double hz = rdx * e2y - rdy * e2x;
+        double a = e1x * hx + e1y * hy + e1z * hz;
+        if (Math.abs(a) < 1e-7) return false;
+        double f = 1.0 / a;
+        double sx = ox - x0, sy = oy - y0, sz = oz - z0;
+        double u = f * (sx * hx + sy * hy + sz * hz);
+        if (u < 0.0 || u > 1.0) return false;
+        double qx = sy * e1z - sz * e1y;
+        double qy = sz * e1x - sx * e1z;
+        double qz = sx * e1y - sy * e1x;
+        double v = f * (rdx * qx + rdy * qy + rdz * qz);
+        if (v < 0.0 || u + v > 1.0) return false;
+        double t = f * (e2x * qx + e2y * qy + e2z * qz);
+        return t >= 0.03 && t <= maxDist;
     }
 
     /** Fast ray-AABB intersection test. */
@@ -261,7 +385,7 @@ public class BeamShadowManager {
         if (tmax < 0 || tmin > tmax) {
             return false;
         }
-        return tmin >= 0.08 && tmin <= maxDist;
+        return tmin >= 0.05 && tmin <= maxDist;
     }
 
     private static float smoothstep(float edge0, float edge1, float x) {
@@ -273,7 +397,6 @@ public class BeamShadowManager {
         return Math.max(0.0f, Math.min(1.0f, v));
     }
 
-    /** Clears texture memory when switching worlds. */
     public static void clearAll() {
         TextureManager tm = Minecraft.getInstance().getTextureManager();
         for (CacheEntry ce : CACHE.values()) {
