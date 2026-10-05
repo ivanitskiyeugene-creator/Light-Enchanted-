@@ -1,8 +1,7 @@
 package dev.lightenchanted.init;
 
 import dev.lightenchanted.LightEnchanted;
-import dev.lightenchanted.block.CreativeLightEmitterBlock;
-import dev.lightenchanted.block.LightEmitterBlock;
+import dev.lightenchanted.block.*;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -35,6 +34,42 @@ public final class ModBlocks {
                             .noOcclusion()
                             .noCollission()
                             .noLootTable()));
+
+    /** SCP:SL Heavy Containment Zone 3x3 Industrial Ventilation Fan */
+    public static final RegistryObject<IndustrialFanBlock> INDUSTRIAL_FAN = BLOCKS.register("industrial_fan",
+            () -> new IndustrialFanBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(3.5f, 10.0f)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .noOcclusion()
+                    .requiresCorrectToolForDrops()));
+
+    public static final RegistryObject<IndustrialFanSlaveBlock> INDUSTRIAL_FAN_SLAVE = BLOCKS.register("industrial_fan_slave",
+            () -> new IndustrialFanSlaveBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(3.5f, 10.0f)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .noOcclusion()
+                    .noLootTable()));
+
+    /** Modular Stage / Industrial Light Truss */
+    public static final RegistryObject<LightTrussBlock> LIGHT_TRUSS = BLOCKS.register("light_truss",
+            () -> new LightTrussBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(2.0f, 6.0f)
+                    .sound(SoundType.LANTERN)
+                    .noOcclusion()
+                    .requiresCorrectToolForDrops()));
+
+    /** Flush-mounted Recessed Downlight */
+    public static final RegistryObject<RecessedDownlightBlock> RECESSED_DOWNLIGHT = BLOCKS.register("recessed_downlight",
+            () -> new RecessedDownlightBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.SNOW)
+                    .strength(1.5f, 6.0f)
+                    .sound(SoundType.GLASS)
+                    .lightLevel(state -> 15)
+                    .noOcclusion()
+                    .requiresCorrectToolForDrops()));
 
     private ModBlocks() {
     }

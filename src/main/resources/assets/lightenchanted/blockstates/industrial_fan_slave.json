@@ -1,0 +1,5 @@
+{
+    "variants": {
+        "": { "model": "lightenchanted:block/industrial_fan_slave" }
+    }
+}

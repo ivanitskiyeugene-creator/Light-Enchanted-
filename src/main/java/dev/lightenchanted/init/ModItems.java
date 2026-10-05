@@ -22,6 +22,15 @@ public final class ModItems {
     public static final RegistryObject<BlockItem> LIGHT_EMITTER_CREATIVE = ITEMS.register("light_emitter_creative",
             () -> new BlockItem(ModBlocks.LIGHT_EMITTER_CREATIVE.get(), new Item.Properties()));
 
+    public static final RegistryObject<BlockItem> INDUSTRIAL_FAN = ITEMS.register("industrial_fan",
+            () -> new BlockItem(ModBlocks.INDUSTRIAL_FAN.get(), new Item.Properties()));
+
+    public static final RegistryObject<BlockItem> LIGHT_TRUSS = ITEMS.register("light_truss",
+            () -> new BlockItem(ModBlocks.LIGHT_TRUSS.get(), new Item.Properties()));
+
+    public static final RegistryObject<BlockItem> RECESSED_DOWNLIGHT = ITEMS.register("recessed_downlight",
+            () -> new BlockItem(ModBlocks.RECESSED_DOWNLIGHT.get(), new Item.Properties()));
+
     private ModItems() {
     }
 

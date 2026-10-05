@@ -18,6 +18,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.gui.widget.ForgeSlider;
 
+import java.util.List;
+
 /**
  * Beam editor GUI with a compact, responsive two-column layout.
  */
@@ -47,6 +49,8 @@ public class LightEmitterScreen extends Screen {
     private Checkbox downBox;
     private Checkbox toSkyBox;
     private CycleButton<BeamShape> shapeButton;
+    private CycleButton<Integer> redstoneButton;
+    private CycleButton<Integer> strobeButton;
     private EditBox hexBox;
 
     // Creative offset sliders
@@ -76,10 +80,10 @@ public class LightEmitterScreen extends Screen {
 
         int colW = 154;
         int btnH = 18;
-        int gap = 21;
+        int gap = 20;
         int left = this.width / 2 - 165;
         int right = this.width / 2 + 10;
-        int y = 32;
+        int y = 28;
 
         // ---- Left Column: Numeric Sliders
         redSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
@@ -93,7 +97,7 @@ public class LightEmitterScreen extends Screen {
         y += gap;
         alphaSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
                 text("alpha").append(": "), Component.empty(), 0, 255, working.alpha, 1, 0, true));
-        y += gap + 2;
+        y += gap;
         widthSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
                 text("width").append(": "), Component.empty(), 0.05, 8.0, working.width, 0.05, 2, true));
         y += gap;
@@ -113,8 +117,8 @@ public class LightEmitterScreen extends Screen {
         rotateSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
                 text("rotation").append(": "), Component.empty(), 0.0, 2.0, working.rotation, 0.1, 1, true));
 
-        // ---- Right Column: Compact Toggles (2 per row), Shape, Hex, Target, Offsets
-        int ry = 32;
+        // ---- Right Column: Toggles, Shape, Redstone, Strobe, Hex, Target, Offsets
+        int ry = 28;
         int halfW = (colW - 4) / 2;
 
         enabledBox = addRenderableWidget(new Checkbox(right, ry, halfW + 4, 18, text("enabled"), working.enabled));
@@ -132,6 +136,20 @@ public class LightEmitterScreen extends Screen {
                 .withValues(BeamShape.values())
                 .withInitialValue(working.shape)
                 .create(right, ry, colW, btnH, text("shape"), (button, value) -> {
+                }));
+        ry += gap;
+
+        redstoneButton = addRenderableWidget(CycleButton.<Integer>builder(mode -> text("redstone_" + mode))
+                .withValues(List.of(0, 1, 2, 3))
+                .withInitialValue(working.redstoneMode)
+                .create(right, ry, colW, btnH, text("redstone"), (button, value) -> {
+                }));
+        ry += gap;
+
+        strobeButton = addRenderableWidget(CycleButton.<Integer>builder(mode -> text("strobe_" + mode))
+                .withValues(List.of(0, 1, 2, 3))
+                .withInitialValue(working.strobe)
+                .create(right, ry, colW, btnH, text("strobe"), (button, value) -> {
                 }));
         ry += gap;
 
@@ -169,7 +187,7 @@ public class LightEmitterScreen extends Screen {
         }
 
         // ---- Bottom Action Buttons
-        int by = this.height - 28;
+        int by = this.height - 26;
         addRenderableWidget(Button.builder(text("done"), button -> applyAndClose())
                 .bounds(this.width / 2 - 105, by, 100, 20).build());
         addRenderableWidget(Button.builder(text("apply"), button -> sendToServer())
@@ -230,6 +248,8 @@ public class LightEmitterScreen extends Screen {
         working.down = downBox.selected();
         working.toSky = toSkyBox.selected();
         working.shape = shapeButton.getValue();
+        working.redstoneMode = redstoneButton.getValue();
+        working.strobe = strobeButton.getValue();
         working.color = ((int) redSlider.getValue() << 16)
                 | ((int) greenSlider.getValue() << 8)
                 | (int) blueSlider.getValue();
@@ -253,7 +273,7 @@ public class LightEmitterScreen extends Screen {
         blueSlider.active = colorEditable;
         hexBox.active = colorEditable;
         heightSlider.active = !working.toSky && !working.hasTarget;
-        spreadSlider.active = working.shape == BeamShape.CONE;
+        spreadSlider.active = working.shape == BeamShape.CONE || working.shape == BeamShape.SQUARE || working.shape == BeamShape.OVAL;
         downBox.active = !working.hasTarget;
         toSkyBox.active = !working.hasTarget;
 
@@ -295,7 +315,7 @@ public class LightEmitterScreen extends Screen {
         applyPreview();
 
         super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
+        graphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 
         // Color preview swatch next to Hex box
         int swatchColor = working.rainbow ? currentRainbowColor() : working.color;
@@ -318,23 +338,25 @@ public class LightEmitterScreen extends Screen {
         if (hue < 0.0f) {
             hue += 1.0f;
         }
-        int sector = (int) (hue * 6.0f) % 6;
-        float f = hue * 6.0f - (int) (hue * 6.0f);
-        float q = 1.0f - f;
-        float r, g, b;
-        switch (sector) {
-            case 0 -> { r = 1; g = f; b = 0; }
-            case 1 -> { r = q; g = 1; b = 0; }
-            case 2 -> { r = 0; g = 1; b = f; }
-            case 3 -> { r = 0; g = q; b = 1; }
-            case 4 -> { r = f; g = 0; b = 1; }
-            default -> { r = 1; g = 0; b = q; }
-        }
-        return ((int) (r * 255) << 16) | ((int) (g * 255) << 8) | (int) (b * 255);
+        int rgb = hsvToRgb(hue, 1.0f, 1.0f);
+        return rgb & 0xFFFFFF;
     }
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
+    private static int hsvToRgb(float h, float s, float v) {
+        int sector = (int) (h * 6.0f) % 6;
+        float f = h * 6.0f - (int) (h * 6.0f);
+        float p = v * (1.0f - s);
+        float q = v * (1.0f - s * f);
+        float t = v * (1.0f - s * (1.0f - f));
+        float r, g, b;
+        switch (sector) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            default -> { r = v; g = p; b = q; }
+        }
+        return ((int) (r * 255.0f) << 16) | ((int) (g * 255.0f) << 8) | (int) (b * 255.0f);
     }
 }

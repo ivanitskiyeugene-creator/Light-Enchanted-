@@ -1,0 +1,17 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "IBI",
+        "BRB",
+        "IBI"
+    ],
+    "key": {
+        "I": { "item": "minecraft:iron_ingot" },
+        "B": { "item": "minecraft:iron_bars" },
+        "R": { "item": "minecraft:redstone_block" }
+    },
+    "result": {
+        "item": "lightenchanted:industrial_fan",
+        "count": 1
+    }
+}

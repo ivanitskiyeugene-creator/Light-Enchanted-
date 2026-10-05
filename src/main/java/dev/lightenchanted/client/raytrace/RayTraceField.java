@@ -1,6 +1,7 @@
 package dev.lightenchanted.client.raytrace;
 
 import dev.lightenchanted.beam.BeamShape;
+import dev.lightenchanted.blockentity.IndustrialFanBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -21,15 +22,17 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.client.model.data.ModelData;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * STR 2.0 High-Performance Raytracer:
+ * STR 2.2 High-Performance Raytracer:
  *
  * Fully optimized with lazy evaluation, spatial bounding box early rejection,
- * pre-allocated memory pools, and periodic 20-tick caching.
+ * pre-allocated memory pools, and periodic caching.
  *
- * Runs at 300+ FPS with virtually 0% CPU overhead during gameplay.
+ * Supports custom beam shapes (CONE, SQUARE, OVAL, SLIT, SHEET, STAR) and dynamic
+ * rotating obstacle testing (SCP:SL HCZ Industrial Fans).
  */
 public class RayTraceField {
     public static final int RINGS = 8;
@@ -69,6 +72,7 @@ public class RayTraceField {
     private Vec3 lastDir;
     private float lastW, lastEndW, lastMaxDist;
     private boolean lastShadows;
+    private BeamShape lastShape;
     private long lastTraceTick = -100L;
     private int triangleCount = 0;
     private int boxCount = 0;
@@ -78,7 +82,6 @@ public class RayTraceField {
         for (int i = 0; i < TOTAL_RAYS; i++) {
             rays[i] = new Ray();
         }
-        // Pre-allocate triangle pool to prevent garbage collection allocations
         for (int i = 0; i < 4096; i++) {
             obstacleTriangles.add(new Triangle());
         }
@@ -88,23 +91,17 @@ public class RayTraceField {
         return rays;
     }
 
-    /**
-     * Checks if the light field needs a retrace. Returns true only if
-     * geometry/direction changed or if 20 ticks (1 sec) elapsed.
-     */
     public boolean needsRetrace(long currentTick, Vec3 origin, Vec3 dir,
-                                float width, float endWidth, float maxDist, boolean shadows) {
+                                float width, float endWidth, float maxDist,
+                                BeamShape shape, boolean shadows) {
         if (lastOrigin == null || lastDir == null) return true;
         if (currentTick - lastTraceTick > 20L) return true; // periodic 1 sec refresh
-        if (lastShadows != shadows) return true;
+        if (lastShadows != shadows || lastShape != shape) return true;
         if (Math.abs(lastW - width) > 0.01f || Math.abs(lastEndW - endWidth) > 0.01f || Math.abs(lastMaxDist - maxDist) > 0.1f) return true;
         if (lastOrigin.distanceToSqr(origin) > 0.0001) return true;
         return lastDir.distanceToSqr(dir) > 0.0001;
     }
 
-    /**
-     * Executes STR 2.0 raymarching and caches the results.
-     */
     public void trace(Level level, BlockPos emitterPos, Vec3 origin, Vec3 dir,
                       float width, float endWidth, float maxDist, BeamShape shape,
                       boolean shadows, long currentTick) {
@@ -114,6 +111,7 @@ public class RayTraceField {
         lastEndW = endWidth;
         lastMaxDist = maxDist;
         lastShadows = shadows;
+        lastShape = shape;
         lastTraceTick = currentTick;
 
         Vec3 up = Math.abs(dir.y) > 0.95 ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
@@ -121,7 +119,8 @@ public class RayTraceField {
         Vec3 actualUp = right.cross(dir).normalize();
 
         float r0 = Math.max(0.02f, width * 0.5f);
-        float r1 = shape == BeamShape.CONE ? Math.max(0.05f, endWidth * 0.5f) : r0;
+        float r1 = (shape == BeamShape.CONE || shape == BeamShape.SQUARE || shape == BeamShape.OVAL)
+                ? Math.max(0.05f, endWidth * 0.5f) : r0;
 
         if (shadows) {
             collectObstacles(level, emitterPos, origin, dir, Math.max(r0, r1), Math.min(16.0f, maxDist));
@@ -150,11 +149,30 @@ public class RayTraceField {
                 float lx1 = ringR1 * c;
                 float lz1 = ringR1 * s;
 
+                // Shape-specific profile modifications
+                if (shape == BeamShape.SQUARE) {
+                    float maxCoord = Math.max(Math.abs(c), Math.abs(s));
+                    if (maxCoord > 0.01f) {
+                        float sqScale = 1.0f / maxCoord;
+                        lx0 *= sqScale; lz0 *= sqScale;
+                        lx1 *= sqScale; lz1 *= sqScale;
+                    }
+                } else if (shape == BeamShape.OVAL) {
+                    lx0 *= 1.8f; lz0 *= 0.6f;
+                    lx1 *= 1.8f; lz1 *= 0.6f;
+                } else if (shape == BeamShape.SLIT) {
+                    lx0 *= 3.0f; lz0 *= 0.15f;
+                    lx1 *= 3.0f; lz1 *= 0.15f;
+                } else if (shape == BeamShape.SHEET) {
+                    lx0 *= 2.5f; lz0 = 0.0f;
+                    lx1 *= 2.5f; lz1 = 0.0f;
+                }
+
                 setupRay(rays[rayIdx++], lx0, lz0, lx1, lz1, ringIntensity);
             }
         }
 
-        // Fast terrain floor raycast (1 central raycast for general terrain depth)
+        // Central terrain depth raycast
         Vec3 centralTarget = origin.add(dir.scale(maxDist));
         BlockHitResult mainHit = level.clip(new ClipContext(
                 origin, centralTarget, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
@@ -267,6 +285,45 @@ public class RayTraceField {
                     }
                     if (!level.hasChunkAt(mpos)) {
                         continue;
+                    }
+
+                    // Dynamic Fan Obstacles
+                    if (level.getBlockEntity(mpos) instanceof IndustrialFanBlockEntity fan && fan.isMaster()) {
+                        Direction fFacing = fan.getFacing();
+                        float cx = x + 0.5f, cy = y + 0.5f, cz = z + 0.5f;
+                        float fAngle = fan.getSpinAngle(0.0f);
+
+                        // Add fan blade collision triangles
+                        int bCount = 5;
+                        float tau = (float) (Math.PI * 2.0);
+                        float rHub = 0.35f, rBlade = 1.35f;
+
+                        for (int bi = 0; bi < bCount; bi++) {
+                            float ba = tau * bi / bCount + (float) Math.toRadians(fAngle);
+                            float cos = Mth.cos(ba), sin = Mth.sin(ba);
+                            float pCos = -sin * 0.25f, pSin = cos * 0.25f;
+
+                            float bx0 = cx + cos * rHub - pCos;
+                            float by0 = cy + sin * rHub - pSin;
+                            float bx1 = cx + cos * rHub + pCos;
+                            float by1 = cy + sin * rHub + pSin;
+                            float bx2 = cx + cos * rBlade + pCos * 1.5f;
+                            float by2 = cy + sin * rBlade + pSin * 1.5f;
+                            float bx3 = cx + cos * rBlade - pCos * 1.5f;
+                            float by3 = cy + sin * rBlade - pSin * 1.5f;
+
+                            if (triangleCount + 2 < obstacleTriangles.size()) {
+                                obstacleTriangles.get(triangleCount++).set(bx0, by0, cz, bx1, by1, cz, bx2, by2, cz);
+                                obstacleTriangles.get(triangleCount++).set(bx0, by0, cz, bx2, by2, cz, bx3, by3, cz);
+
+                                bMinX = Math.min(bMinX, Math.min(bx0, bx2));
+                                bMinY = Math.min(bMinY, Math.min(by0, by2));
+                                bMinZ = Math.min(bMinZ, cz - 0.5);
+                                bMaxX = Math.max(bMaxX, Math.max(bx1, bx3));
+                                bMaxY = Math.max(bMaxY, Math.max(by1, by3));
+                                bMaxZ = Math.max(bMaxZ, cz + 0.5);
+                            }
+                        }
                     }
 
                     BlockState state = level.getBlockState(mpos);

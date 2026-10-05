@@ -1,0 +1,7 @@
+{
+    "parent": "minecraft:block/block",
+    "textures": {
+        "particle": "lightenchanted:block/industrial_fan_casing"
+    },
+    "elements": []
+}

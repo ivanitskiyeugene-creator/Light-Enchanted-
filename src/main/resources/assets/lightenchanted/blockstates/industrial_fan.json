@@ -1,0 +1,10 @@
+{
+    "variants": {
+        "facing=north": { "model": "lightenchanted:block/industrial_fan" },
+        "facing=south": { "model": "lightenchanted:block/industrial_fan", "y": 180 },
+        "facing=west":  { "model": "lightenchanted:block/industrial_fan", "y": 270 },
+        "facing=east":  { "model": "lightenchanted:block/industrial_fan", "y": 90 },
+        "facing=up":    { "model": "lightenchanted:block/industrial_fan", "x": 270 },
+        "facing=down":  { "model": "lightenchanted:block/industrial_fan", "x": 90 }
+    }
+}

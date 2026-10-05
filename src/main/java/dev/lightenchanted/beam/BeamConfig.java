@@ -5,7 +5,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.Mth;
 
 /**
- * Full description of a single light beam: color, shape and effects.
+ * Full description of a single light beam: color, shape, redstone and effects.
  * Mutable POJO; always run through {@link #sanitize()} before trusting.
  */
 public class BeamConfig {
@@ -13,6 +13,18 @@ public class BeamConfig {
     public static final float MAX_WIDTH = 8.0f;
     public static final int MIN_HEIGHT = 2;
     public static final int MAX_HEIGHT = 160;
+
+    // Redstone Modes
+    public static final int REDSTONE_ALWAYS_ON = 0;
+    public static final int REDSTONE_ON_SIGNAL = 1;
+    public static final int REDSTONE_OFF_SIGNAL = 2;
+    public static final int REDSTONE_DIMMER = 3;
+
+    // Strobe Modes
+    public static final int STROBE_OFF = 0;
+    public static final int STROBE_SLOW = 1;
+    public static final int STROBE_WARNING = 2;
+    public static final int STROBE_RAPID = 3;
 
     /** Beam on/off. */
     public boolean enabled = true;
@@ -52,6 +64,11 @@ public class BeamConfig {
     /** Cycle through the hue spectrum instead of using {@link #color}. */
     public boolean rainbow = false;
 
+    // ---- v2.2.0 Redstone & Strobe
+    public int redstoneMode = REDSTONE_ALWAYS_ON;
+    public int strobe = STROBE_OFF;
+    public int redstonePower = 0; // Transferred runtime power 0-15
+
     public BeamConfig() {
     }
 
@@ -81,6 +98,9 @@ public class BeamConfig {
         this.pulse = other.pulse;
         this.rotation = other.rotation;
         this.rainbow = other.rainbow;
+        this.redstoneMode = other.redstoneMode;
+        this.strobe = other.strobe;
+        this.redstonePower = other.redstonePower;
     }
 
     /** Clamp every value into its legal range. Called server-side and on load. */
@@ -96,13 +116,64 @@ public class BeamConfig {
         pulse = Mth.clamp(pulse, 0.0f, 2.0f);
         rotation = Mth.clamp(rotation, 0.0f, 2.0f);
         color &= 0xFFFFFF;
+        redstoneMode = Mth.clamp(redstoneMode, 0, 3);
+        strobe = Mth.clamp(strobe, 0, 3);
+        redstonePower = Mth.clamp(redstonePower, 0, 15);
         if (shape == null) {
-            shape = BeamShape.CLASSIC;
+            shape = BeamShape.CONE;
         }
         if (!Double.isFinite(targetX) || !Double.isFinite(targetY) || !Double.isFinite(targetZ)) {
             hasTarget = false;
             targetX = targetY = targetZ = 0.0;
         }
+    }
+
+    /**
+     * Calculates whether the beam is currently visible considering redstone state.
+     */
+    public boolean isEmitting() {
+        if (!enabled) return false;
+        return switch (redstoneMode) {
+            case REDSTONE_ON_SIGNAL -> redstonePower > 0;
+            case REDSTONE_OFF_SIGNAL -> redstonePower == 0;
+            case REDSTONE_DIMMER -> redstonePower > 0;
+            default -> true;
+        };
+    }
+
+    /**
+     * Calculates the effective alpha accounting for dimmer, strobe and pulses.
+     */
+    public float getEffectiveAlpha(float time) {
+        if (!isEmitting()) return 0.0f;
+
+        float baseAlpha = alpha / 255.0f;
+
+        // Redstone Dimmer scaling
+        if (redstoneMode == REDSTONE_DIMMER) {
+            baseAlpha *= (redstonePower / 15.0f);
+        }
+
+        // Strobe mode
+        if (strobe > 0) {
+            float strobeFreq = switch (strobe) {
+                case STROBE_SLOW -> 3.0f;
+                case STROBE_WARNING -> 7.0f;
+                case STROBE_RAPID -> 14.0f;
+                default -> 0.0f;
+            };
+            if (strobeFreq > 0.0f) {
+                float flash = (Mth.sin(time * strobeFreq) > 0.15f) ? 1.0f : 0.0f;
+                baseAlpha *= flash;
+            }
+        }
+
+        // Pulse mode
+        if (pulse > 0.001f) {
+            baseAlpha *= 0.60f + 0.40f * Mth.sin(time * pulse * 2.4f);
+        }
+
+        return Mth.clamp(baseAlpha, 0.0f, 1.0f);
     }
 
     // ---------------------------------------------------------------- NBT
@@ -129,6 +200,9 @@ public class BeamConfig {
         tag.putFloat("Pulse", pulse);
         tag.putFloat("Rotation", rotation);
         tag.putBoolean("Rainbow", rainbow);
+        tag.putInt("RedstoneMode", redstoneMode);
+        tag.putInt("Strobe", strobe);
+        tag.putInt("RedstonePower", redstonePower);
         return tag;
     }
 
@@ -158,6 +232,9 @@ public class BeamConfig {
         if (tag.contains("Pulse")) cfg.pulse = tag.getFloat("Pulse");
         if (tag.contains("Rotation")) cfg.rotation = tag.getFloat("Rotation");
         if (tag.contains("Rainbow")) cfg.rainbow = tag.getBoolean("Rainbow");
+        if (tag.contains("RedstoneMode")) cfg.redstoneMode = tag.getInt("RedstoneMode");
+        if (tag.contains("Strobe")) cfg.strobe = tag.getInt("Strobe");
+        if (tag.contains("RedstonePower")) cfg.redstonePower = tag.getInt("RedstonePower");
         cfg.sanitize();
         return cfg;
     }
@@ -186,6 +263,9 @@ public class BeamConfig {
         buf.writeFloat(pulse);
         buf.writeFloat(rotation);
         buf.writeBoolean(rainbow);
+        buf.writeInt(redstoneMode);
+        buf.writeInt(strobe);
+        buf.writeInt(redstonePower);
     }
 
     public static BeamConfig read(FriendlyByteBuf buf) {
@@ -211,6 +291,9 @@ public class BeamConfig {
         cfg.pulse = buf.readFloat();
         cfg.rotation = buf.readFloat();
         cfg.rainbow = buf.readBoolean();
+        cfg.redstoneMode = buf.readInt();
+        cfg.strobe = buf.readInt();
+        cfg.redstonePower = buf.readInt();
         cfg.sanitize();
         return cfg;
     }

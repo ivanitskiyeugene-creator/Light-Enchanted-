@@ -1,0 +1,7 @@
+{
+    "variants": {
+        "axis=y": { "model": "lightenchanted:block/light_truss" },
+        "axis=z": { "model": "lightenchanted:block/light_truss", "x": 90 },
+        "axis=x": { "model": "lightenchanted:block/light_truss", "x": 90, "y": 90 }
+    }
+}

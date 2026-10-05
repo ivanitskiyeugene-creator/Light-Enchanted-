@@ -5,21 +5,27 @@ import net.minecraft.network.chat.Component;
 import java.util.Locale;
 
 /**
- * Available beam geometries.
+ * Available beam geometries and custom gobo profiles.
  */
 public enum BeamShape {
     /** Square column with an outer glow shell, beacon-like. */
     CLASSIC,
     /** Round polygonal column. */
     CYLINDER,
-    /** Column tapering towards the top. */
+    /** Column tapering towards the top / conical spotlight. */
     CONE,
     /** Two ribbons spiralling upwards. */
     HELIX,
     /** Flat plane "wall" of light with a soft perpendicular copy. */
     SHEET,
     /** Four crossed planes forming a sparkle / star. */
-    STAR;
+    STAR,
+    /** Square pyramid spotlight. */
+    SQUARE,
+    /** Wide elliptical / oval spotlight. */
+    OVAL,
+    /** Thin cinema gobo letterbox slit / laser bar. */
+    SLIT;
 
     public Component displayName() {
         return Component.translatable("shape.lightenchanted." + name().toLowerCase(Locale.ROOT));

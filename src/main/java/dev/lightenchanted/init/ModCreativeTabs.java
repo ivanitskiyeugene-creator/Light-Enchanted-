@@ -19,6 +19,9 @@ public final class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.LIGHT_EMITTER.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.LIGHT_EMITTER.get());
+                        output.accept(ModItems.RECESSED_DOWNLIGHT.get());
+                        output.accept(ModItems.INDUSTRIAL_FAN.get());
+                        output.accept(ModItems.LIGHT_TRUSS.get());
                         output.accept(ModItems.BEAM_TUNER.get());
                         output.accept(ModItems.LIGHT_EMITTER_CREATIVE.get());
                     })

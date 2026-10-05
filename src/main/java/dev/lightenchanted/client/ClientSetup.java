@@ -1,6 +1,7 @@
 package dev.lightenchanted.client;
 
 import dev.lightenchanted.LightEnchanted;
+import dev.lightenchanted.client.render.IndustrialFanRenderer;
 import dev.lightenchanted.client.render.LightEmitterRenderer;
 import dev.lightenchanted.init.ModBlockEntities;
 import net.minecraftforge.api.distmarker.Dist;
@@ -16,5 +17,6 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.LIGHT_EMITTER.get(), LightEmitterRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.INDUSTRIAL_FAN.get(), IndustrialFanRenderer::new);
     }
 }

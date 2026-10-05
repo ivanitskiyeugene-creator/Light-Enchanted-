@@ -1,6 +1,11 @@
 {
     "block.lightenchanted.light_emitter": "Light Emitter",
     "block.lightenchanted.light_emitter_creative": "Creative Light Emitter (invisible)",
+    "block.lightenchanted.industrial_fan": "SCP HCZ Industrial Fan",
+    "block.lightenchanted.industrial_fan_slave": "SCP HCZ Industrial Fan",
+    "block.lightenchanted.light_truss": "Modular Light Truss",
+    "block.lightenchanted.recessed_downlight": "Recessed Downlight",
+
     "item.lightenchanted.beam_tuner": "Beam Tuner",
     "item.lightenchanted.beam_tuner.tooltip": "Right-click an emitter, then right-click the target point",
     "itemGroup.lightenchanted": "Light Enchanted",
@@ -17,11 +22,24 @@
     "screen.lightenchanted.pulse": "Pulse",
     "screen.lightenchanted.rotation": "Rotation",
     "screen.lightenchanted.enabled": "Beam enabled",
-    "screen.lightenchanted.shadows": "Shadows / God Rays",
+    "screen.lightenchanted.shadows": "Shadows / STR 2.0",
     "screen.lightenchanted.rainbow": "Rainbow",
     "screen.lightenchanted.down": "Point down",
     "screen.lightenchanted.to_sky": "Reach the sky",
     "screen.lightenchanted.shape": "Shape",
+    "screen.lightenchanted.redstone": "Redstone",
+    "screen.lightenchanted.strobe": "Strobe",
+
+    "screen.lightenchanted.redstone_0": "Always Active",
+    "screen.lightenchanted.redstone_1": "Active on Signal",
+    "screen.lightenchanted.redstone_2": "Inverted (Off on Signal)",
+    "screen.lightenchanted.redstone_3": "Signal Dimmer (0-15)",
+
+    "screen.lightenchanted.strobe_0": "Strobe Off",
+    "screen.lightenchanted.strobe_1": "Slow Pulse",
+    "screen.lightenchanted.strobe_2": "Warning Alarm",
+    "screen.lightenchanted.strobe_3": "Rapid Strobe",
+
     "screen.lightenchanted.offset_x": "Offset X",
     "screen.lightenchanted.offset_y": "Offset Y",
     "screen.lightenchanted.offset_z": "Offset Z",
@@ -44,6 +62,9 @@
     "shape.lightenchanted.cylinder": "Cylinder",
     "shape.lightenchanted.cone": "Spotlight",
     "shape.lightenchanted.helix": "Helix",
-    "shape.lightenchanted.sheet": "Sheet",
-    "shape.lightenchanted.star": "Star"
+    "shape.lightenchanted.sheet": "Laser Sheet",
+    "shape.lightenchanted.star": "Star Cross",
+    "shape.lightenchanted.square": "Pyramid Box",
+    "shape.lightenchanted.oval": "Oval Spotlight",
+    "shape.lightenchanted.slit": "Cinema Slit"
 }

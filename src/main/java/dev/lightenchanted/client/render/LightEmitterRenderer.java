@@ -106,13 +106,13 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
         long currentTick = level.getGameTime();
 
+        float time = (float) (level.getGameTime() % 720000L) + partialTick;
+
         // ---- STR 2.0: Lazy Cached Raytracing (0% CPU cost per frame!)
         RayTraceField rayField = RAY_FIELDS.computeIfAbsent(pos, p -> new RayTraceField());
-        if (rayField.needsRetrace(currentTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shadows)) {
+        if (rayField.needsRetrace(currentTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows)) {
             rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows, currentTick);
         }
-
-        float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
         // ---- Color
         float r, g, b;
@@ -129,11 +129,8 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             b = (cfg.color & 0xFF) / 255.0f;
         }
 
-        // ---- Alpha & distance falloff
-        float alpha = cfg.alpha / 255.0f;
-        if (cfg.pulse > 0.001f) {
-            alpha *= 0.60f + 0.40f * Mth.sin(time * cfg.pulse * 2.4f);
-        }
+        // ---- Alpha & Redstone / Strobe
+        float alpha = cfg.getEffectiveAlpha(time);
 
         // ---- Mie Forward Scattering
         Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
