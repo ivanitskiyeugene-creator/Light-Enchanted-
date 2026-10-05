@@ -10,7 +10,7 @@ import net.minecraft.util.Mth;
  */
 public class BeamConfig {
     public static final float MIN_WIDTH = 0.05f;
-    public static final float MAX_WIDTH = 2.0f;
+    public static final float MAX_WIDTH = 8.0f;
     public static final int MIN_HEIGHT = 2;
     public static final int MAX_HEIGHT = 160;
 
@@ -86,7 +86,7 @@ public class BeamConfig {
     /** Clamp every value into its legal range. Called server-side and on load. */
     public void sanitize() {
         width = Mth.clamp(width, MIN_WIDTH, MAX_WIDTH);
-        endWidth = Mth.clamp(endWidth, MIN_WIDTH, 4.0f);
+        endWidth = Mth.clamp(endWidth, MIN_WIDTH, MAX_WIDTH);
         glow = Mth.clamp(glow, 0.0f, 2.0f);
         height = Mth.clamp(height, MIN_HEIGHT, MAX_HEIGHT);
         offsetX = Mth.clamp(offsetX, -8.0f, 8.0f);

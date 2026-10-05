@@ -95,10 +95,10 @@ public class LightEmitterScreen extends Screen {
                 text("alpha").append(": "), Component.empty(), 0, 255, working.alpha, 1, 0, true));
         y += gap + 2;
         widthSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
-                text("width").append(": "), Component.empty(), 0.05, 2.0, working.width, 0.05, 2, true));
+                text("width").append(": "), Component.empty(), 0.05, 8.0, working.width, 0.05, 2, true));
         y += gap;
         spreadSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
-                text("spread").append(": "), Component.empty(), 0.1, 4.0, working.endWidth, 0.1, 1, true));
+                text("spread").append(": "), Component.empty(), 0.1, 8.0, working.endWidth, 0.1, 1, true));
         y += gap;
         glowSlider = addRenderableWidget(new ForgeSlider(left, y, colW, btnH,
                 text("glow").append(": "), Component.empty(), 0.0, 2.0, working.glow, 0.1, 1, true));

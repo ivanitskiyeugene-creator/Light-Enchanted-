@@ -132,7 +132,7 @@ public class BeamShadowManager {
 
     private static void bakeShadowMask(Level level, BlockPos emitterPos, Vec3 origin,
                                        Vec3 dir, float spreadRadius, CacheEntry entry) {
-        ObstacleData obstacles = collectObstacles(level, emitterPos, origin, dir, SCAN_DIST);
+        ObstacleData obstacles = collectObstacles(level, emitterPos, origin, dir, spreadRadius, SCAN_DIST);
 
         if (obstacles.hash == entry.lastObstacleHash && entry.lastDir != null && entry.hasObstacles) {
             return;
@@ -150,7 +150,7 @@ public class BeamShadowManager {
         Vec3 right = dir.cross(up).normalize();
         Vec3 actualUp = right.cross(dir).normalize();
 
-        float tanFov = Math.max(0.18f, spreadRadius * 0.45f);
+        float tanFov = Math.max(0.18f, spreadRadius * 0.40f);
 
         float[][] rawMask = new float[MASK_SIZE][MASK_SIZE];
         double ox = origin.x, oy = origin.y, oz = origin.z;
@@ -236,17 +236,18 @@ public class BeamShadowManager {
     }
 
     private static ObstacleData collectObstacles(Level level, BlockPos emitterPos, Vec3 origin,
-                                                 Vec3 dir, float maxDist) {
+                                                 Vec3 dir, float spreadRadius, float maxDist) {
         ObstacleData data = new ObstacleData();
         BlockRenderDispatcher brd = Minecraft.getInstance().getBlockRenderer();
 
         Vec3 end = origin.add(dir.scale(maxDist));
-        int minX = (int) Math.floor(Math.min(origin.x, end.x) - 2);
-        int maxX = (int) Math.ceil(Math.max(origin.x, end.x) + 2);
-        int minY = (int) Math.floor(Math.min(origin.y, end.y) - 2);
-        int maxY = (int) Math.ceil(Math.max(origin.y, end.y) + 2);
-        int minZ = (int) Math.floor(Math.min(origin.z, end.z) - 2);
-        int maxZ = (int) Math.ceil(Math.max(origin.z, end.z) + 2);
+        int margin = (int) Math.ceil(Math.max(spreadRadius * 0.5f + 2.0f, 4.0f));
+        int minX = (int) Math.floor(Math.min(origin.x, end.x) - margin);
+        int maxX = (int) Math.ceil(Math.max(origin.x, end.x) + margin);
+        int minY = (int) Math.floor(Math.min(origin.y, end.y) - margin);
+        int maxY = (int) Math.ceil(Math.max(origin.y, end.y) + margin);
+        int minZ = (int) Math.floor(Math.min(origin.z, end.z) - margin);
+        int maxZ = (int) Math.ceil(Math.max(origin.z, end.z) + margin);
 
         int hashAcc = 17;
         BlockPos.MutableBlockPos mpos = new BlockPos.MutableBlockPos();
