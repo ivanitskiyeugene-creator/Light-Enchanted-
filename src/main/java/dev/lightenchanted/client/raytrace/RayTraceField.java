@@ -26,10 +26,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * STR 2.2.2 High-Performance 3D Raytracer:
+ * STR 2.2.3 High-Precision 3D Raytracer:
  *
- * True pixel-accurate raymarching with robust inside/outside AABB intersection,
- * high-detail obstacle triangle collision, live fan shadow casting, and floor photon decals.
+ * True pixel-accurate raymarching with robust barycentric triangle intersection,
+ * 6-axis fan blade shadow casting, obstacle collection, and floor photon decals.
  */
 public class RayTraceField {
     public static final int RINGS = 8;
@@ -42,6 +42,7 @@ public class RayTraceField {
         public float length;
         public double impactX, impactY, impactZ;
         public boolean hitSolid;
+        public boolean hitFloor;
         public float intensity;
     }
 
@@ -93,9 +94,8 @@ public class RayTraceField {
                                 float width, float endWidth, float maxDist,
                                 BeamShape shape, boolean shadows) {
         if (lastOrigin == null || lastDir == null) return true;
-        // If there's an active spinning fan in the beam, refresh every 2 ticks; otherwise refresh every 20 ticks
-        long maxInterval = hasDynamicFan ? 2L : 20L;
-        if (currentTick - lastTraceTick > maxInterval) return true;
+        long maxInterval = hasDynamicFan ? 1L : 20L;
+        if (currentTick - lastTraceTick >= maxInterval) return true;
         if (lastShadows != shadows || lastShape != shape) return true;
         if (Math.abs(lastW - width) > 0.01f || Math.abs(lastEndW - endWidth) > 0.01f || Math.abs(lastMaxDist - maxDist) > 0.1f) return true;
         if (lastOrigin.distanceToSqr(origin) > 0.0001) return true;
@@ -189,6 +189,7 @@ public class RayTraceField {
 
             double hitDist = defaultTerrainDist;
             boolean solidHit = defaultTerrainDist < (maxDist - 0.1);
+            boolean hitFloor = true;
 
             // Test 3D obstacle triangles (fan blades, shroud, gratings, fences, detailed models)
             if (shadows && triangleCount > 0 && combinedBounds != null) {
@@ -210,6 +211,7 @@ public class RayTraceField {
                         if (triHit > 0.02 && triHit < hitDist) {
                             hitDist = triHit;
                             solidHit = true;
+                            hitFloor = false; // Blocked in mid-air by obstacle!
                         }
                     }
                 }
@@ -230,12 +232,14 @@ public class RayTraceField {
                     if (boxHit >= 0.02 && boxHit < hitDist) {
                         hitDist = boxHit;
                         solidHit = true;
+                        hitFloor = false;
                     }
                 }
             }
 
             ray.length = (float) hitDist;
             ray.hitSolid = solidHit;
+            ray.hitFloor = hitFloor;
             Vec3 impact = rayStart.add(rayDir.scale(hitDist));
             ray.impactX = impact.x;
             ray.impactY = impact.y;
@@ -354,11 +358,11 @@ public class RayTraceField {
                                 fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
                                 fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(rInner)));
 
-                        // 2. Rotating 5-Blade Impeller Assembly
+                        // 2. Rotating 5-Blade Impeller Assembly (Wide, bold blades)
                         int bCount = 5;
                         float tau = (float) (Math.PI * 2.0);
                         float rHub = 0.35f, rBlade = 1.22f;
-                        float rootW = 0.28f, tipW = 0.48f;
+                        float rootW = 0.35f, tipW = 0.58f;
 
                         for (int bi = 0; bi < bCount; bi++) {
                             float ba = tau * bi / bCount + (float) Math.toRadians(fAngle);
@@ -382,22 +386,20 @@ public class RayTraceField {
                                 fCenter.add(uAxis.scale(hr)).add(vAxis.scale(hr)),
                                 fCenter.add(uAxis.scale(-hr)).add(vAxis.scale(hr)));
 
-                        // 4. Safety Rebar Crossbars (Front and Rear)
-                        float barThick = 0.06f;
+                        // 4. Safety Rebar Crossbars
+                        float barThick = 0.08f;
                         for (float offset : new float[]{-0.75f, 0.0f, 0.75f}) {
-                            // U-bars
                             addQuadTriangles(fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(offset - barThick)),
                                     fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(offset - barThick)),
                                     fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(offset + barThick)),
                                     fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(offset + barThick)));
-                            // V-bars
+
                             addQuadTriangles(fCenter.add(uAxis.scale(offset - barThick)).add(vAxis.scale(-rInner)),
                                     fCenter.add(uAxis.scale(offset + barThick)).add(vAxis.scale(-rInner)),
                                     fCenter.add(uAxis.scale(offset + barThick)).add(vAxis.scale(rInner)),
                                     fCenter.add(uAxis.scale(offset - barThick)).add(vAxis.scale(rInner)));
                         }
 
-                        // Update combined bounds
                         bMinX = Math.min(bMinX, fCenter.x - 1.6);
                         bMinY = Math.min(bMinY, fCenter.y - 1.6);
                         bMinZ = Math.min(bMinZ, fCenter.z - 1.6);
@@ -520,22 +522,47 @@ public class RayTraceField {
                                               double maxDist) {
         double e1x = x1 - x0, e1y = y1 - y0, e1z = z1 - z0;
         double e2x = x2 - x0, e2y = y2 - y0, e2z = z2 - z0;
-        double hx = rdy * e2z - rdz * e2y;
-        double hy = rdz * e1x - rdx * e2z;
-        double hz = rdx * e2y - rdy * e2x;
-        double a = e1x * hx + e1y * hy + e1z * hz;
-        if (Math.abs(a) < 1e-7) return -1.0;
-        double f = 1.0 / a;
-        double sx = ox - x0, sy = oy - y0, sz = oz - z0;
-        double u = f * (sx * hx + sy * hy + sz * hz);
-        if (u < 0.0 || u > 1.0) return -1.0;
-        double qx = sy * e1z - sz * e1y;
-        double qy = sz * e1x - sx * e1z;
-        double qz = sx * e1y - sy * e1x;
-        double v = f * (rdx * qx + rdy * qy + rdz * qz);
-        if (v < 0.0 || u + v > 1.0) return -1.0;
-        double t = f * (e2x * qx + e2y * qy + e2z * qz);
-        return (t >= 0.01 && t <= maxDist) ? t : -1.0;
+
+        double nx = e1y * e2z - e1z * e2y;
+        double ny = e1z * e2x - e1x * e2z;
+        double nz = e1x * e2y - e1y * e2x;
+
+        double denom = rdx * nx + rdy * ny + rdz * nz;
+        if (Math.abs(denom) < 1e-7) {
+            return -1.0;
+        }
+
+        double t = ((x0 - ox) * nx + (y0 - oy) * ny + (z0 - oz) * nz) / denom;
+        if (t < 0.01 || t > maxDist) {
+            return -1.0;
+        }
+
+        double hx = ox + t * rdx;
+        double hy = oy + t * rdy;
+        double hz = oz + t * rdz;
+
+        double v2x = hx - x0;
+        double v2y = hy - y0;
+        double v2z = hz - z0;
+
+        double d00 = e1x * e1x + e1y * e1y + e1z * e1z;
+        double d01 = e1x * e2x + e1y * e2y + e1z * e2z;
+        double d11 = e2x * e2x + e2y * e2y + e2z * e2z;
+        double d20 = v2x * e1x + v2y * e1y + v2z * e1z;
+        double d21 = v2x * e2x + v2y * e2y + v2z * e2z;
+
+        double bDenom = d00 * d11 - d01 * d01;
+        if (Math.abs(bDenom) < 1e-7) {
+            return -1.0;
+        }
+
+        double u = (d11 * d20 - d01 * d21) / bDenom;
+        double v = (d00 * d21 - d01 * d20) / bDenom;
+
+        if (u >= -1e-4 && v >= -1e-4 && (u + v) <= 1.0001) {
+            return t;
+        }
+        return -1.0;
     }
 
     private static double intersectRayAABB(double ox, double oy, double oz,

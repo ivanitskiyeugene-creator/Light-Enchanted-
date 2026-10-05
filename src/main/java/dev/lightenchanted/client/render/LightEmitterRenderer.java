@@ -193,12 +193,12 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         coreR, coreG, coreB, rayAlpha);
             }
 
-            // ---- Ambient volumetric atmospheric envelope
+            // ---- Ambient volumetric atmospheric envelope (rendered only when shadows are off)
             float maxRayLen = 0.0f;
             for (int i = 0; i < rays.length; i++) {
                 if (rays[i].length > maxRayLen) maxRayLen = rays[i].length;
             }
-            if (maxRayLen > 0.1f) {
+            if (!cfg.shadows && maxRayLen > 0.1f) {
                 cylinderEnvelope(vc, mat, nmat, w * 0.5f, endW * 0.5f, maxRayLen, 16,
                         r, g, b, alpha * 0.12f * (1.0f + 0.5f * cfg.glow));
             }
@@ -218,7 +218,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
             for (int i = 0; i < rays.length; i++) {
                 RayTraceField.Ray ray = rays[i];
-                if (ray.hitSolid && ray.length > 0.1f) {
+                if (ray.hitSolid && ray.hitFloor && ray.length > 0.1f) {
                     double hitRelX = ray.impactX - pos.getX();
                     double hitRelY = ray.impactY - pos.getY() + 0.01;
                     double hitRelZ = ray.impactZ - pos.getZ();
