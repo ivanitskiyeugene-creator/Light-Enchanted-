@@ -4,8 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.lightenchanted.LightEnchanted;
 import dev.lightenchanted.beam.BeamConfig;
-import dev.lightenchanted.beam.BeamShape;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
+import dev.lightenchanted.client.raytrace.RayTraceField;
 import dev.lightenchanted.init.ModItems;
 import dev.lightenchanted.item.BeamTunerItem;
 import net.minecraft.client.Camera;
@@ -21,26 +21,28 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Photorealistic volumetric beam renderer with Mie forward scattering,
- * cinematic floating dust motes, soft PCF shadows, and secondary ground bounce.
+ * STR 2.0 (Simple Ray Tracing Renderer):
+ *
+ * Renders a dense 3D light field of 193 individual micro-rays. Each ray marches
+ * through the world independently and stops at the exact surface it hits.
+ * Unobstructed rays continue to the floor, casting true volumetric god rays
+ * through gratings, fans, meshes, and around pillars.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
             new ResourceLocation(LightEnchanted.MOD_ID, "textures/entity/beam.png");
-    private static final float TAU = (float) (Math.PI * 2.0);
-    private static final float HALF_PI = (float) (Math.PI / 2.0);
-    private static final float QUARTER_PI = (float) (Math.PI / 4.0);
-    private static final int DUST_MOTE_COUNT = 28;
+    private static final int DUST_MOTE_COUNT = 32;
+    private static final Map<BlockPos, RayTraceField> RAY_FIELDS = new HashMap<>();
 
     public LightEmitterRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -99,33 +101,15 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             }
         }
 
-        // ---- Terrain Collision Raycast (stops dead at solid pillars/walls)
         Vec3 startVec = new Vec3(worldOriginX, worldOriginY, worldOriginZ);
-        Vec3 endVec = startVec.add(dx * maxDist, dy * maxDist, dz * maxDist);
+        Vec3 dirVec = new Vec3(dx, dy, dz);
 
-        double impactX = endVec.x;
-        double impactY = endVec.y;
-        double impactZ = endVec.z;
-        float actualDist = (float) maxDist;
-        boolean hitSolid = false;
-
-        BlockHitResult hit = level.clip(new ClipContext(
-                startVec, endVec, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
-
-        if (hit.getType() != HitResult.Type.MISS) {
-            Vec3 hitPos = hit.getLocation();
-            double distToHit = startVec.distanceTo(hitPos);
-            if (distToHit > 0.1 && distToHit <= maxDist) {
-                actualDist = (float) distToHit;
-                impactX = hitPos.x;
-                impactY = hitPos.y;
-                impactZ = hitPos.z;
-                hitSolid = true;
-            }
-        }
-
+        float w = Math.max(BeamConfig.MIN_WIDTH, cfg.width);
         float endW = Math.max(BeamConfig.MIN_WIDTH, cfg.endWidth);
-        float renderHeight = (aimed || hitSolid) ? actualDist + Math.max(0.4f, endW * 0.35f) : actualDist;
+
+        // ---- STR 2.0: Execute 3D Pixel Micro-Raytracing for this beam!
+        RayTraceField rayField = RAY_FIELDS.computeIfAbsent(pos, p -> new RayTraceField());
+        rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows);
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
@@ -149,16 +133,12 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         if (cfg.pulse > 0.001f) {
             alpha *= 0.60f + 0.40f * Mth.sin(time * cfg.pulse * 2.4f);
         }
-        if (actualDist > 30.0f) {
-            float distFactor = 1.0f / (1.0f + 0.022f * (actualDist - 30.0f));
-            alpha *= distFactor;
-        }
 
-        // ---- Physics: Henyey-Greenstein Mie Forward Scattering
+        // ---- Physics: Mie Forward Scattering (bright blinding flare when looking up into source)
         Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         Vec3 camPos = camera.getPosition();
         Vec3 toCam = camPos.subtract(startVec).normalize();
-        double cosAngle = toCam.dot(new Vec3(-dx, -dy, -dz)); // Alignment with light direction
+        double cosAngle = toCam.dot(new Vec3(-dx, -dy, -dz));
         float gMie = 0.55f;
         float miePhase = (float) ((1.0f - gMie * gMie) / Math.pow(1.0f + gMie * gMie - 2.0f * gMie * cosAngle, 1.5));
         float mieBoost = Mth.clamp(miePhase * 0.65f, 0.70f, 2.2f);
@@ -170,19 +150,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float rot = cfg.rotation > 0.001f ? time * cfg.rotation * 1.3f : 0.0f;
 
-        // Ultra-hot radiant white core + rich color tint
         float coreR = r * 0.4f + 0.6f;
         float coreG = g * 0.4f + 0.6f;
         float coreB = b * 0.4f + 0.6f;
-        float coreAlpha = alpha * 0.75f;
-        float glowAlpha = Math.min(1.0f, alpha * (0.16f + 0.10f * cfg.glow));
-
-        float w = Math.max(BeamConfig.MIN_WIDTH, cfg.width);
-        float glowScale = 1.0f + 0.50f * cfg.glow;
-
-        // ---- Shadow mask raytracing
-        Vec3 dirVec = new Vec3(dx, dy, dz);
-        ResourceLocation shadowTex = BeamShadowManager.getShadowTexture(be, startVec, dirVec, endW);
 
         VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
         Quaternionf camOrientation = camera.rotation();
@@ -190,105 +160,74 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         if (alpha > 0.0f) {
             poseStack.pushPose();
             poseStack.translate(originX, originY, originZ);
-            if (aimed || hitSolid) {
+            if (aimed || dy != 1.0) {
                 poseStack.mulPose(new Quaternionf().rotationTo(
                         0.0f, 1.0f, 0.0f, (float) dx, (float) dy, (float) dz));
-            } else if (cfg.down) {
-                poseStack.mulPose(new Quaternionf().rotationX((float) Math.PI));
+            }
+            if (rot > 0.001f) {
+                poseStack.mulPose(new Quaternionf().rotationY(rot));
             }
             Matrix4f mat = poseStack.last().pose();
             Matrix3f nmat = poseStack.last().normal();
 
-            if (shadowTex != null) {
-                // ---- Dense volumetric god rays with 24 radial slices + 6 concentric shells
-                VertexConsumer shadowVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
-                float r0 = Math.max(0.03f, w * 0.15f);
-                float r1 = cfg.shape == BeamShape.CONE ? endW * 0.5f : w * 0.4f;
+            // ---- STR 2.0: Draw the 193 3D Volumetric Ray Filaments!
+            RayTraceField.Ray[] rays = rayField.getRays();
+            float filamentThickness = Math.max(0.04f, w * 0.06f);
 
-                // 24 radial light shaft slices
-                for (int slice = 0; slice < 24; slice++) {
-                    float sliceRot = rot + slice * (TAU / 24.0f);
-                    projectedShaftSlice(shadowVc, mat, nmat, r0, r1, renderHeight, sliceRot,
-                            coreR, coreG, coreB, alpha * 0.75f);
+            for (int i = 0; i < rays.length; i++) {
+                RayTraceField.Ray ray = rays[i];
+                float len = ray.length;
+                if (len < 0.05f) {
+                    continue; // Blocked at source
                 }
 
-                // 6 concentric cone layers
-                for (int layer = 1; layer <= 6; layer++) {
-                    float scale = layer / 6.0f;
-                    cylinder(shadowVc, mat, nmat, r0 * scale, r1 * scale, renderHeight, 18, rot,
-                            coreR, coreG, coreB, alpha * 0.45f);
-                }
+                float rayAlpha = alpha * ray.intensity * 0.55f;
+                float progress = len / (float) maxDist;
 
-                // Atmospheric halo
-                cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 18, rot,
-                        r, g, b, glowAlpha * 0.30f);
-            } else {
-                // ---- Standard clean beam geometry
-                switch (cfg.shape) {
-                    case CLASSIC -> {
-                        squareColumn(vc, mat, nmat, w * 0.5f, renderHeight, rot, coreR, coreG, coreB, coreAlpha);
-                        squareColumn(vc, mat, nmat, w * 0.5f * glowScale, renderHeight, rot, r, g, b, glowAlpha);
-                    }
-                    case CYLINDER -> {
-                        cylinder(vc, mat, nmat, w * 0.4f, w * 0.4f, renderHeight, 16, rot, coreR, coreG, coreB, coreAlpha);
-                        cylinder(vc, mat, nmat, w * 0.4f * glowScale, w * 0.4f * glowScale, renderHeight, 16, rot, r, g, b, glowAlpha);
-                    }
-                    case CONE -> {
-                        float r0 = Math.max(0.03f, w * 0.15f);
-                        float r1 = endW * 0.5f;
-                        cylinder(vc, mat, nmat, r0, r1, renderHeight, 20, rot, coreR, coreG, coreB, coreAlpha);
-                        cylinder(vc, mat, nmat, r0 * glowScale, r1 * glowScale, renderHeight, 20, rot, r, g, b, glowAlpha);
-                    }
-                    case HELIX -> {
-                        helix(vc, mat, nmat, w * 0.5f, renderHeight, rot, r, g, b, alpha * 0.75f);
-                        cylinder(vc, mat, nmat, w * 0.12f + 0.03f, w * 0.12f + 0.03f, renderHeight, 8, rot,
-                                coreR, coreG, coreB, coreAlpha * 0.7f);
-                    }
-                    case SHEET -> {
-                        sheet(vc, mat, nmat, w, renderHeight, rot, coreR, coreG, coreB, coreAlpha * 0.9f);
-                        sheet(vc, mat, nmat, w * glowScale, renderHeight, rot + HALF_PI, r, g, b, glowAlpha);
-                    }
-                    case STAR -> {
-                        for (int i = 0; i < 4; i++) {
-                            sheet(vc, mat, nmat, w, renderHeight, rot + i * QUARTER_PI, coreR, coreG, coreB, coreAlpha * 0.7f);
-                        }
-                        cylinder(vc, mat, nmat, w * 0.14f + 0.04f, w * 0.14f + 0.04f, renderHeight, 8, rot,
-                                coreR, coreG, coreB, coreAlpha * 0.6f);
-                    }
-                }
+                float x0 = ray.localX;
+                float z0 = ray.localZ;
+                float x1 = ray.localX + (ray.targetLocalX - ray.localX) * progress;
+                float z1 = ray.localZ + (ray.targetLocalZ - ray.localZ) * progress;
+
+                // Draw ray filament as 2 cross-intersecting ribbons
+                filamentRibbon(vc, mat, nmat, x0, z0, x1, z1, len, filamentThickness, 0.0f,
+                        coreR, coreG, coreB, rayAlpha);
+                filamentRibbon(vc, mat, nmat, x0, z0, x1, z1, len, filamentThickness, (float) (Math.PI / 2.0),
+                        coreR, coreG, coreB, rayAlpha);
             }
 
-            // ---- Cinematic Floating Dust Motes inside the light shaft
-            renderDustMotes(vc, mat, nmat, renderHeight, w, endW, time, coreR, coreG, coreB, alpha);
+            // ---- Ambient volumetric atmospheric envelope
+            float maxRayLen = 0.0f;
+            for (int i = 0; i < rays.length; i++) {
+                if (rays[i].length > maxRayLen) maxRayLen = rays[i].length;
+            }
+            if (maxRayLen > 0.1f) {
+                cylinderEnvelope(vc, mat, nmat, w * 0.5f, endW * 0.5f, maxRayLen, 16,
+                        r, g, b, alpha * 0.12f * (1.0f + 0.5f * cfg.glow));
+            }
+
+            // ---- Cinematic floating dust motes
+            renderDustMotes(vc, mat, nmat, maxRayLen, w, endW, time, coreR, coreG, coreB, alpha);
 
             poseStack.popPose();
 
-            // ---- Origin glow dot & lens flare
+            // ---- Origin lens flare glow dot
             glowDot(vc, poseStack, camOrientation, originX, originY, originZ,
                     Math.max(0.10f, w * 0.35f), coreR, coreG, coreB, Math.min(1.0f, alpha * 0.75f * mieBoost));
 
-            if (aimed || hitSolid) {
-                // ---- Impact pool disc & secondary ambient bounce halo
-                double hitRelX = impactX - pos.getX();
-                double hitRelY = impactY - pos.getY() + 0.02;
-                double hitRelZ = impactZ - pos.getZ();
-                float groundRadius = cfg.shape == BeamShape.CONE
-                        ? Math.max(0.25f, endW * 0.48f)
-                        : Math.max(0.20f, w * 0.45f);
+            // ---- STR 2.0: Surface Photon Hit Impaction (Pixel-Accurate Shadow Silhouette on floor/walls)
+            float photonRadius = Math.max(0.12f, (endW / w) * 0.15f);
 
-                if (shadowTex != null) {
-                    VertexConsumer shadowDecalVc = buffers.getBuffer(RenderType.beaconBeam(shadowTex, true));
-                    // Sharp shadow decal
-                    flatGroundDisc(shadowDecalVc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
-                            coreR, coreG, coreB, Math.min(1.0f, alpha * 0.90f));
-                    // Soft diffuse bounce halo around the spot
-                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius * 1.55f,
-                            r, g, b, Math.min(1.0f, alpha * 0.22f));
-                } else {
-                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius,
-                            coreR, coreG, coreB, Math.min(1.0f, alpha * 0.80f));
-                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundRadius * 1.55f,
-                            r, g, b, Math.min(1.0f, alpha * 0.20f));
+            for (int i = 0; i < rays.length; i++) {
+                RayTraceField.Ray ray = rays[i];
+                if (ray.hitSolid && ray.length > 0.1f) {
+                    double hitRelX = ray.impactX - pos.getX();
+                    double hitRelY = ray.impactY - pos.getY() + 0.01;
+                    double hitRelZ = ray.impactZ - pos.getZ();
+
+                    float photonAlpha = Math.min(1.0f, alpha * ray.intensity * 0.75f);
+                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, photonRadius,
+                            coreR, coreG, coreB, photonAlpha);
                 }
             }
         }
@@ -298,6 +237,42 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             ghostCube(vc, poseStack, 0.55f, 0.85f, 1.0f, 0.12f);
             glowDot(vc, poseStack, camOrientation, originX, originY, originZ,
                     0.12f, 0.6f, 1.0f, 1.0f, 0.7f);
+        }
+    }
+
+    /** Draws an individual camera-oriented 3D ray filament ribbon from (x0, 0, z0) to (x1, length, z1). */
+    private static void filamentRibbon(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                      float x0, float z0, float x1, float z1,
+                                      float length, float thickness, float angle,
+                                      float r, float g, float b, float a) {
+        float c = Mth.cos(angle) * thickness;
+        float s = Mth.sin(angle) * thickness;
+
+        twoSidedQuad(vc, m, n,
+                x0 - c, 0.0f, z0 - s,
+                x0 + c, 0.0f, z0 + s,
+                x1 + c, length, z1 + s,
+                x1 - c, length, z1 - s,
+                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
+    }
+
+    /** Ambient volumetric cylinder/cone outer envelope. */
+    private static void cylinderEnvelope(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                         float r0, float r1, float height, int segments,
+                                         float r, float g, float b, float a) {
+        float tau = (float) (Math.PI * 2.0);
+        for (int i = 0; i < segments; i++) {
+            float a0 = tau * i / segments;
+            float a1 = tau * (i + 1) / segments;
+            float cb0 = Mth.cos(a0), sb0 = Mth.sin(a0);
+            float cb1 = Mth.cos(a1), sb1 = Mth.sin(a1);
+            twoSidedQuad(vc, m, n,
+                    r0 * cb0, 0, r0 * sb0,
+                    r0 * cb1, 0, r0 * sb1,
+                    r1 * cb1, height, r1 * sb1,
+                    r1 * cb0, height, r1 * sb0,
+                    r, g, b, a,
+                    (float) i / segments, (float) (i + 1) / segments, 0.0f, 1.0f);
         }
     }
 
@@ -313,27 +288,22 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             float seed = i * 13.37f;
             float speed = 0.035f + 0.025f * ((seed * 7.1f) % 1.0f);
 
-            // Vertical drift
             float yNorm = ((time * speed + seed) % 1.0f + 1.0f) % 1.0f;
             float y = yNorm * height;
 
-            // Radius at height y
             float currentRadius = Mth.lerp(yNorm, w * 0.35f, endW * 0.45f);
 
-            // Radial drift with slight turbulence
             float angle = seed * 6.28f + time * 0.15f * (i % 2 == 0 ? 1 : -1);
             float distFromCenter = ((seed * 3.3f) % 1.0f) * currentRadius;
             float x = distFromCenter * Mth.cos(angle) + 0.03f * Mth.sin(time * 0.8f + seed);
             float z = distFromCenter * Mth.sin(angle) + 0.03f * Mth.cos(time * 0.9f + seed);
 
-            // Particle shimmer & fade near beam ends
             float shimmer = 0.55f + 0.45f * Mth.sin(time * 2.5f + seed * 9.0f);
             float endFade = smoothstep(0.0f, 0.1f, yNorm) * smoothstep(1.0f, 0.88f, yNorm);
             float moteAlpha = alpha * shimmer * endFade * 0.60f;
 
             float sz = 0.025f + 0.015f * ((seed * 5.5f) % 1.0f);
 
-            // Tiny billboard quad facing upwards in local beam space
             twoSidedQuad(vc, m, n,
                     x - sz, y, z - sz,
                     x + sz, y, z - sz,
@@ -358,91 +328,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
     }
 
     // ------------------------------------------------------------ geometry
-
-    private static void projectedShaftSlice(VertexConsumer vc, Matrix4f m, Matrix3f n,
-                                           float r0, float r1, float height, float angle,
-                                           float r, float g, float b, float a) {
-        float c = Mth.cos(angle);
-        float s = Mth.sin(angle);
-        twoSidedQuad(vc, m, n,
-                -r0 * c, 0, -r0 * s,
-                r0 * c, 0, r0 * s,
-                r1 * c, height, r1 * s,
-                -r1 * c, height, -r1 * s,
-                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
-    }
-
-    private static void squareColumn(VertexConsumer vc, Matrix4f m, Matrix3f n, float half, float height,
-                                     float rot, float r, float g, float b, float a) {
-        for (int i = 0; i < 4; i++) {
-            float a0 = rot + i * HALF_PI;
-            float a1 = a0 + HALF_PI;
-            float x0 = half * Mth.cos(a0);
-            float z0 = half * Mth.sin(a0);
-            float x1 = half * Mth.cos(a1);
-            float z1 = half * Mth.sin(a1);
-            twoSidedQuad(vc, m, n,
-                    x0, 0, z0, x1, 0, z1,
-                    x1, height, z1, x0, height, z0,
-                    r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
-        }
-    }
-
-    private static void cylinder(VertexConsumer vc, Matrix4f m, Matrix3f n, float rBottom, float rTop,
-                                 float height, int segments, float rot,
-                                 float r, float g, float b, float a) {
-        for (int i = 0; i < segments; i++) {
-            float a0 = rot + TAU * i / segments;
-            float a1 = rot + TAU * (i + 1) / segments;
-            float cb0 = Mth.cos(a0), sb0 = Mth.sin(a0);
-            float cb1 = Mth.cos(a1), sb1 = Mth.sin(a1);
-            twoSidedQuad(vc, m, n,
-                    rBottom * cb0, 0, rBottom * sb0,
-                    rBottom * cb1, 0, rBottom * sb1,
-                    rTop * cb1, height, rTop * sb1,
-                    rTop * cb0, height, rTop * sb0,
-                    r, g, b, a,
-                    (float) i / segments, (float) (i + 1) / segments, 0.0f, 1.0f);
-        }
-    }
-
-    private static void helix(VertexConsumer vc, Matrix4f m, Matrix3f n, float radius, float height,
-                              float rot, float r, float g, float b, float a) {
-        int slices = Mth.clamp(Mth.ceil(height / 0.35f), 8, 800);
-        float step = height / slices;
-        float halfWidth = Math.max(0.05f, radius * 0.35f);
-        float inner = Math.max(0.02f, radius - halfWidth);
-        float outer = radius + halfWidth;
-
-        for (int ribbon = 0; ribbon < 2; ribbon++) {
-            float phase = ribbon * (float) Math.PI;
-            for (int k = 0; k < slices; k++) {
-                float y0 = k * step;
-                float y1 = y0 + step;
-                float ang0 = rot + phase + y0 * 1.1f;
-                float ang1 = rot + phase + y1 * 1.1f;
-                twoSidedQuad(vc, m, n,
-                        inner * Mth.cos(ang0), y0, inner * Mth.sin(ang0),
-                        outer * Mth.cos(ang0), y0, outer * Mth.sin(ang0),
-                        outer * Mth.cos(ang1), y1, outer * Mth.sin(ang1),
-                        inner * Mth.cos(ang1), y1, inner * Mth.sin(ang1),
-                        r, g, b, a, 0.0f, 1.0f, y0 / height, y1 / height);
-            }
-        }
-    }
-
-    private static void sheet(VertexConsumer vc, Matrix4f m, Matrix3f n, float width, float height,
-                              float angle, float r, float g, float b, float a) {
-        float c = Mth.cos(angle);
-        float s = Mth.sin(angle);
-        float hw = width * 0.5f;
-        twoSidedQuad(vc, m, n,
-                -hw * c, 0, -hw * s,
-                hw * c, 0, hw * s,
-                hw * c, height, hw * s,
-                -hw * c, height, -hw * s,
-                r, g, b, a, 0.0f, 1.0f, 0.0f, 1.0f);
-    }
 
     private static void glowDot(VertexConsumer vc, PoseStack poseStack, Quaternionf cam,
                                 double x, double y, double z, float radius,
