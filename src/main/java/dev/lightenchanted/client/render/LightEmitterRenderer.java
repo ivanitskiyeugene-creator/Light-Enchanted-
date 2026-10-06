@@ -18,6 +18,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
@@ -32,12 +33,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * STR 2.4.0 True Continuous Volumetric Fog & Negative Ground Shadow Silhouette Renderer:
+ * STR 2.4.2 6-Axis Surface Decal Projection & Continuous Volumetric Fog Renderer:
  *
- * - Smooth seamless volumetric cone hulls (zero "laser string" lines).
- * - Real-time volumetric shadow voids carved by players, mobs, and fan blades.
- * - Connected ground illumination disc with crisp negative shadow silhouettes.
- * - Multi-bounce mirror reflection rendering.
+ * - Precise 6-directional wall, floor, and ceiling surface decal alignment.
+ * - Solid high-contrast negative shadow silhouettes from players, mobs, and fan blades.
+ * - Seamless volumetric atmospheric light cone.
+ * - Multi-bounce optical mirror reflections.
  * - Sub-frame interpolation maintaining 300+ FPS.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
@@ -187,11 +188,10 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             int raysPerRing = RayTraceField.RAYS_PER_RING;
             int totalRings = RayTraceField.RINGS;
 
-            // ---- Continuous Seamless Volumetric Cone Hulls & Radial Fog Fins
-            // 1. Continuous Concentric Fog Shells (Outer Atmosphere + Mid Body + Glowing Core)
+            // ---- Continuous Seamless Volumetric Cone Hulls
             for (int ringStep : new int[]{totalRings, totalRings / 2, 2}) {
                 int baseIdx = 1 + (ringStep - 1) * raysPerRing;
-                float shellAlpha = alpha * (ringStep == totalRings ? 0.28f : (ringStep == 2 ? 0.65f : 0.40f));
+                float shellAlpha = alpha * (ringStep == totalRings ? 0.35f : (ringStep == 2 ? 0.85f : 0.55f));
 
                 for (int s = 0; s < raysPerRing; s++) {
                     int nextS = (s + 1) % raysPerRing;
@@ -226,7 +226,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 }
             }
 
-            // 2. Radial Volumetric Fins (Connecting Center to Outer Rings for Solid Light Body)
+            // Radial Volumetric Fins (Connecting Center to Outer Rings)
             RayTraceField.Ray centerRay = rays[0];
             float cLen = centerRay.length;
             int outerBase = 1 + (totalRings - 1) * raysPerRing;
@@ -249,7 +249,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         rOuter.localX, 0.0f, rOuter.localZ,
                         xOut_bot, oLen, zOut_bot,
                         0.0f, cLen, 0.0f,
-                        fR, fG, fB, alpha * 0.22f);
+                        fR, fG, fB, alpha * 0.35f);
             }
 
             // ---- Cinematic 3D Micro-Turbulence Dust Motes
@@ -279,7 +279,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     float rayR = coreR * ray.tintR;
                     float rayG = coreG * ray.tintG;
                     float rayB = coreB * ray.tintB;
-                    float rayAlpha = alpha * 0.45f;
+                    float rayAlpha = alpha * 0.55f;
 
                     float refRadius = Math.max(0.08f, w * 0.15f);
                     drawVolumetricQuad(vc, rMat, rNmat, -refRadius, 0, 0, refRadius, 0, 0,
@@ -296,26 +296,25 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         w, r, g, b, coreR, coreG, coreB, alpha, mieBoost, cosAngle, cfg.glow);
             }
 
-            // ---- Continuous Ground Illumination Disk & Negative Shadow Silhouette
-            // Dense overlapping photon discs that fuse into a smooth solid illuminated spot
-            float groundDiscRadius = Math.max(0.35f, (endW / w) * 0.38f);
+            // ---- 6-Axis Ground/Wall/Ceiling Surface Decal Projection with Crisp Negative Shadow Silhouettes
+            float surfaceDiscRadius = Math.max(0.38f, (endW / w) * 0.42f);
 
             for (int i = 0; i < rays.length; i++) {
                 RayTraceField.Ray ray = rays[i];
-                // Only rays that reached the floor illuminate the ground!
-                // Rays blocked mid-air by an entity or obstacle leave a solid, crisp dark shadow!
+                // Only rays that reached the wall/floor illuminate the surface!
+                // Blocked rays leave a crisp, high-contrast dark silhouette!
                 if (ray.hitSolid && ray.hitFloor && ray.length > 0.1f) {
                     double hitRelX = ray.impactX - pos.getX();
-                    double hitRelY = ray.impactY - pos.getY() + 0.012;
+                    double hitRelY = ray.impactY - pos.getY();
                     double hitRelZ = ray.impactZ - pos.getZ();
 
                     float rayR = coreR * ray.tintR;
                     float rayG = coreG * ray.tintG;
                     float rayB = coreB * ray.tintB;
 
-                    float photonAlpha = Math.min(1.0f, alpha * (0.35f + ray.intensity * 0.50f));
-                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundDiscRadius,
-                            rayR, rayG, rayB, photonAlpha);
+                    float photonAlpha = Math.min(1.0f, alpha * (0.45f + ray.intensity * 0.55f));
+                    drawSurfaceDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, surfaceDiscRadius,
+                            ray.surfaceNormal, rayR, rayG, rayB, photonAlpha);
                 }
             }
         }
@@ -326,6 +325,61 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             glowDot(vc, poseStack, camOrientation, originX, originY, originZ,
                     0.12f, 0.6f, 1.0f, 1.0f, 0.7f);
         }
+    }
+
+    private static void drawSurfaceDisc(VertexConsumer vc, PoseStack poseStack,
+                                       double x, double y, double z, float radius,
+                                       Direction normal, float r, float g, float b, float a) {
+        poseStack.pushPose();
+        poseStack.translate(x, y, z);
+
+        // Align with 6-directional surface normal
+        if (normal == Direction.NORTH) {
+            poseStack.mulPose(new Quaternionf().rotationX((float) (Math.PI / 2.0)));
+            poseStack.translate(0, 0, -0.015);
+        } else if (normal == Direction.SOUTH) {
+            poseStack.mulPose(new Quaternionf().rotationX((float) (-Math.PI / 2.0)));
+            poseStack.translate(0, 0, 0.015);
+        } else if (normal == Direction.WEST) {
+            poseStack.mulPose(new Quaternionf().rotationZ((float) (-Math.PI / 2.0)));
+            poseStack.translate(-0.015, 0, 0);
+        } else if (normal == Direction.EAST) {
+            poseStack.mulPose(new Quaternionf().rotationZ((float) (Math.PI / 2.0)));
+            poseStack.translate(0.015, 0, 0);
+        } else if (normal == Direction.DOWN) {
+            poseStack.mulPose(new Quaternionf().rotationX((float) Math.PI));
+            poseStack.translate(0, -0.015, 0);
+        } else {
+            // UP (Floor)
+            poseStack.translate(0, 0.015, 0);
+        }
+
+        Matrix4f mat = poseStack.last().pose();
+        Matrix3f nmat = poseStack.last().normal();
+
+        int segments = 8;
+        float angleStep = (float) (Math.PI * 2.0 / segments);
+
+        for (int i = 0; i < segments; i++) {
+            float a0 = i * angleStep;
+            float a1 = (i + 1) * angleStep;
+
+            float x0 = radius * Mth.cos(a0);
+            float z0 = radius * Mth.sin(a0);
+            float x1 = radius * Mth.cos(a1);
+            float z1 = radius * Mth.sin(a1);
+
+            vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
+                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+            vc.vertex(mat, x0, 0.0f, z0).color(r, g, b, 0.0f).uv(0.0f, 0.0f)
+                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+            vc.vertex(mat, x1, 0.0f, z1).color(r, g, b, 0.0f).uv(1.0f, 0.0f)
+                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+            vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
+                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+        }
+
+        poseStack.popPose();
     }
 
     private static void drawVolumetricQuad(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
@@ -420,39 +474,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.popPose();
     }
 
-    private static void flatGroundDisc(VertexConsumer vc, PoseStack poseStack,
-                                      double x, double y, double z, float radius,
-                                      float r, float g, float b, float a) {
-        poseStack.pushPose();
-        poseStack.translate(x, y, z);
-        Matrix4f mat = poseStack.last().pose();
-        Matrix3f nmat = poseStack.last().normal();
-
-        int segments = 8;
-        float angleStep = (float) (Math.PI * 2.0 / segments);
-
-        for (int i = 0; i < segments; i++) {
-            float a0 = i * angleStep;
-            float a1 = (i + 1) * angleStep;
-
-            float x0 = radius * Mth.cos(a0);
-            float z0 = radius * Mth.sin(a0);
-            float x1 = radius * Mth.cos(a1);
-            float z1 = radius * Mth.sin(a1);
-
-            vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, x0, 0.0f, z0).color(r, g, b, 0.0f).uv(0.0f, 0.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, x1, 0.0f, z1).color(r, g, b, 0.0f).uv(1.0f, 0.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-        }
-
-        poseStack.popPose();
-    }
-
     private static void dustBillboard(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
                                       float x, float y, float z, float s,
                                       float r, float g, float b, float a) {
@@ -476,15 +497,15 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             float a1 = (i + 1) * step;
 
             float x0 = radius * Mth.cos(a0);
-            float y0 = radius * Mth.sin(a0);
+            float z0 = radius * Mth.sin(a0);
             float x1 = radius * Mth.cos(a1);
-            float y1 = radius * Mth.sin(a1);
+            float z1 = radius * Mth.sin(a1);
 
             vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
-            vc.vertex(mat, x0, y0, 0.0f).color(r, g, b, 0.0f).uv(0.0f, 0.0f)
+            vc.vertex(mat, x0, z0, 0.0f).color(r, g, b, 0.0f).uv(0.0f, 0.0f)
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
-            vc.vertex(mat, x1, y1, 0.0f).color(r, g, b, 0.0f).uv(1.0f, 0.0f)
+            vc.vertex(mat, x1, z1, 0.0f).color(r, g, b, 0.0f).uv(1.0f, 0.0f)
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
             vc.vertex(mat, 0.0f, 0.0f, 0.0f).color(r, g, b, a).uv(0.5f, 0.5f)
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
