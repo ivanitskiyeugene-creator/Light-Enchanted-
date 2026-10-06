@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "lightenchanted:block/photoreceptor"
+    },
+    "facing=south": {
+      "model": "lightenchanted:block/photoreceptor",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "lightenchanted:block/photoreceptor",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "lightenchanted:block/photoreceptor",
+      "y": 90
+    },
+    "facing=up": {
+      "model": "lightenchanted:block/photoreceptor",
+      "x": 270
+    },
+    "facing=down": {
+      "model": "lightenchanted:block/photoreceptor",
+      "x": 90
+    }
+  }
+}

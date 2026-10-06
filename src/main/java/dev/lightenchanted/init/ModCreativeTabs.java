@@ -18,10 +18,23 @@ public final class ModCreativeTabs {
                     .title(Component.translatable("itemGroup.lightenchanted"))
                     .icon(() -> new ItemStack(ModItems.LIGHT_EMITTER.get()))
                     .displayItems((parameters, output) -> {
+                        // Projectors & Fixtures
                         output.accept(ModItems.LIGHT_EMITTER.get());
+                        output.accept(ModItems.INDUSTRIAL_FLOODLIGHT.get());
+                        output.accept(ModItems.FRESNEL_SPOTLIGHT.get());
+                        output.accept(ModItems.LASER_PROJECTOR.get());
                         output.accept(ModItems.RECESSED_DOWNLIGHT.get());
-                        output.accept(ModItems.INDUSTRIAL_FAN.get());
+                        output.accept(ModItems.FLUORESCENT_TUBE.get());
+                        output.accept(ModItems.LIGHT_GRATE.get());
                         output.accept(ModItems.LIGHT_TRUSS.get());
+
+                        // Optics & Interactive Blocks
+                        output.accept(ModItems.OPTICAL_MIRROR.get());
+                        output.accept(ModItems.PHOTORECEPTOR.get());
+                        output.accept(ModItems.HAZE_MACHINE.get());
+                        output.accept(ModItems.INDUSTRIAL_FAN.get());
+
+                        // Tools & Utilities
                         output.accept(ModItems.BEAM_TUNER.get());
                         output.accept(ModItems.LIGHT_EMITTER_CREATIVE.get());
                     })

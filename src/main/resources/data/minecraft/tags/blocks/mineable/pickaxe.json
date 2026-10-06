@@ -1,6 +1,18 @@
 {
     "replace": false,
     "values": [
-        "lightenchanted:light_emitter"
+        "lightenchanted:light_emitter",
+        "lightenchanted:industrial_fan",
+        "lightenchanted:industrial_fan_slave",
+        "lightenchanted:light_truss",
+        "lightenchanted:recessed_downlight",
+        "lightenchanted:optical_mirror",
+        "lightenchanted:photoreceptor",
+        "lightenchanted:haze_machine",
+        "lightenchanted:industrial_floodlight",
+        "lightenchanted:fresnel_spotlight",
+        "lightenchanted:laser_projector",
+        "lightenchanted:light_grate",
+        "lightenchanted:fluorescent_tube"
     ]
 }

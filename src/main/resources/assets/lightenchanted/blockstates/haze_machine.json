@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "lightenchanted:block/haze_machine"
+    },
+    "facing=south": {
+      "model": "lightenchanted:block/haze_machine",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "lightenchanted:block/haze_machine",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "lightenchanted:block/haze_machine",
+      "y": 90
+    }
+  }
+}

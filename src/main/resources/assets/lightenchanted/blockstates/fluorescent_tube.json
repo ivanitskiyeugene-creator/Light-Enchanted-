@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "axis=y": {
+      "model": "lightenchanted:block/fluorescent_tube"
+    },
+    "axis=z": {
+      "model": "lightenchanted:block/fluorescent_tube",
+      "x": 90
+    },
+    "axis=x": {
+      "model": "lightenchanted:block/fluorescent_tube",
+      "x": 90,
+      "y": 90
+    }
+  }
+}

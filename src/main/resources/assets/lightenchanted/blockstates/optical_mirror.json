@@ -1,0 +1,232 @@
+{
+  "variants": {
+    "facing=down,angle=0": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180
+    },
+    "facing=down,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 45
+    },
+    "facing=down,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 90
+    },
+    "facing=down,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 135
+    },
+    "facing=down,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 180
+    },
+    "facing=down,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 225
+    },
+    "facing=down,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 270
+    },
+    "facing=down,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 180,
+      "y": 315
+    },
+    "facing=up,angle=0": {
+      "model": "lightenchanted:block/optical_mirror"
+    },
+    "facing=up,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 45
+    },
+    "facing=up,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 90
+    },
+    "facing=up,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 135
+    },
+    "facing=up,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 180
+    },
+    "facing=up,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 225
+    },
+    "facing=up,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 270
+    },
+    "facing=up,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "y": 315
+    },
+    "facing=north,angle=0": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90
+    },
+    "facing=north,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 45
+    },
+    "facing=north,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 90
+    },
+    "facing=north,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 135
+    },
+    "facing=north,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 180
+    },
+    "facing=north,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 225
+    },
+    "facing=north,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 270
+    },
+    "facing=north,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 315
+    },
+    "facing=south,angle=0": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270
+    },
+    "facing=south,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 45
+    },
+    "facing=south,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 90
+    },
+    "facing=south,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 135
+    },
+    "facing=south,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 180
+    },
+    "facing=south,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 225
+    },
+    "facing=south,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 270
+    },
+    "facing=south,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 270,
+      "y": 315
+    },
+    "facing=west,angle=0": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 270
+    },
+    "facing=west,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 315
+    },
+    "facing=west,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 0
+    },
+    "facing=west,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 45
+    },
+    "facing=west,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 135
+    },
+    "facing=west,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 180
+    },
+    "facing=west,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 225
+    },
+    "facing=east,angle=0": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 90
+    },
+    "facing=east,angle=1": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 135
+    },
+    "facing=east,angle=2": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,angle=3": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 225
+    },
+    "facing=east,angle=4": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 270
+    },
+    "facing=east,angle=5": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 315
+    },
+    "facing=east,angle=6": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 0
+    },
+    "facing=east,angle=7": {
+      "model": "lightenchanted:block/optical_mirror",
+      "x": 90,
+      "y": 45
+    }
+  }
+}

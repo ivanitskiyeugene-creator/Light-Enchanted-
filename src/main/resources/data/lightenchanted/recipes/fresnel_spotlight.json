@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "III",
+    "QLQ",
+    " I "
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "Q": {
+      "item": "minecraft:quartz"
+    },
+    "L": {
+      "item": "lightenchanted:light_emitter"
+    }
+  },
+  "result": {
+    "item": "lightenchanted:fresnel_spotlight",
+    "count": 1
+  }
+}

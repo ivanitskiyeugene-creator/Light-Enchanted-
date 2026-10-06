@@ -1,8 +1,10 @@
 package dev.lightenchanted.init;
 
 import dev.lightenchanted.LightEnchanted;
+import dev.lightenchanted.blockentity.HazeMachineBlockEntity;
 import dev.lightenchanted.blockentity.IndustrialFanBlockEntity;
 import dev.lightenchanted.blockentity.LightEmitterBlockEntity;
+import dev.lightenchanted.blockentity.PhotoreceptorBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
@@ -18,7 +20,10 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(LightEmitterBlockEntity::new,
                                     ModBlocks.LIGHT_EMITTER.get(),
                                     ModBlocks.LIGHT_EMITTER_CREATIVE.get(),
-                                    ModBlocks.RECESSED_DOWNLIGHT.get())
+                                    ModBlocks.RECESSED_DOWNLIGHT.get(),
+                                    ModBlocks.INDUSTRIAL_FLOODLIGHT.get(),
+                                    ModBlocks.FRESNEL_SPOTLIGHT.get(),
+                                    ModBlocks.LASER_PROJECTOR.get())
                             .build(null));
 
     public static final RegistryObject<BlockEntityType<IndustrialFanBlockEntity>> INDUSTRIAL_FAN =
@@ -26,6 +31,18 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(IndustrialFanBlockEntity::new,
                                     ModBlocks.INDUSTRIAL_FAN.get(),
                                     ModBlocks.INDUSTRIAL_FAN_SLAVE.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<PhotoreceptorBlockEntity>> PHOTORECEPTOR =
+            BLOCK_ENTITIES.register("photoreceptor",
+                    () -> BlockEntityType.Builder.of(PhotoreceptorBlockEntity::new,
+                                    ModBlocks.PHOTORECEPTOR.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<HazeMachineBlockEntity>> HAZE_MACHINE =
+            BLOCK_ENTITIES.register("haze_machine",
+                    () -> BlockEntityType.Builder.of(HazeMachineBlockEntity::new,
+                                    ModBlocks.HAZE_MACHINE.get())
                             .build(null));
 
     private ModBlockEntities() {

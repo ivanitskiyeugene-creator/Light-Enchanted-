@@ -6,6 +6,15 @@
     "block.lightenchanted.light_truss": "Modular Light Truss",
     "block.lightenchanted.recessed_downlight": "Recessed Downlight",
 
+    "block.lightenchanted.optical_mirror": "Optical Mirror",
+    "block.lightenchanted.photoreceptor": "Optical Photoreceptor Sensor",
+    "block.lightenchanted.haze_machine": "Stage Haze / Fog Machine",
+    "block.lightenchanted.industrial_floodlight": "Industrial Floodlight",
+    "block.lightenchanted.fresnel_spotlight": "Studio Fresnel Spotlight",
+    "block.lightenchanted.laser_projector": "Compact Laser Projector",
+    "block.lightenchanted.light_grate": "Reinforced Light Grate",
+    "block.lightenchanted.fluorescent_tube": "Fluorescent Tube Fixture",
+
     "item.lightenchanted.beam_tuner": "Beam Tuner",
     "item.lightenchanted.beam_tuner.tooltip": "Right-click an emitter, then right-click the target point",
     "itemGroup.lightenchanted": "Light Enchanted",
@@ -57,6 +66,9 @@
     "message.lightenchanted.target_cleared": "Beam target cleared",
     "message.lightenchanted.tuner_too_far": "Too far away (max %d blocks)",
     "message.lightenchanted.tuner_missing": "Bound emitter not found",
+    "message.lightenchanted.mirror_angle": "Mirror angle: %d°",
+    "message.lightenchanted.haze_on": "Haze machine: ACTIVE",
+    "message.lightenchanted.haze_off": "Haze machine: OFF",
 
     "shape.lightenchanted.classic": "Classic",
     "shape.lightenchanted.cylinder": "Cylinder",

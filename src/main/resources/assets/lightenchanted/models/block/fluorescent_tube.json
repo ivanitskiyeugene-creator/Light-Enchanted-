@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "lightenchanted:block/fluorescent_tube"
+  }
+}
