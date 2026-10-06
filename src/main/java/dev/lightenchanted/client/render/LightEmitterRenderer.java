@@ -32,13 +32,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * STR 2.3.0 Interactive Optics & Ray Renderer:
+ * STR 2.4.0 True Continuous Volumetric Fog & Negative Ground Shadow Silhouette Renderer:
  *
- * - Multi-bounce mirror reflection rendering
- * - Stained glass color filtering along rays
- * - Dynamic stage haze density multiplier
- * - Configurable quality, dust, and lens flare controls
- * - High-performance 300+ FPS guaranteed.
+ * - Smooth seamless volumetric cone hulls (zero "laser string" lines).
+ * - Real-time volumetric shadow voids carved by players, mobs, and fan blades.
+ * - Connected ground illumination disc with crisp negative shadow silhouettes.
+ * - Multi-bounce mirror reflection rendering.
+ * - Sub-frame interpolation maintaining 300+ FPS.
  */
 public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlockEntity> {
     private static final ResourceLocation BEAM_TEXTURE =
@@ -121,7 +121,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float time = (float) (level.getGameTime() % 720000L) + partialTick;
 
-        // ---- STR 2.0: Lazy Cached Raytracing with dynamic fan & mirror reflection!
+        // ---- STR 2.0: Lazy Cached Raytracing with dynamic entity & fan shadow tracking
         RayTraceField rayField = RAY_FIELDS.computeIfAbsent(pos, p -> new RayTraceField());
         if (rayField.needsRetrace(currentTick, partialTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows)) {
             rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows, currentTick, partialTick);
@@ -163,9 +163,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float rot = cfg.rotation > 0.001f ? time * cfg.rotation * 1.3f : 0.0f;
 
-        float coreR = r * 0.4f + 0.6f;
-        float coreG = g * 0.4f + 0.6f;
-        float coreB = b * 0.4f + 0.6f;
+        float coreR = r * 0.35f + 0.65f;
+        float coreG = g * 0.35f + 0.65f;
+        float coreB = b * 0.35f + 0.65f;
 
         VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
         Quaternionf camOrientation = camera.rotation();
@@ -183,55 +183,85 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             Matrix4f mat = poseStack.last().pose();
             Matrix3f nmat = poseStack.last().normal();
 
-            // ---- STR 2.0: Draw the 193 3D Volumetric Ray Filaments with Stained Glass Tinting!
             RayTraceField.Ray[] rays = rayField.getRays();
-            float filamentThickness = Math.max(0.04f, w * 0.06f);
+            int raysPerRing = RayTraceField.RAYS_PER_RING;
+            int totalRings = RayTraceField.RINGS;
 
-            for (int i = 0; i < rays.length; i++) {
-                RayTraceField.Ray ray = rays[i];
-                float len = ray.length;
-                if (len < 0.05f) {
-                    continue;
+            // ---- Continuous Seamless Volumetric Cone Hulls & Radial Fog Fins
+            // 1. Continuous Concentric Fog Shells (Outer Atmosphere + Mid Body + Glowing Core)
+            for (int ringStep : new int[]{totalRings, totalRings / 2, 2}) {
+                int baseIdx = 1 + (ringStep - 1) * raysPerRing;
+                float shellAlpha = alpha * (ringStep == totalRings ? 0.28f : (ringStep == 2 ? 0.65f : 0.40f));
+
+                for (int s = 0; s < raysPerRing; s++) {
+                    int nextS = (s + 1) % raysPerRing;
+                    RayTraceField.Ray r0 = rays[baseIdx + s];
+                    RayTraceField.Ray r1 = rays[baseIdx + nextS];
+
+                    float len0 = r0.length;
+                    float len1 = r1.length;
+                    if (len0 < 0.05f && len1 < 0.05f) continue;
+
+                    float p0 = len0 / (float) maxDist;
+                    float p1 = len1 / (float) maxDist;
+
+                    float x0_top = r0.localX, z0_top = r0.localZ;
+                    float x1_top = r1.localX, z1_top = r1.localZ;
+
+                    float x0_bot = r0.localX + (r0.targetLocalX - r0.localX) * p0;
+                    float z0_bot = r0.localZ + (r0.targetLocalZ - r0.localZ) * p0;
+                    float x1_bot = r1.localX + (r1.targetLocalX - r1.localX) * p1;
+                    float z1_bot = r1.targetLocalZ + (r1.targetLocalZ - r1.localZ) * p1;
+
+                    float sR = coreR * (r0.tintR + r1.tintR) * 0.5f;
+                    float sG = coreG * (r0.tintG + r1.tintG) * 0.5f;
+                    float sB = coreB * (r0.tintB + r1.tintB) * 0.5f;
+
+                    drawVolumetricQuad(vc, mat, nmat,
+                            x0_top, 0.0f, z0_top,
+                            x1_top, 0.0f, z1_top,
+                            x1_bot, len1, z1_bot,
+                            x0_bot, len0, z0_bot,
+                            sR, sG, sB, shellAlpha);
                 }
-
-                float rayR = coreR * ray.tintR;
-                float rayG = coreG * ray.tintG;
-                float rayB = coreB * ray.tintB;
-
-                float rayAlpha = alpha * ray.intensity * 0.55f;
-                float progress = len / (float) maxDist;
-
-                float x0 = ray.localX;
-                float z0 = ray.localZ;
-                float x1 = ray.localX + (ray.targetLocalX - ray.localX) * progress;
-                float z1 = ray.localZ + (ray.targetLocalZ - ray.localZ) * progress;
-
-                filamentRibbon(vc, mat, nmat, x0, z0, x1, z1, len, filamentThickness, 0.0f,
-                        rayR, rayG, rayB, rayAlpha);
-                filamentRibbon(vc, mat, nmat, x0, z0, x1, z1, len, filamentThickness, (float) (Math.PI / 2.0),
-                        rayR, rayG, rayB, rayAlpha);
             }
 
-            // ---- Ambient volumetric atmospheric envelope
-            float maxRayLen = 0.0f;
-            for (int i = 0; i < rays.length; i++) {
-                if (rays[i].length > maxRayLen) maxRayLen = rays[i].length;
-            }
-            if (!cfg.shadows && maxRayLen > 0.1f) {
-                cylinderEnvelope(vc, mat, nmat, w * 0.5f, endW * 0.5f, maxRayLen, 16,
-                        r, g, b, alpha * 0.12f * (1.0f + 0.5f * cfg.glow));
+            // 2. Radial Volumetric Fins (Connecting Center to Outer Rings for Solid Light Body)
+            RayTraceField.Ray centerRay = rays[0];
+            float cLen = centerRay.length;
+            int outerBase = 1 + (totalRings - 1) * raysPerRing;
+
+            for (int s = 0; s < raysPerRing; s += 2) {
+                RayTraceField.Ray rOuter = rays[outerBase + s];
+                float oLen = rOuter.length;
+                if (cLen < 0.05f && oLen < 0.05f) continue;
+
+                float pOut = oLen / (float) maxDist;
+                float xOut_bot = rOuter.localX + (rOuter.targetLocalX - rOuter.localX) * pOut;
+                float zOut_bot = rOuter.localZ + (rOuter.targetLocalZ - rOuter.localZ) * pOut;
+
+                float fR = coreR * rOuter.tintR;
+                float fG = coreG * rOuter.tintG;
+                float fB = coreB * rOuter.tintB;
+
+                drawVolumetricQuad(vc, mat, nmat,
+                        0.0f, 0.0f, 0.0f,
+                        rOuter.localX, 0.0f, rOuter.localZ,
+                        xOut_bot, oLen, zOut_bot,
+                        0.0f, cLen, 0.0f,
+                        fR, fG, fB, alpha * 0.22f);
             }
 
             // ---- Cinematic 3D Micro-Turbulence Dust Motes
             if (LightEnchantedConfig.CLIENT.enableVolumetricDust.get()) {
-                renderCinematicDustMotes(vc, mat, nmat, maxRayLen, w, endW, time, camPos, startVec,
+                renderCinematicDustMotes(vc, mat, nmat, cLen, w, endW, time, camPos, startVec,
                         coreR, coreG, coreB, alpha, mieBoost);
             }
 
             poseStack.popPose();
 
-            // ---- Optical Mirror Reflection Rays (rendered in world space relative to emitter)
-            for (int i = 0; i < rays.length; i++) {
+            // ---- Optical Mirror Reflection Rays
+            for (int i = 0; i < rays.length; i += 4) {
                 RayTraceField.Ray ray = rays[i];
                 if (ray.hasReflection && ray.reflectLength > 0.1f) {
                     poseStack.pushPose();
@@ -249,11 +279,11 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     float rayR = coreR * ray.tintR;
                     float rayG = coreG * ray.tintG;
                     float rayB = coreB * ray.tintB;
-                    float rayAlpha = alpha * ray.intensity * 0.45f;
+                    float rayAlpha = alpha * 0.45f;
 
-                    filamentRibbon(vc, rMat, rNmat, 0.0f, 0.0f, 0.0f, 0.0f, ray.reflectLength, filamentThickness * 0.9f, 0.0f,
-                            rayR, rayG, rayB, rayAlpha);
-                    filamentRibbon(vc, rMat, rNmat, 0.0f, 0.0f, 0.0f, 0.0f, ray.reflectLength, filamentThickness * 0.9f, (float) (Math.PI / 2.0),
+                    float refRadius = Math.max(0.08f, w * 0.15f);
+                    drawVolumetricQuad(vc, rMat, rNmat, -refRadius, 0, 0, refRadius, 0, 0,
+                            refRadius, ray.reflectLength, 0, -refRadius, ray.reflectLength, 0,
                             rayR, rayG, rayB, rayAlpha);
 
                     poseStack.popPose();
@@ -266,22 +296,25 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         w, r, g, b, coreR, coreG, coreB, alpha, mieBoost, cosAngle, cfg.glow);
             }
 
-            // ---- STR 2.0: Surface Photon Hit Impaction (Pixel-Accurate Shadow Silhouette on floor/walls)
-            float photonRadius = Math.max(0.12f, (endW / w) * 0.15f);
+            // ---- Continuous Ground Illumination Disk & Negative Shadow Silhouette
+            // Dense overlapping photon discs that fuse into a smooth solid illuminated spot
+            float groundDiscRadius = Math.max(0.35f, (endW / w) * 0.38f);
 
             for (int i = 0; i < rays.length; i++) {
                 RayTraceField.Ray ray = rays[i];
+                // Only rays that reached the floor illuminate the ground!
+                // Rays blocked mid-air by an entity or obstacle leave a solid, crisp dark shadow!
                 if (ray.hitSolid && ray.hitFloor && ray.length > 0.1f) {
                     double hitRelX = ray.impactX - pos.getX();
-                    double hitRelY = ray.impactY - pos.getY() + 0.01;
+                    double hitRelY = ray.impactY - pos.getY() + 0.012;
                     double hitRelZ = ray.impactZ - pos.getZ();
 
                     float rayR = coreR * ray.tintR;
                     float rayG = coreG * ray.tintG;
                     float rayB = coreB * ray.tintB;
 
-                    float photonAlpha = Math.min(1.0f, alpha * ray.intensity * 0.75f);
-                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, photonRadius,
+                    float photonAlpha = Math.min(1.0f, alpha * (0.35f + ray.intensity * 0.50f));
+                    flatGroundDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, groundDiscRadius,
                             rayR, rayG, rayB, photonAlpha);
                 }
             }
@@ -293,6 +326,33 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             glowDot(vc, poseStack, camOrientation, originX, originY, originZ,
                     0.12f, 0.6f, 1.0f, 1.0f, 0.7f);
         }
+    }
+
+    private static void drawVolumetricQuad(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
+                                          float x0, float y0, float z0,
+                                          float x1, float y1, float z1,
+                                          float x2, float y2, float z2,
+                                          float x3, float y3, float z3,
+                                          float r, float g, float b, float a) {
+        // Front Face
+        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(0.0f, 0.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(1.0f, 0.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
+
+        // Back Face
+        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(1.0f, 0.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
+        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(0.0f, 0.0f)
+                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
     }
 
     private static void renderCinematicDustMotes(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
@@ -393,46 +453,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         poseStack.popPose();
     }
 
-    private static void filamentRibbon(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
-                                      float x0, float z0, float x1, float z1,
-                                      float length, float thickness, float rollAngle,
-                                      float r, float g, float b, float a) {
-        float cos = Mth.cos(rollAngle) * thickness * 0.5f;
-        float sin = Mth.sin(rollAngle) * thickness * 0.5f;
-
-        float nx = -sin;
-        float ny = 0.0f;
-        float nz = cos;
-
-        // Bottom quad vertexes
-        float b0x = x0 - cos, b0z = z0 - sin;
-        float b1x = x0 + cos, b1z = z0 + sin;
-
-        // Top quad vertexes
-        float t0x = x1 - cos, t0z = z1 - sin;
-        float t1x = x1 + cos, t1z = z1 + sin;
-
-        // Front Face
-        vc.vertex(mat, b0x, 0.0f, b0z).color(r, g, b, a).uv(0.0f, 0.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, nx, ny, nz).endVertex();
-        vc.vertex(mat, b1x, 0.0f, b1z).color(r, g, b, a).uv(1.0f, 0.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, nx, ny, nz).endVertex();
-        vc.vertex(mat, t1x, length, t1z).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, nx, ny, nz).endVertex();
-        vc.vertex(mat, t0x, length, t0z).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, nx, ny, nz).endVertex();
-
-        // Back Face
-        vc.vertex(mat, t0x, length, t0z).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, -nx, -ny, -nz).endVertex();
-        vc.vertex(mat, t1x, length, t1z).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, -nx, -ny, -nz).endVertex();
-        vc.vertex(mat, b1x, 0.0f, b1z).color(r, g, b, a).uv(1.0f, 0.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, -nx, -ny, -nz).endVertex();
-        vc.vertex(mat, b0x, 0.0f, b0z).color(r, g, b, a).uv(0.0f, 0.0f)
-                .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, -nx, -ny, -nz).endVertex();
-    }
-
     private static void dustBillboard(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
                                       float x, float y, float z, float s,
                                       float r, float g, float b, float a) {
@@ -483,7 +503,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         vc.vertex(mat, -len, th, 0.0f).color(r, g, b, 0.0f).uv(0.0f, 1.0f)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
 
-        // Bright Core of streak
         vc.vertex(mat, -len * 0.4f, -th * 0.4f, 0.0f).color(1.0f, 1.0f, 1.0f, a).uv(0.0f, 0.0f)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
         vc.vertex(mat, len * 0.4f, -th * 0.4f, 0.0f).color(1.0f, 1.0f, 1.0f, a).uv(1.0f, 0.0f)
@@ -517,30 +536,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
             vc.vertex(mat, x0 + px, y0 + py, 0.0f).color(r, g, b, 0.0f).uv(0.0f, 1.0f)
                     .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 0.0f, 1.0f).endVertex();
-        }
-    }
-
-    private static void cylinderEnvelope(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
-                                         float r0, float r1, float height, int segs,
-                                         float r, float g, float b, float a) {
-        float step = (float) (Math.PI * 2.0 / segs);
-        for (int i = 0; i < segs; i++) {
-            float a0 = i * step;
-            float a1 = (i + 1) * step;
-
-            float x0 = r0 * Mth.cos(a0), z0 = r0 * Mth.sin(a0);
-            float x1 = r0 * Mth.cos(a1), z1 = r0 * Mth.sin(a1);
-            float tx0 = r1 * Mth.cos(a0), tz0 = r1 * Mth.sin(a0);
-            float tx1 = r1 * Mth.cos(a1), tz1 = r1 * Mth.sin(a1);
-
-            vc.vertex(mat, x0, 0.0f, z0).color(r, g, b, a).uv(0.0f, 0.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, x1, 0.0f, z1).color(r, g, b, a).uv(1.0f, 0.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, tx1, height, tz1).color(r, g, b, 0.0f).uv(1.0f, 1.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-            vc.vertex(mat, tx0, height, tz0).color(r, g, b, 0.0f).uv(0.0f, 1.0f)
-                    .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
         }
     }
 

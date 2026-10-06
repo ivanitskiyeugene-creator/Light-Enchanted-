@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the mod's PNG textures without any third-party dependencies.
-
-Usage: python3 tools/generate_textures.py
-Outputs into src/main/resources/assets/lightenchanted/textures/.
+"""Generates all mod PNG textures for Light Enchanted v2.4.0.
 """
 import math
 import os
@@ -81,30 +78,26 @@ def gen_block_texture(path, size=16):
 
 
 def gen_beam_texture(path, size=128):
+    """Silky-smooth continuous volumetric atmospheric beam texture (no laser stripes)."""
     pixels = []
     for y in range(size):
         row = []
         v = y / (size - 1.0)
-        fade_top = smoothstep(0.0, 0.05, v)
-        fade_bottom = smoothstep(1.0, 0.82, v)
+        fade_top = smoothstep(0.0, 0.04, v)
+        fade_bottom = smoothstep(1.0, 0.88, v)
         v_fade = fade_top * fade_bottom
 
         for x in range(size):
             u = x / (size - 1.0)
             center_dist = abs(u - 0.5) * 2.0
-            core = math.exp(-4.5 * center_dist * center_dist)
-            halo = math.pow(math.cos(center_dist * (math.pi / 2.0)), 1.8) * 0.45
-            edge = core * 0.75 + halo * 0.25
-
-            streak1 = 0.90 + 0.10 * hash01(int(x * 3.7 + 11))
-            streak2 = 0.93 + 0.07 * math.sin(v * 24.0 + hash01(x * 7) * 6.28)
-            streak3 = 0.95 + 0.05 * math.cos(v * 48.0 + u * 12.0)
-            turbulence = streak1 * streak2 * streak3
-
-            a = clamp(edge * turbulence * v_fade)
-            brightness = 0.88 + 0.12 * core
-            row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255),
-                        int(a * 255)))
+            
+            # Smooth Gaussian volumetric core and soft atmospheric halo
+            core = math.exp(-3.2 * center_dist * center_dist)
+            halo = math.pow(math.cos(center_dist * (math.pi / 2.0)), 1.5) * 0.5
+            alpha_val = clamp((core * 0.70 + halo * 0.30) * v_fade)
+            
+            brightness = 0.92 + 0.08 * core
+            row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255), int(alpha_val * 255)))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
@@ -129,8 +122,7 @@ def gen_ghost_item_texture(path, size=16):
                 g = max(g, lens * 0.60 + core * 0.55)
                 b = max(b, lens * 0.85 + core * 0.55)
                 a = 1.0
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255),
-                        int(clamp(a) * 255)))
+            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), int(clamp(a) * 255)))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
@@ -170,14 +162,12 @@ def gen_tuner_texture(path, size=16):
                 b = 0.85 * glow + 0.90 * core
                 a = 1.0
 
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255),
-                        int(clamp(a) * 255)))
+            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), int(clamp(a) * 255)))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
 def gen_industrial_fan_casing(path, size=32):
-    """SCP SL HCZ Heavy Containment Fan Casing: Pure dark gunmetal containment steel with rivets and beveled plates (NO yellow stripes)."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
@@ -187,27 +177,19 @@ def gen_industrial_fan_casing(path, size=32):
             base = 0.20 + 0.06 * noise
             r, g, b = base * 0.92, base * 0.96, base * 1.04
 
-            # Outer border bevel
             is_border = (x < 2 or x >= size - 2 or y < 2 or y >= size - 2)
             if is_border:
-                r *= 0.65
-                g *= 0.65
-                b *= 0.65
+                r *= 0.65; g *= 0.65; b *= 0.65
 
-            # Heavy steel rivets in corners and along bevels
             for cx, cy in [(3, 3), (size - 4, 3), (3, size - 4), (size - 4, size - 4),
                            (16, 2), (16, size - 3), (2, 16), (size - 3, 16)]:
                 if math.hypot(x - cx, y - cy) < 1.3:
                     r, g, b = 0.50, 0.54, 0.60
 
-            # Subtle brushed metal rim bevel (pure gunmetal steel)
             is_rim = (x in (3, 4, size - 5, size - 4) or y in (3, 4, size - 5, size - 4))
             if is_rim:
-                r *= 1.25
-                g *= 1.25
-                b *= 1.25
+                r *= 1.25; g *= 1.25; b *= 1.25
 
-            # Circular opening bevel
             d = math.hypot(x - c, y - c)
             if d < (size * 0.44):
                 inner_shade = 0.15 + 0.05 * hash01(x * 13 + y * 41)
@@ -232,30 +214,25 @@ def gen_industrial_fan_blade(path, size=32):
             g = base * 0.96 + spec
             b = base * 1.05 + spec
             if x == 0 or x == size - 1 or y == 0 or y == size - 1:
-                r *= 0.55
-                g *= 0.55
-                b *= 0.55
+                r *= 0.55; g *= 0.55; b *= 0.55
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
 def gen_industrial_fan_grate(path, size=32):
-    """Heavy industrial steel rebar safety grating with clean open air cells."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            is_bar_x = (x % 8 in (0, 1))
-            is_bar_y = (y % 8 in (0, 1))
-            if is_bar_x or is_bar_y:
-                noise = hash01(x * 37 + y * 13)
-                shade = 0.45 + 0.12 * noise
-                r, g, b = shade * 0.95, shade * 0.98, shade * 1.08
-                a = 255
-            else:
-                r = g = b = a = 0
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), a))
+            r, g, b, a = 0, 0, 0, 0
+            is_crossbar = (x in (15, 16) or y in (15, 16) or x in (7, 8, 23, 24) or y in (7, 8, 23, 24))
+            is_mesh = (x % 4 == 0 or y % 4 == 0)
+            if is_crossbar:
+                r, g, b, a = 120, 125, 135, 255
+            elif is_mesh:
+                r, g, b, a = 65, 70, 78, 230
+            row.append((r, g, b, a))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
@@ -302,28 +279,23 @@ def gen_recessed_downlight(path, size=16):
 
 
 def main():
-    block_dir = os.path.join(ROOT, "block")
-    entity_dir = os.path.join(ROOT, "entity")
-    item_dir = os.path.join(ROOT, "item")
-    os.makedirs(block_dir, exist_ok=True)
-    os.makedirs(entity_dir, exist_ok=True)
-    os.makedirs(item_dir, exist_ok=True)
+    bdir = os.path.join(ROOT, "block")
+    idir = os.path.join(ROOT, "item")
+    edir = os.path.join(ROOT, "entity")
 
-    gen_block_texture(os.path.join(block_dir, "light_emitter.png"))
-    gen_beam_texture(os.path.join(entity_dir, "beam.png"))
-    gen_tuner_texture(os.path.join(item_dir, "beam_tuner.png"))
-    gen_ghost_item_texture(os.path.join(item_dir, "light_emitter_creative.png"))
-
-    gen_industrial_fan_casing(os.path.join(block_dir, "industrial_fan_casing.png"))
-    gen_industrial_fan_blade(os.path.join(block_dir, "industrial_fan_blade.png"))
-    gen_industrial_fan_grate(os.path.join(block_dir, "industrial_fan_grate.png"))
-    gen_light_truss(os.path.join(block_dir, "light_truss.png"))
-    gen_recessed_downlight(os.path.join(block_dir, "recessed_downlight.png"))
-
-    gen_industrial_fan_casing(os.path.join(item_dir, "industrial_fan.png"))
-    gen_light_truss(os.path.join(item_dir, "light_truss.png"))
-    gen_recessed_downlight(os.path.join(item_dir, "recessed_downlight.png"))
-
+    gen_block_texture(os.path.join(bdir, "light_emitter.png"))
+    gen_block_texture(os.path.join(idir, "light_emitter.png"))
+    gen_beam_texture(os.path.join(edir, "beam.png"))
+    gen_ghost_item_texture(os.path.join(idir, "light_emitter_creative.png"))
+    gen_tuner_texture(os.path.join(idir, "beam_tuner.png"))
+    gen_industrial_fan_casing(os.path.join(bdir, "industrial_fan_casing.png"))
+    gen_industrial_fan_casing(os.path.join(idir, "industrial_fan.png"))
+    gen_industrial_fan_blade(os.path.join(bdir, "industrial_fan_blade.png"))
+    gen_industrial_fan_grate(os.path.join(bdir, "industrial_fan_grate.png"))
+    gen_light_truss(os.path.join(bdir, "light_truss.png"))
+    gen_light_truss(os.path.join(idir, "light_truss.png"))
+    gen_recessed_downlight(os.path.join(bdir, "recessed_downlight.png"))
+    gen_recessed_downlight(os.path.join(idir, "recessed_downlight.png"))
 
 if __name__ == "__main__":
     main()
