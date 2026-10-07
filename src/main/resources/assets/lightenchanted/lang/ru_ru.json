@@ -1,8 +1,10 @@
 {
     "block.lightenchanted.light_emitter": "Излучатель света",
+    "block.lightenchanted.moving_spotlight": "Поворотный сценический прожектор",
     "block.lightenchanted.light_emitter_creative": "Творческий излучатель света (невидимый)",
     "block.lightenchanted.industrial_fan": "Промышленный вентилятор SCP HCZ",
     "block.lightenchanted.industrial_fan_slave": "Промышленный вентилятор SCP HCZ",
+    "block.lightenchanted.wall_fan": "Компактный настенный вентилятор",
     "block.lightenchanted.light_truss": "Модульная световая ферма",
     "block.lightenchanted.recessed_downlight": "Встраиваемый точечный светильник",
 

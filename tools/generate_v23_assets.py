@@ -67,6 +67,7 @@ write(f"{ASSETS}/blockstates/optical_mirror.json", {
 
 write(f"{ASSETS}/models/block/optical_mirror.json", {
     "parent": "minecraft:block/block",
+    "render_type": "minecraft:translucent",
     "textures": {
         "particle": "lightenchanted:block/optical_mirror",
         "texture": "lightenchanted:block/optical_mirror"
@@ -77,6 +78,45 @@ write(f"{ASSETS}/models/block/optical_mirror.json", {
     ]
 })
 write(f"{ASSETS}/models/item/optical_mirror.json", {"parent": "lightenchanted:block/optical_mirror"})
+
+# wall_fan
+write(f"{ASSETS}/blockstates/wall_fan.json", {
+    "variants": {
+        "facing=north": {"model": "lightenchanted:block/wall_fan"},
+        "facing=south": {"model": "lightenchanted:block/wall_fan", "y": 180},
+        "facing=west": {"model": "lightenchanted:block/wall_fan", "y": 270},
+        "facing=east": {"model": "lightenchanted:block/wall_fan", "y": 90},
+        "facing=up": {"model": "lightenchanted:block/wall_fan", "x": 270},
+        "facing=down": {"model": "lightenchanted:block/wall_fan", "x": 90}
+    }
+})
+write(f"{ASSETS}/models/block/wall_fan.json", {
+    "parent": "minecraft:block/block",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "particle": "lightenchanted:block/wall_fan",
+        "all": "lightenchanted:block/wall_fan"
+    },
+    "elements": [
+        {"from": [0, 0, 0], "to": [16, 16, 16], "faces": {
+            "down": {"texture": "#all", "cullface": "down"},
+            "up": {"texture": "#all", "cullface": "up"},
+            "north": {"texture": "#all", "cullface": "north"},
+            "south": {"texture": "#all", "cullface": "south"},
+            "west": {"texture": "#all", "cullface": "west"},
+            "east": {"texture": "#all", "cullface": "east"}
+        }}
+    ]
+})
+write(f"{ASSETS}/models/item/wall_fan.json", {"parent": "lightenchanted:block/wall_fan"})
+
+# moving_spotlight
+write(f"{ASSETS}/blockstates/moving_spotlight.json", {"variants": {"": {"model": "lightenchanted:block/moving_spotlight"}}})
+write(f"{ASSETS}/models/block/moving_spotlight.json", {
+    "parent": "minecraft:block/cube_all",
+    "textures": {"all": "lightenchanted:block/moving_spotlight"}
+})
+write(f"{ASSETS}/models/item/moving_spotlight.json", {"parent": "lightenchanted:block/moving_spotlight"})
 
 # photoreceptor
 write(f"{ASSETS}/blockstates/photoreceptor.json", {
@@ -138,6 +178,7 @@ write(f"{ASSETS}/models/item/laser_projector.json", {"parent": "lightenchanted:b
 write(f"{ASSETS}/blockstates/light_grate.json", {"variants": {"": {"model": "lightenchanted:block/light_grate"}}})
 write(f"{ASSETS}/models/block/light_grate.json", {
     "parent": "minecraft:block/cube_all",
+    "render_type": "minecraft:cutout",
     "textures": {"all": "lightenchanted:block/light_grate"}
 })
 write(f"{ASSETS}/models/item/light_grate.json", {"parent": "lightenchanted:block/light_grate"})
@@ -160,7 +201,7 @@ write(f"{ASSETS}/models/item/fluorescent_tube.json", {"parent": "lightenchanted:
 simple_blocks = [
     "optical_mirror", "photoreceptor", "haze_machine",
     "industrial_floodlight", "fresnel_spotlight", "laser_projector",
-    "light_grate", "fluorescent_tube"
+    "light_grate", "fluorescent_tube", "wall_fan", "moving_spotlight"
 ]
 
 for b in simple_blocks:
@@ -175,6 +216,28 @@ for b in simple_blocks:
     })
 
 # 3. Recipes
+write(f"{DATA}/recipes/wall_fan.json", {
+    "type": "minecraft:crafting_shaped",
+    "pattern": [" I ", "IFI", " I "],
+    "key": {
+        "I": {"item": "minecraft:iron_ingot"},
+        "F": {"item": "minecraft:iron_bars"}
+    },
+    "result": {"item": "lightenchanted:wall_fan", "count": 1}
+})
+
+write(f"{DATA}/recipes/moving_spotlight.json", {
+    "type": "minecraft:crafting_shaped",
+    "pattern": [" I ", "ELE", " R "],
+    "key": {
+        "I": {"item": "minecraft:iron_ingot"},
+        "E": {"item": "minecraft:ender_pearl"},
+        "L": {"item": "lightenchanted:light_emitter"},
+        "R": {"item": "minecraft:redstone"}
+    },
+    "result": {"item": "lightenchanted:moving_spotlight", "count": 1}
+})
+
 write(f"{DATA}/recipes/optical_mirror.json", {
     "type": "minecraft:crafting_shaped",
     "pattern": ["GGG", "III", "SSS"],

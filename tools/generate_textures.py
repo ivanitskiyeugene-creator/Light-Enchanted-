@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates all mod PNG textures for Light Enchanted v2.4.0.
+"""Generates all mod PNG textures for Light Enchanted v2.3.0 / v2.4.0.
 """
 import math
 import os
@@ -60,25 +60,45 @@ def gen_block_texture(path, size=16):
             base = 0.06 + 0.05 * hash01(x * 31 + y * 7)
             r, g, b = base * 0.6, base * 0.8, base * 1.3
             if edge:
-                r += 0.10
-                g += 0.12
-                b += 0.16
+                r += 0.10; g += 0.12; b += 0.16
             lens = smoothstep(1.05, 0.15, d)
             core = smoothstep(0.45, 0.0, d)
             r += lens * 0.45 + core * 0.55
             g += lens * 0.60 + core * 0.55
             b += lens * 0.80 + core * 0.55
-            if abs(x - c) < 0.7 or abs(y - c) < 0.7:
-                r += lens * 0.20
-                g += lens * 0.25
-                b += lens * 0.30
+            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
+def gen_moving_spotlight(path, size=16):
+    pixels = []
+    c = (size - 1) / 2.0
+    for y in range(size):
+        row = []
+        for x in range(size):
+            d = math.hypot(x - c, y - c) / c
+            base = 0.22 + 0.05 * hash01(x * 19 + y * 41)
+            r, g, b = base * 0.9, base * 0.95, base * 1.1
+
+            # Motor base yoke
+            if y < 3:
+                r, g, b = 0.32, 0.35, 0.40
+
+            # Central optical projector lens
+            if d < 0.65:
+                core = smoothstep(0.65, 0.0, d)
+                r = 0.45 * core + 0.2
+                g = 0.75 * core + 0.2
+                b = 1.00 * core + 0.3
+
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
 def gen_beam_texture(path, size=128):
-    """Silky-smooth continuous volumetric atmospheric beam texture (no laser stripes)."""
+    """Silky-smooth continuous volumetric atmospheric beam texture."""
     pixels = []
     for y in range(size):
         row = []
@@ -90,112 +110,49 @@ def gen_beam_texture(path, size=128):
         for x in range(size):
             u = x / (size - 1.0)
             center_dist = abs(u - 0.5) * 2.0
-            
-            # Smooth Gaussian volumetric core and soft atmospheric halo
             core = math.exp(-3.2 * center_dist * center_dist)
             halo = math.pow(math.cos(center_dist * (math.pi / 2.0)), 1.5) * 0.5
             alpha_val = clamp((core * 0.70 + halo * 0.30) * v_fade)
-            
             brightness = 0.92 + 0.08 * core
             row.append((int(brightness * 255), int(brightness * 255), int(brightness * 255), int(alpha_val * 255)))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
-def gen_ghost_item_texture(path, size=16):
-    pixels = []
-    c = (size - 1) / 2.0
-    for y in range(size):
-        row = []
-        for x in range(size):
-            r = g = b = 0.0
-            a = 0.0
-            on_edge = x in (0, 1, size - 2, size - 1) or y in (0, 1, size - 2, size - 1)
-            dash = ((x + y) // 2) % 2 == 0
-            if on_edge and dash:
-                r, g, b, a = 0.45, 0.75, 1.0, 0.9
-            d = math.hypot(x - c, y - c) / c
-            lens = smoothstep(0.75, 0.1, d)
-            core = smoothstep(0.35, 0.0, d)
-            if lens > 0.02:
-                r = max(r, lens * 0.45 + core * 0.55)
-                g = max(g, lens * 0.60 + core * 0.55)
-                b = max(b, lens * 0.85 + core * 0.55)
-                a = 1.0
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), int(clamp(a) * 255)))
-        pixels.append(row)
-    write_png(path, size, size, pixels)
-
-
-def gen_tuner_texture(path, size=16):
-    def dist_to_segment(px, py, x0, y0, x1, y1):
-        vx, vy = x1 - x0, y1 - y0
-        wx, wy = px - x0, py - y0
-        c1 = vx * wx + vy * wy
-        c2 = vx * vx + vy * vy
-        t = 0.0 if c2 == 0 else clamp(c1 / c2)
-        return math.hypot(px - (x0 + t * vx), py - (y0 + t * vy))
-
-    hx0, hy0, hx1, hy1 = 3.5, 12.5, 9.0, 7.0
-    pixels = []
-    for y in range(size):
-        row = []
-        for x in range(size):
-            px, py = x + 0.5, y + 0.5
-            r = g = b = a = 0.0
-
-            hd = dist_to_segment(px, py, hx0, hy0, hx1, hy1)
-            if hd < 0.9:
-                shade = 0.55 + 0.35 * (1.0 - hd / 0.9)
-                r, g, b, a = shade * 0.62, shade * 0.62, shade * 0.70, 1.0
-
-            bd = dist_to_segment(px, py, 4.4, 11.6, 5.6, 10.4)
-            if bd < 1.1:
-                r, g, b, a = 0.75, 0.12, 0.10, 1.0
-
-            tipd = math.hypot(px - 11.5, py - 4.5)
-            if tipd < 2.6:
-                core = smoothstep(1.0, 0.0, tipd)
-                glow = smoothstep(2.6, 1.0, tipd)
-                r = 0.45 * glow + 0.55 * core
-                g = 0.20 * glow + 0.45 * core
-                b = 0.85 * glow + 0.90 * core
-                a = 1.0
-
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), int(clamp(a) * 255)))
-        pixels.append(row)
-    write_png(path, size, size, pixels)
-
-
 def gen_industrial_fan_casing(path, size=32):
+    """Pure dark matte gunmetal containment steel: grey lines removed, bevels barely noticeable (just 4% lighter than base)."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             noise = hash01(x * 73 + y * 19)
-            base = 0.20 + 0.06 * noise
-            r, g, b = base * 0.92, base * 0.96, base * 1.04
+            base = 0.18 + 0.03 * noise
+            r, g, b = base * 0.95, base * 0.98, base * 1.02
 
+            # Outer border bevel (slightly darker shadow)
             is_border = (x < 2 or x >= size - 2 or y < 2 or y >= size - 2)
             if is_border:
-                r *= 0.65; g *= 0.65; b *= 0.65
+                r *= 0.90; g *= 0.90; b *= 0.90
 
+            # Subtle dark steel rivets (barely lighter than base)
             for cx, cy in [(3, 3), (size - 4, 3), (3, size - 4), (size - 4, size - 4),
                            (16, 2), (16, size - 3), (2, 16), (size - 3, 16)]:
                 if math.hypot(x - cx, y - cy) < 1.3:
-                    r, g, b = 0.50, 0.54, 0.60
+                    r *= 1.15; g *= 1.15; b *= 1.18
 
+            # Soft brushed metal rim bevel (only 4% lighter, no bright grey lines!)
             is_rim = (x in (3, 4, size - 5, size - 4) or y in (3, 4, size - 5, size - 4))
             if is_rim:
-                r *= 1.25; g *= 1.25; b *= 1.25
+                r *= 1.04; g *= 1.04; b *= 1.04
 
+            # Circular opening bevel
             d = math.hypot(x - c, y - c)
             if d < (size * 0.44):
-                inner_shade = 0.15 + 0.05 * hash01(x * 13 + y * 41)
-                r, g, b = inner_shade * 0.92, inner_shade * 0.96, inner_shade * 1.04
+                inner_shade = 0.14 + 0.03 * hash01(x * 13 + y * 41)
+                r, g, b = inner_shade * 0.95, inner_shade * 0.98, inner_shade * 1.02
             if abs(d - (size * 0.44)) < 1.2:
-                r, g, b = 0.42, 0.46, 0.52
+                r *= 1.05; g *= 1.05; b *= 1.05
 
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
@@ -208,13 +165,13 @@ def gen_industrial_fan_blade(path, size=32):
         row = []
         for x in range(size):
             noise = hash01(x * 17 + y * 29)
-            base = 0.38 + 0.10 * noise
-            spec = smoothstep(0.0, 1.0, (x / size)) * 0.22
-            r = base * 0.92 + spec
-            g = base * 0.96 + spec
-            b = base * 1.05 + spec
+            base = 0.28 + 0.06 * noise
+            spec = smoothstep(0.0, 1.0, (x / size)) * 0.12
+            r = base * 0.95 + spec
+            g = base * 0.98 + spec
+            b = base * 1.04 + spec
             if x == 0 or x == size - 1 or y == 0 or y == size - 1:
-                r *= 0.55; g *= 0.55; b *= 0.55
+                r *= 0.75; g *= 0.75; b *= 0.75
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
@@ -229,51 +186,10 @@ def gen_industrial_fan_grate(path, size=32):
             is_crossbar = (x in (15, 16) or y in (15, 16) or x in (7, 8, 23, 24) or y in (7, 8, 23, 24))
             is_mesh = (x % 4 == 0 or y % 4 == 0)
             if is_crossbar:
-                r, g, b, a = 120, 125, 135, 255
+                r, g, b, a = 85, 90, 98, 255
             elif is_mesh:
-                r, g, b, a = 65, 70, 78, 230
+                r, g, b, a = 50, 55, 62, 230
             row.append((r, g, b, a))
-        pixels.append(row)
-    write_png(path, size, size, pixels)
-
-
-def gen_light_truss(path, size=16):
-    pixels = []
-    for y in range(size):
-        row = []
-        for x in range(size):
-            is_chords = (x in (0, 1, 14, 15) and y in (0, 1, 14, 15)) or \
-                        (x in (0, 1, 14, 15)) or (y in (0, 1, 14, 15))
-            is_diag = abs(x - y) <= 1 or abs(x - (15 - y)) <= 1
-            if is_chords or is_diag:
-                noise = hash01(x * 47 + y * 53)
-                shade = 0.45 + 0.12 * noise
-                r, g, b = shade * 0.95, shade * 0.98, shade * 1.05
-                a = 255
-            else:
-                r = g = b = a = 0
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), a))
-        pixels.append(row)
-    write_png(path, size, size, pixels)
-
-
-def gen_recessed_downlight(path, size=16):
-    pixels = []
-    c = (size - 1) / 2.0
-    for y in range(size):
-        row = []
-        for x in range(size):
-            d = math.hypot(x - c, y - c) / c
-            if d > 0.85:
-                r, g, b = 0.78, 0.80, 0.82
-            elif d > 0.70:
-                r, g, b = 0.30, 0.32, 0.35
-            else:
-                core = smoothstep(0.70, 0.0, d)
-                r = 0.92 + 0.08 * core
-                g = 0.94 + 0.06 * core
-                b = 0.98 + 0.02 * core
-            row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
@@ -285,17 +201,15 @@ def main():
 
     gen_block_texture(os.path.join(bdir, "light_emitter.png"))
     gen_block_texture(os.path.join(idir, "light_emitter.png"))
+    gen_moving_spotlight(os.path.join(bdir, "moving_spotlight.png"))
+    gen_moving_spotlight(os.path.join(idir, "moving_spotlight.png"))
     gen_beam_texture(os.path.join(edir, "beam.png"))
-    gen_ghost_item_texture(os.path.join(idir, "light_emitter_creative.png"))
-    gen_tuner_texture(os.path.join(idir, "beam_tuner.png"))
     gen_industrial_fan_casing(os.path.join(bdir, "industrial_fan_casing.png"))
     gen_industrial_fan_casing(os.path.join(idir, "industrial_fan.png"))
+    gen_industrial_fan_casing(os.path.join(bdir, "wall_fan.png"))
+    gen_industrial_fan_casing(os.path.join(idir, "wall_fan.png"))
     gen_industrial_fan_blade(os.path.join(bdir, "industrial_fan_blade.png"))
     gen_industrial_fan_grate(os.path.join(bdir, "industrial_fan_grate.png"))
-    gen_light_truss(os.path.join(bdir, "light_truss.png"))
-    gen_light_truss(os.path.join(idir, "light_truss.png"))
-    gen_recessed_downlight(os.path.join(bdir, "recessed_downlight.png"))
-    gen_recessed_downlight(os.path.join(idir, "recessed_downlight.png"))
 
 if __name__ == "__main__":
     main()

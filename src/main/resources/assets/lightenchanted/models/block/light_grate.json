@@ -1,7 +1,7 @@
 {
-    "parent": "minecraft:block/cube_all",
-    "render_type": "minecraft:cutout",
-    "textures": {
-        "all": "lightenchanted:block/light_grate"
-    }
+  "parent": "minecraft:block/cube_all",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "all": "lightenchanted:block/light_grate"
+  }
 }

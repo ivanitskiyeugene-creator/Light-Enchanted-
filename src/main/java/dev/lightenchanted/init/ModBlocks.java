@@ -24,6 +24,15 @@ public final class ModBlocks {
                     .noOcclusion()
                     .requiresCorrectToolForDrops()));
 
+    public static final RegistryObject<MovingSpotlightBlock> MOVING_SPOTLIGHT = BLOCKS.register("moving_spotlight",
+            () -> new MovingSpotlightBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_LIGHT_BLUE)
+                    .strength(2.0f, 6.0f)
+                    .sound(SoundType.METAL)
+                    .lightLevel(state -> 15)
+                    .noOcclusion()
+                    .requiresCorrectToolForDrops()));
+
     public static final RegistryObject<CreativeLightEmitterBlock> LIGHT_EMITTER_CREATIVE =
             BLOCKS.register("light_emitter_creative",
                     () -> new CreativeLightEmitterBlock(BlockBehaviour.Properties.of()
@@ -50,6 +59,14 @@ public final class ModBlocks {
                     .noOcclusion()
                     .noLootTable()));
 
+    public static final RegistryObject<WallFanBlock> WALL_FAN = BLOCKS.register("wall_fan",
+            () -> new WallFanBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(2.0f, 6.0f)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .noOcclusion()
+                    .requiresCorrectToolForDrops()));
+
     public static final RegistryObject<LightTrussBlock> LIGHT_TRUSS = BLOCKS.register("light_truss",
             () -> new LightTrussBlock(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.METAL)
@@ -66,8 +83,6 @@ public final class ModBlocks {
                     .lightLevel(state -> 15)
                     .noOcclusion()
                     .requiresCorrectToolForDrops()));
-
-    // ---- v2.3.0 Optics & Interactive Light Blocks ----
 
     public static final RegistryObject<OpticalMirrorBlock> OPTICAL_MIRROR = BLOCKS.register("optical_mirror",
             () -> new OpticalMirrorBlock(BlockBehaviour.Properties.of()

@@ -16,6 +16,9 @@ public final class ModItems {
     public static final RegistryObject<BlockItem> LIGHT_EMITTER = ITEMS.register("light_emitter",
             () -> new BlockItem(ModBlocks.LIGHT_EMITTER.get(), new Item.Properties()));
 
+    public static final RegistryObject<BlockItem> MOVING_SPOTLIGHT = ITEMS.register("moving_spotlight",
+            () -> new BlockItem(ModBlocks.MOVING_SPOTLIGHT.get(), new Item.Properties()));
+
     public static final RegistryObject<BeamTunerItem> BEAM_TUNER = ITEMS.register("beam_tuner",
             () -> new BeamTunerItem(new Item.Properties().stacksTo(1)));
 
@@ -25,13 +28,14 @@ public final class ModItems {
     public static final RegistryObject<BlockItem> INDUSTRIAL_FAN = ITEMS.register("industrial_fan",
             () -> new BlockItem(ModBlocks.INDUSTRIAL_FAN.get(), new Item.Properties()));
 
+    public static final RegistryObject<BlockItem> WALL_FAN = ITEMS.register("wall_fan",
+            () -> new BlockItem(ModBlocks.WALL_FAN.get(), new Item.Properties()));
+
     public static final RegistryObject<BlockItem> LIGHT_TRUSS = ITEMS.register("light_truss",
             () -> new BlockItem(ModBlocks.LIGHT_TRUSS.get(), new Item.Properties()));
 
     public static final RegistryObject<BlockItem> RECESSED_DOWNLIGHT = ITEMS.register("recessed_downlight",
             () -> new BlockItem(ModBlocks.RECESSED_DOWNLIGHT.get(), new Item.Properties()));
-
-    // ---- v2.3.0 Optics & Lamp Items ----
 
     public static final RegistryObject<BlockItem> OPTICAL_MIRROR = ITEMS.register("optical_mirror",
             () -> new BlockItem(ModBlocks.OPTICAL_MIRROR.get(), new Item.Properties()));
@@ -45,8 +49,8 @@ public final class ModItems {
     public static final RegistryObject<BlockItem> INDUSTRIAL_FLOODLIGHT = ITEMS.register("industrial_floodlight",
             () -> new BlockItem(ModBlocks.INDUSTRIAL_FLOODLIGHT.get(), new Item.Properties()));
 
-    public static final RegistryObject<FresnelSpotlightBlockItem> FRESNEL_SPOTLIGHT = ITEMS.register("fresnel_spotlight",
-            () -> new FresnelSpotlightBlockItem(ModBlocks.FRESNEL_SPOTLIGHT.get(), new Item.Properties()));
+    public static final RegistryObject<BlockItem> FRESNEL_SPOTLIGHT = ITEMS.register("fresnel_spotlight",
+            () -> new BlockItem(ModBlocks.FRESNEL_SPOTLIGHT.get(), new Item.Properties()));
 
     public static final RegistryObject<BlockItem> LASER_PROJECTOR = ITEMS.register("laser_projector",
             () -> new BlockItem(ModBlocks.LASER_PROJECTOR.get(), new Item.Properties()));
@@ -56,12 +60,6 @@ public final class ModItems {
 
     public static final RegistryObject<BlockItem> FLUORESCENT_TUBE = ITEMS.register("fluorescent_tube",
             () -> new BlockItem(ModBlocks.FLUORESCENT_TUBE.get(), new Item.Properties()));
-
-    public static class FresnelSpotlightBlockItem extends BlockItem {
-        public FresnelSpotlightBlockItem(net.minecraft.world.level.block.Block block, Properties properties) {
-            super(block, properties);
-        }
-    }
 
     private ModItems() {
     }

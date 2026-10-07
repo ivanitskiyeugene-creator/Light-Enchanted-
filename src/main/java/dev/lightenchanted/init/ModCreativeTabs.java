@@ -20,6 +20,7 @@ public final class ModCreativeTabs {
                     .displayItems((parameters, output) -> {
                         // Projectors & Fixtures
                         output.accept(ModItems.LIGHT_EMITTER.get());
+                        output.accept(ModItems.MOVING_SPOTLIGHT.get());
                         output.accept(ModItems.INDUSTRIAL_FLOODLIGHT.get());
                         output.accept(ModItems.FRESNEL_SPOTLIGHT.get());
                         output.accept(ModItems.LASER_PROJECTOR.get());
@@ -28,11 +29,14 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.LIGHT_GRATE.get());
                         output.accept(ModItems.LIGHT_TRUSS.get());
 
+                        // Ventilation Fans
+                        output.accept(ModItems.INDUSTRIAL_FAN.get());
+                        output.accept(ModItems.WALL_FAN.get());
+
                         // Optics & Interactive Blocks
                         output.accept(ModItems.OPTICAL_MIRROR.get());
                         output.accept(ModItems.PHOTORECEPTOR.get());
                         output.accept(ModItems.HAZE_MACHINE.get());
-                        output.accept(ModItems.INDUSTRIAL_FAN.get());
 
                         // Tools & Utilities
                         output.accept(ModItems.BEAM_TUNER.get());

@@ -1,5 +1,6 @@
 {
   "parent": "minecraft:block/block",
+  "render_type": "minecraft:translucent",
   "textures": {
     "particle": "lightenchanted:block/optical_mirror",
     "texture": "lightenchanted:block/optical_mirror"

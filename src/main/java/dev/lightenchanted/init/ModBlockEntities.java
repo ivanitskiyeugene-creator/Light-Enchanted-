@@ -19,6 +19,7 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("light_emitter",
                     () -> BlockEntityType.Builder.of(LightEmitterBlockEntity::new,
                                     ModBlocks.LIGHT_EMITTER.get(),
+                                    ModBlocks.MOVING_SPOTLIGHT.get(),
                                     ModBlocks.LIGHT_EMITTER_CREATIVE.get(),
                                     ModBlocks.RECESSED_DOWNLIGHT.get(),
                                     ModBlocks.INDUSTRIAL_FLOODLIGHT.get(),
@@ -31,6 +32,12 @@ public final class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(IndustrialFanBlockEntity::new,
                                     ModBlocks.INDUSTRIAL_FAN.get(),
                                     ModBlocks.INDUSTRIAL_FAN_SLAVE.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<IndustrialFanBlockEntity>> WALL_FAN =
+            BLOCK_ENTITIES.register("wall_fan",
+                    () -> BlockEntityType.Builder.of(IndustrialFanBlockEntity::new,
+                                    ModBlocks.WALL_FAN.get())
                             .build(null));
 
     public static final RegistryObject<BlockEntityType<PhotoreceptorBlockEntity>> PHOTORECEPTOR =

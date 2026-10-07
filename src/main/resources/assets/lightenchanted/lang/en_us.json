@@ -1,8 +1,10 @@
 {
     "block.lightenchanted.light_emitter": "Light Emitter",
+    "block.lightenchanted.moving_spotlight": "Motorized Moving Spotlight",
     "block.lightenchanted.light_emitter_creative": "Creative Light Emitter (invisible)",
     "block.lightenchanted.industrial_fan": "SCP HCZ Industrial Fan",
     "block.lightenchanted.industrial_fan_slave": "SCP HCZ Industrial Fan",
+    "block.lightenchanted.wall_fan": "Compact Wall Ventilation Fan",
     "block.lightenchanted.light_truss": "Modular Light Truss",
     "block.lightenchanted.recessed_downlight": "Recessed Downlight",
 

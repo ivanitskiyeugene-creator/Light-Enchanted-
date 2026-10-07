@@ -22,6 +22,7 @@ public final class ClientSetup {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.LIGHT_EMITTER.get(), LightEmitterRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.INDUSTRIAL_FAN.get(), IndustrialFanRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.WALL_FAN.get(), IndustrialFanRenderer::new);
     }
 
     @SubscribeEvent

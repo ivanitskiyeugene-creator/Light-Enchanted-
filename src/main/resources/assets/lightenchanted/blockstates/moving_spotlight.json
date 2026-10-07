@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "lightenchanted:block/moving_spotlight"
+    }
+  }
+}
