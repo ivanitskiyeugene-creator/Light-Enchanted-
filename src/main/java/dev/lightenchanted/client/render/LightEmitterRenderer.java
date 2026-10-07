@@ -102,6 +102,21 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 dz /= len;
             }
         }
+        if (!aimed && be.getBlockState().getBlock() instanceof dev.lightenchanted.block.MovingSpotlightBlock) {
+            float sweepTime = (level.getGameTime() + partialTick) * 0.05f;
+            float sweepYaw = Mth.sin(sweepTime) * 0.78f;
+            float sweepPitch = 0.5f + Mth.cos(sweepTime * 0.7f) * 0.35f;
+            dx = Mth.sin(sweepYaw) * sweepPitch;
+            dy = (cfg.down ? -1.0 : 1.0) * (1.0 - sweepPitch * 0.5);
+            dz = Mth.cos(sweepYaw) * sweepPitch;
+            double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            dx /= len;
+            dy /= len;
+            dz /= len;
+            aimed = true;
+            maxDist = 64.0;
+        }
+
         if (!aimed) {
             if (cfg.toSky) {
                 maxDist = 72.0;

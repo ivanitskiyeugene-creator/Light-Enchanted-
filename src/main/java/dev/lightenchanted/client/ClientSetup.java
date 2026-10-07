@@ -22,7 +22,6 @@ public final class ClientSetup {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.LIGHT_EMITTER.get(), LightEmitterRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.INDUSTRIAL_FAN.get(), IndustrialFanRenderer::new);
-        event.registerBlockEntityRenderer(ModBlockEntities.WALL_FAN.get(), IndustrialFanRenderer::new);
     }
 
     @SubscribeEvent
@@ -32,6 +31,7 @@ public final class ClientSetup {
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.LIGHT_GRATE.get(), RenderType.cutoutMipped());
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.OPTICAL_MIRROR.get(), RenderType.translucent());
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.FLUORESCENT_TUBE.get(), RenderType.translucent());
+            ItemBlockRenderTypes.setRenderLayer(ModBlocks.WALL_FAN.get(), RenderType.cutout());
         });
     }
 }

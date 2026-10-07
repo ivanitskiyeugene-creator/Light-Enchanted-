@@ -31,12 +31,7 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("industrial_fan",
                     () -> BlockEntityType.Builder.of(IndustrialFanBlockEntity::new,
                                     ModBlocks.INDUSTRIAL_FAN.get(),
-                                    ModBlocks.INDUSTRIAL_FAN_SLAVE.get())
-                            .build(null));
-
-    public static final RegistryObject<BlockEntityType<IndustrialFanBlockEntity>> WALL_FAN =
-            BLOCK_ENTITIES.register("wall_fan",
-                    () -> BlockEntityType.Builder.of(IndustrialFanBlockEntity::new,
+                                    ModBlocks.INDUSTRIAL_FAN_SLAVE.get(),
                                     ModBlocks.WALL_FAN.get())
                             .build(null));
 

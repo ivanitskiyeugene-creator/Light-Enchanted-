@@ -29,7 +29,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * 1x1 Compact Industrial Wall Ventilation Fan.
+ * 1x1 Compact Wall Ventilation Fan:
+ * - 4-blade high-speed spinning impeller
+ * - Pass-through light & shadows
+ * - Right-click speed switching (Off / Low / Med / High)
+ * - Mountable on walls, floors, and ceilings
  */
 public class WallFanBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
@@ -75,13 +79,27 @@ public class WallFanBlock extends BaseEntityBlock {
                                  InteractionHand hand, BlockHitResult hit) {
         if (level.getBlockEntity(pos) instanceof IndustrialFanBlockEntity fan) {
             if (!level.isClientSide) {
-                int nextSpeed = (fan.getSpeed() + 1) % 4;
-                fan.setSpeed(nextSpeed);
-                level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 0.7f, 1.2f + nextSpeed * 0.2f);
+                fan.cycleSpeedMode();
+                float pitch = switch (fan.getSpeedMode()) {
+                    case 1 -> 1.0f;
+                    case 2 -> 1.25f;
+                    case 3 -> 1.5f;
+                    default -> 0.7f;
+                };
+                level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 0.7f, pitch);
             }
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
         return InteractionResult.PASS;
+    }
+
+    @Override
+    public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, BlockPos fromPos, boolean isMoving) {
+        super.neighborChanged(state, level, pos, block, fromPos, isMoving);
+        if (!level.isClientSide && level.getBlockEntity(pos) instanceof IndustrialFanBlockEntity fan) {
+            boolean powered = level.hasNeighborSignal(pos);
+            fan.setRedstonePowered(powered);
+        }
     }
 
     @Nullable
@@ -93,6 +111,6 @@ public class WallFanBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? createTickerHelper(type, ModBlockEntities.WALL_FAN.get(), IndustrialFanBlockEntity::clientTick) : null;
+        return level.isClientSide ? createTickerHelper(type, ModBlockEntities.INDUSTRIAL_FAN.get(), IndustrialFanBlockEntity::clientTick) : null;
     }
 }
