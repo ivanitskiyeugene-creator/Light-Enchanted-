@@ -1,0 +1,7 @@
+{
+  "mod.snow_scpied.name": "Snow - SCPied",
+  "config.snow_scpied.enableDeformation": "Динамические физические прогибы снега",
+  "config.snow_scpied.enableFootprints": "Динамические следы (ботинки, когти, лапы)",
+  "config.snow_scpied.enableBloodStains": "Кровь и следы повреждений на снегу",
+  "config.snow_scpied.enableUniversalSnowOverlay": "Универсальное наложение снега на любые 3D-модели"
+}

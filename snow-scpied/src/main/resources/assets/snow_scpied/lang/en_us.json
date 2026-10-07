@@ -1,0 +1,7 @@
+{
+  "mod.snow_scpied.name": "Snow - SCPied",
+  "config.snow_scpied.enableDeformation": "Dynamic Snow Physical Deformation",
+  "config.snow_scpied.enableFootprints": "Dynamic Footprints (Boots, Claws, Hooves)",
+  "config.snow_scpied.enableBloodStains": "Blood and Fluid Splatters on Snow",
+  "config.snow_scpied.enableUniversalSnowOverlay": "Universal 3D Snow Crust on Any Modded Model"
+}
