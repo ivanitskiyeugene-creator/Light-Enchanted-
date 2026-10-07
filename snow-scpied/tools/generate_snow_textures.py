@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates all PNG textures and decals for Snow - SCPied v1.1.0:
+"""Generates all PNG textures and decals for Snow - SCPied v1.3.0:
 - Boots tread footprint decal
 - Fading snowy trail decal on dry ground
 - Bare feet footprint decal
@@ -7,7 +7,7 @@
 - Hooves footprint decal
 - Blood splatters (crimson, acid green, black, ender purple)
 - Snowy legs overlay
-- Snow crust overlay
+- 3D Volumetric snow mantle texture with edge gradient
 - Snow Sprayer tool
 """
 import math
@@ -59,12 +59,10 @@ def gen_boots_footprint(path, size=32, is_snow_trail=False):
             if in_heel or in_forefoot or in_bridge:
                 is_tread_groove = (y % 4 in (0, 1)) and not in_bridge
                 if is_snow_trail:
-                    # White compressed snow left on dry floors
                     depth = 0.90 if is_tread_groove else 0.60
                     alpha = int(depth * 240)
                     row.append((240, 248, 255, alpha))
                 else:
-                    # Dark indentation on snow
                     depth = 0.95 if is_tread_groove else 0.65
                     alpha = int(depth * 255)
                     row.append((120, 138, 160, alpha))
@@ -76,6 +74,7 @@ def gen_boots_footprint(path, size=32, is_snow_trail=False):
 
 def gen_bare_feet(path, size=32):
     pixels = []
+    c = size * 0.5
     for y in range(size):
         row = []
         ny = (y - size * 0.5) / (size * 0.5)
@@ -148,7 +147,6 @@ def gen_blood_splatter(path, color_rgb=(180, 20, 25), size=32):
 
 
 def gen_snowy_legs(path, size=32):
-    """Frosted snow crust for lower legs & boots."""
     pixels = []
     for y in range(size):
         row = []
@@ -163,35 +161,36 @@ def gen_snowy_legs(path, size=32):
     write_png(path, size, size, pixels)
 
 
-def gen_snow_crust(path, size=32):
-    """3D procedural snow mantle for arbitrary block surfaces."""
+def gen_snow_crust(path, size=64):
+    """Clean volumetric snow mantle with sparkling snow grain and edge gradient."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            noise = (math.sin(x * 0.6) + math.cos(y * 0.6)) * 0.1
-            shade = 0.92 + noise
-            r = int(clamp(shade) * 255)
-            g = int(clamp(shade * 1.02) * 255)
-            b = int(clamp(shade * 1.05) * 255)
-            row.append((r, g, b, 245))
+            noise = (math.sin(x * 0.4) * math.cos(y * 0.4)) * 0.04
+            sparkle = 0.04 if ((x * 17 + y * 31) % 19 == 0) else 0.0
+
+            v = y / (size - 1.0)
+            edge_shade = 0.88 if v > 0.85 else 0.96
+
+            base = (edge_shade + noise + sparkle)
+            r = int(clamp(base * 0.98) * 255)
+            g = int(clamp(base * 1.00) * 255)
+            b = int(clamp(base * 1.03) * 255)
+            row.append((r, g, b, 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
 def gen_snow_sprayer(path, size=16):
-    """Snow Sprayer Tool icon."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            # Nozzle tube
             if x in (7, 8) and y < 8:
                 row.append((180, 190, 205, 255))
-            # Spray tank canister
             elif (x >= 5 and x <= 10) and (y >= 8 and y <= 14):
                 row.append((70, 160, 240, 255))
-            # Spray tip
             elif x in (6, 7, 8, 9) and y == 2:
                 row.append((240, 250, 255, 255))
             else:
@@ -205,7 +204,6 @@ def main():
     bdir = os.path.join(ROOT, "block")
     idir = os.path.join(ROOT, "item")
 
-    # Entity decals
     gen_boots_footprint(os.path.join(edir, "footprint_boots.png"), 32, False)
     gen_boots_footprint(os.path.join(edir, "footprint_snowy_trail.png"), 32, True)
     gen_bare_feet(os.path.join(edir, "footprint_bare.png"))
@@ -216,7 +214,6 @@ def main():
     gen_blood_splatter(os.path.join(edir, "blood_ender.png"), (170, 45, 215))
     gen_snowy_legs(os.path.join(edir, "snowy_legs_overlay.png"))
 
-    # Block & Item textures
     gen_boots_footprint(os.path.join(bdir, "decal_boots.png"))
     gen_bare_feet(os.path.join(bdir, "decal_bare_feet.png"))
     gen_scp_claws_footprint(os.path.join(bdir, "decal_claws.png"))
