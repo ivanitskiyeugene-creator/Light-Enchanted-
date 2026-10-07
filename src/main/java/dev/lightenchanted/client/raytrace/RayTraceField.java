@@ -496,6 +496,7 @@ public class RayTraceField {
             Direction fFacing = ref.facing;
             Vec3 fCenter = new Vec3(ref.pos.getX() + 0.5, ref.pos.getY() + 0.5, ref.pos.getZ() + 0.5);
             float fAngle = ref.fan.getSpinAngle(partialTick);
+            boolean isWallFan = ref.fan.getBlockState().getBlock() instanceof WallFanBlock;
 
             Vec3 uAxis, vAxis, nAxis;
             if (fFacing.getAxis() == Direction.Axis.Y) {
@@ -512,11 +513,13 @@ public class RayTraceField {
                 nAxis = new Vec3(1, 0, 0);
             }
 
-            int bCount = 5;
+            int bCount = isWallFan ? 4 : 5;
             float tau = (float) (Math.PI * 2.0);
-            float rHub = 0.32f, rBlade = 1.22f;
-            float rootW = 0.36f, tipW = 0.58f;
-            float pitchZ = 0.12f;
+            float rHub = isWallFan ? 0.14f : 0.34f;
+            float rBlade = isWallFan ? 0.38f : 1.22f;
+            float rootW = isWallFan ? 0.14f : 0.38f;
+            float tipW = isWallFan ? 0.22f : 0.65f;
+            float pitchZ = isWallFan ? 0.06f : 0.14f;
 
             for (int bi = 0; bi < bCount; bi++) {
                 float ba = tau * bi / bCount + (float) Math.toRadians(fAngle);
@@ -608,10 +611,13 @@ public class RayTraceField {
                             vAxis = new Vec3(0, 1, 0);
                         }
 
-                        // Static 3x3 Outer Shroud
-                        float rOuter = 1.48f;
-                        float rInner = 1.25f;
+                        boolean isWallFan = level.getBlockState(mpos).getBlock() instanceof WallFanBlock;
+                        float rOuter = isWallFan ? 0.48f : 1.48f;
+                        float rInner = isWallFan ? 0.40f : 1.25f;
+                        float hr = isWallFan ? 0.14f : 0.34f;
+                        float strutThick = isWallFan ? 0.02f : 0.035f;
 
+                        // 1. Static Outer Shroud / Wall Frame
                         addStaticQuad(fCenter.add(uAxis.scale(-rOuter)).add(vAxis.scale(rInner)),
                                 fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
                                 fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rOuter)),
@@ -632,33 +638,33 @@ public class RayTraceField {
                                 fCenter.add(uAxis.scale(rOuter)).add(vAxis.scale(rInner)),
                                 fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(rInner)));
 
-                        // Static Hub
-                        float hr = 0.38f;
+                        // 2. Static Center Motor Hub
                         addStaticQuad(fCenter.add(uAxis.scale(-hr)).add(vAxis.scale(-hr)),
                                 fCenter.add(uAxis.scale(hr)).add(vAxis.scale(-hr)),
                                 fCenter.add(uAxis.scale(hr)).add(vAxis.scale(hr)),
                                 fCenter.add(uAxis.scale(-hr)).add(vAxis.scale(hr)));
 
-                        // Static Safety Grates
-                        float barThick = 0.08f;
-                        for (float offset : new float[]{-0.75f, 0.0f, 0.75f}) {
-                            addStaticQuad(fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(offset - barThick)),
-                                    fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(offset - barThick)),
-                                    fCenter.add(uAxis.scale(rInner)).add(vAxis.scale(offset + barThick)),
-                                    fCenter.add(uAxis.scale(-rInner)).add(vAxis.scale(offset + barThick)));
+                        // 3. 4 Structural Motor Support Struts
+                        for (int s = 0; s < 4; s++) {
+                            float a = (float) ((s * 0.5 + 0.25) * Math.PI);
+                            float ca = Mth.cos(a), sa = Mth.sin(a);
+                            Vec3 sDir = uAxis.scale(ca).add(vAxis.scale(sa));
+                            Vec3 sNormal = uAxis.scale(-sa * strutThick).add(vAxis.scale(ca * strutThick));
 
-                            addStaticQuad(fCenter.add(uAxis.scale(offset - barThick)).add(vAxis.scale(-rInner)),
-                                    fCenter.add(uAxis.scale(offset + barThick)).add(vAxis.scale(-rInner)),
-                                    fCenter.add(uAxis.scale(offset + barThick)).add(vAxis.scale(rInner)),
-                                    fCenter.add(uAxis.scale(offset - barThick)).add(vAxis.scale(rInner)));
+                            addStaticQuad(
+                                    fCenter.add(sDir.scale(hr)).subtract(sNormal),
+                                    fCenter.add(sDir.scale(rInner)).subtract(sNormal),
+                                    fCenter.add(sDir.scale(rInner)).add(sNormal),
+                                    fCenter.add(sDir.scale(hr)).add(sNormal));
                         }
 
-                        bMinX = Math.min(bMinX, fCenter.x - 1.6);
-                        bMinY = Math.min(bMinY, fCenter.y - 1.6);
-                        bMinZ = Math.min(bMinZ, fCenter.z - 1.6);
-                        bMaxX = Math.max(bMaxX, fCenter.x + 1.6);
-                        bMaxY = Math.max(bMaxY, fCenter.y + 1.6);
-                        bMaxZ = Math.max(bMaxZ, fCenter.z + 1.6);
+                        double bRad = rOuter + 0.15;
+                        bMinX = Math.min(bMinX, fCenter.x - bRad);
+                        bMinY = Math.min(bMinY, fCenter.y - bRad);
+                        bMinZ = Math.min(bMinZ, fCenter.z - bRad);
+                        bMaxX = Math.max(bMaxX, fCenter.x + bRad);
+                        bMaxY = Math.max(bMaxY, fCenter.y + bRad);
+                        bMaxZ = Math.max(bMaxZ, fCenter.z + bRad);
                         continue;
                     }
 

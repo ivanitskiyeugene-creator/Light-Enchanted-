@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generates all mod PNG textures for Light Enchanted v2.3.0 / v2.4.0.
+"""Generates all mod PNG textures for Light Enchanted v2.5.0:
+- SCP HCZ Industrial Fan Casing (dark containment steel, no bright grey lines)
+- Ultra-Fine Industrial Protective Grille (concentric rings, radial ribs, fine wire mesh)
+- 3D Aerodynamic Fan Blades (brushed titanium/steel with specular edge highlights)
+- Wall Fan textures
+- Moving Spotlight and Beam textures
 """
 import math
 import os
@@ -98,7 +103,6 @@ def gen_moving_spotlight(path, size=16):
 
 
 def gen_beam_texture(path, size=128):
-    """Silky-smooth continuous volumetric atmospheric beam texture."""
     pixels = []
     for y in range(size):
         row = []
@@ -119,76 +123,145 @@ def gen_beam_texture(path, size=128):
     write_png(path, size, size, pixels)
 
 
-def gen_industrial_fan_casing(path, size=32):
-    """Pure dark matte gunmetal containment steel: grey lines removed, bevels barely noticeable (just 4% lighter than base)."""
+def gen_industrial_fan_casing(path, size=64):
+    """Heavy SCP:SL containment steel casing: dark matte gunmetal, subtle brushed grain, containment rivets."""
     pixels = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             noise = hash01(x * 73 + y * 19)
-            base = 0.18 + 0.03 * noise
-            r, g, b = base * 0.95, base * 0.98, base * 1.02
+            base = 0.17 + 0.03 * noise
+            r, g, b = base * 0.96, base * 0.98, base * 1.02
 
-            # Outer border bevel (slightly darker shadow)
-            is_border = (x < 2 or x >= size - 2 or y < 2 or y >= size - 2)
-            if is_border:
-                r *= 0.90; g *= 0.90; b *= 0.90
+            # Outer frame bevel (darker shadow border)
+            is_outer_border = (x < 3 or x >= size - 3 or y < 3 or y >= size - 3)
+            if is_outer_border:
+                r *= 0.85; g *= 0.85; b *= 0.88
 
-            # Subtle dark steel rivets (barely lighter than base)
-            for cx, cy in [(3, 3), (size - 4, 3), (3, size - 4), (size - 4, size - 4),
-                           (16, 2), (16, size - 3), (2, 16), (size - 3, 16)]:
-                if math.hypot(x - cx, y - cy) < 1.3:
-                    r *= 1.15; g *= 1.15; b *= 1.18
+            # Corner reinforcement plates
+            is_corner_plate = (
+                (x < 14 and y < 14 and (x + y) < 18) or
+                (x >= size - 14 and y < 14 and ((size - 1 - x) + y) < 18) or
+                (x < 14 and y >= size - 14 and (x + (size - 1 - y)) < 18) or
+                (x >= size - 14 and y >= size - 14 and ((size - 1 - x) + (size - 1 - y)) < 18)
+            )
+            if is_corner_plate:
+                r *= 1.06; g *= 1.06; b *= 1.08
 
-            # Soft brushed metal rim bevel (only 4% lighter, no bright grey lines!)
-            is_rim = (x in (3, 4, size - 5, size - 4) or y in (3, 4, size - 5, size - 4))
-            if is_rim:
-                r *= 1.04; g *= 1.04; b *= 1.04
+            # Containment hex bolts / heavy steel rivets
+            rivet_coords = [
+                (5, 5), (size - 6, 5), (5, size - 6), (size - 6, size - 6),
+                (32, 4), (32, size - 5), (4, 32), (size - 5, 32),
+                (16, 4), (48, 4), (16, size - 5), (48, size - 5),
+                (4, 16), (4, 48), (size - 5, 16), (size - 5, 48)
+            ]
+            for cx, cy in rivet_coords:
+                dist = math.hypot(x - cx, y - cy)
+                if dist < 2.0:
+                    r *= 1.25; g *= 1.25; b *= 1.30
+                elif dist < 2.8:
+                    r *= 0.70; g *= 0.70; b *= 0.70
 
-            # Circular opening bevel
+            # Circular ventilation duct opening
             d = math.hypot(x - c, y - c)
-            if d < (size * 0.44):
-                inner_shade = 0.14 + 0.03 * hash01(x * 13 + y * 41)
-                r, g, b = inner_shade * 0.95, inner_shade * 0.98, inner_shade * 1.02
-            if abs(d - (size * 0.44)) < 1.2:
-                r *= 1.05; g *= 1.05; b *= 1.05
+            tunnel_radius = size * 0.44
+            if d < tunnel_radius:
+                # Inside duct tunnel shadow
+                tunnel_shade = 0.12 + 0.02 * hash01(x * 37 + y * 53)
+                r, g, b = tunnel_shade * 0.95, tunnel_shade * 0.98, tunnel_shade * 1.02
+            elif abs(d - tunnel_radius) < 2.2:
+                # Subtle duct collar rim bevel
+                r *= 1.08; g *= 1.08; b *= 1.10
 
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
-def gen_industrial_fan_blade(path, size=32):
+def gen_industrial_fan_blade(path, size=64):
+    """High-detail aerodynamic titanium/steel fan blade: metallic brushed finish, chamfered leading & trailing edges, pitched lighting."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            noise = hash01(x * 17 + y * 29)
-            base = 0.28 + 0.06 * noise
-            spec = smoothstep(0.0, 1.0, (x / size)) * 0.12
-            r = base * 0.95 + spec
-            g = base * 0.98 + spec
-            b = base * 1.04 + spec
-            if x == 0 or x == size - 1 or y == 0 or y == size - 1:
-                r *= 0.75; g *= 0.75; b *= 0.75
+            noise = hash01(x * 31 + y * 47)
+            # Brushed metal texture along blade length (x axis)
+            brushed = 0.24 + 0.04 * noise
+            # Camber specular highlight across chord (y axis)
+            chord = y / (size - 1.0)
+            camber = math.sin(chord * math.pi)
+            spec = camber * 0.12
+
+            r = brushed * 0.94 + spec
+            g = brushed * 0.97 + spec
+            b = brushed * 1.04 + spec
+
+            # Beveled leading edge (y < 4) and trailing edge (y > size - 5)
+            if y < 3:
+                r *= 1.25; g *= 1.25; b *= 1.28
+            elif y >= size - 3:
+                r *= 0.72; g *= 0.72; b *= 0.75
+
+            # Root cuff mounting section (x < 10)
+            if x < 8:
+                r *= 0.85; g *= 0.85; b *= 0.88
+                if x in (3, 4) and y in (16, 32, 48):
+                    # Mounting bolt
+                    r = 0.45; g = 0.47; b = 0.50
+
             row.append((int(clamp(r) * 255), int(clamp(g) * 255), int(clamp(b) * 255), 255))
         pixels.append(row)
     write_png(path, size, size, pixels)
 
 
-def gen_industrial_fan_grate(path, size=32):
+def gen_industrial_fan_grate(path, size=128):
+    """Ultra-Fine High-Res Industrial Safety Grille:
+    - Sleek thin outer steel ring
+    - 4 thin concentric protective wire rings
+    - 8 thin radial structural spokes
+    - Fine woven wire diamond/square protective mesh (crisp, delicate, pass-through).
+    """
     pixels = []
+    c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             r, g, b, a = 0, 0, 0, 0
-            is_crossbar = (x in (15, 16) or y in (15, 16) or x in (7, 8, 23, 24) or y in (7, 8, 23, 24))
-            is_mesh = (x % 4 == 0 or y % 4 == 0)
-            if is_crossbar:
-                r, g, b, a = 85, 90, 98, 255
-            elif is_mesh:
-                r, g, b, a = 50, 55, 62, 230
+
+            d = math.hypot(x - c, y - c)
+            max_r = size * 0.47
+
+            if d <= max_r:
+                # 1. Outer Frame Ring (1.5px thick)
+                if abs(d - max_r) < 1.8:
+                    r, g, b, a = 82, 88, 96, 255
+
+                # 2. Concentric Wire Guard Rings (thin 1px circular wires at 4 radii)
+                for ring_r in [size * 0.14, size * 0.25, size * 0.35, size * 0.43]:
+                    if abs(d - ring_r) < 0.95:
+                        r, g, b, a = 95, 102, 112, 245
+
+                # 3. 8 Radial Support Spokes (thin 1px wires connecting center to rim)
+                angle = math.atan2(y - c, x - c)
+                spoke_dist = abs(math.sin(angle * 4.0) * d)
+                if spoke_dist < 0.95 and d > (size * 0.08):
+                    r, g, b, a = 100, 108, 118, 255
+
+                # 4. Fine Protective Wire Mesh (thin 1px lines spaced every 12 pixels)
+                mesh_grid = 12
+                on_v_wire = (x % mesh_grid == 0)
+                on_h_wire = (y % mesh_grid == 0)
+                if on_v_wire or on_h_wire:
+                    r, g, b, a = 75, 80, 88, 220
+                    # Specular highlight on wire crossings
+                    if on_v_wire and on_h_wire:
+                        r, g, b, a = 115, 122, 132, 255
+
+                # 5. Center Mounting Hub Collar Ring
+                if abs(d - (size * 0.12)) < 1.4:
+                    r, g, b, a = 90, 96, 105, 255
+
             row.append((r, g, b, a))
         pixels.append(row)
     write_png(path, size, size, pixels)
