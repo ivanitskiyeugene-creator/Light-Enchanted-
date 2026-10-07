@@ -1,0 +1,29 @@
+{
+  "variants": {
+    "facing=up": {
+      "model": "snow_scpied:block/decal_blood_human"
+    },
+    "facing=down": {
+      "model": "snow_scpied:block/decal_blood_human",
+      "x": 180
+    },
+    "facing=north": {
+      "model": "snow_scpied:block/decal_blood_human",
+      "x": 90
+    },
+    "facing=south": {
+      "model": "snow_scpied:block/decal_blood_human",
+      "x": 270
+    },
+    "facing=west": {
+      "model": "snow_scpied:block/decal_blood_human",
+      "x": 90,
+      "y": 270
+    },
+    "facing=east": {
+      "model": "snow_scpied:block/decal_blood_human",
+      "x": 90,
+      "y": 90
+    }
+  }
+}

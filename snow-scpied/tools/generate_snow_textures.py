@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Generates all PNG textures and decals for Snow - SCPied:
+"""Generates all PNG textures and decals for Snow - SCPied v1.1.0:
 - Boots tread footprint decal
+- Fading snowy trail decal on dry ground
 - Bare feet footprint decal
 - SCP creature claws / pawprint decal
 - Hooves footprint decal
 - Blood splatters (crimson, acid green, black, ender purple)
-- Snow crust overlay texture
+- Snowy legs overlay
+- Snow crust overlay
+- Snow Sprayer tool
 """
 import math
 import os
@@ -41,8 +44,7 @@ def clamp(v, lo=0.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
 
-def gen_boots_footprint(path, size=32):
-    """Deep military boot sole tread with grip ribs and heel indent."""
+def gen_boots_footprint(path, size=32, is_snow_trail=False):
     pixels = []
     for y in range(size):
         row = []
@@ -50,18 +52,46 @@ def gen_boots_footprint(path, size=32):
         for x in range(size):
             nx = (x - size * 0.5) / (size * 0.5)
 
-            # Boot shape profile
             in_heel = (ny > 0.4 and ny < 0.85 and abs(nx) < 0.40)
             in_forefoot = (ny > -0.85 and ny < 0.25 and abs(nx) < (0.45 - ny * 0.08))
             in_bridge = (ny >= 0.25 and ny <= 0.4 and abs(nx) < 0.25)
 
             if in_heel or in_forefoot or in_bridge:
-                # Tread grooves
                 is_tread_groove = (y % 4 in (0, 1)) and not in_bridge
-                depth = 0.85 if is_tread_groove else 0.55
-                alpha = int(depth * 255)
-                # Shadow indentation color (dark compressed snow)
-                row.append((130, 145, 165, alpha))
+                if is_snow_trail:
+                    # White compressed snow left on dry floors
+                    depth = 0.90 if is_tread_groove else 0.60
+                    alpha = int(depth * 240)
+                    row.append((240, 248, 255, alpha))
+                else:
+                    # Dark indentation on snow
+                    depth = 0.95 if is_tread_groove else 0.65
+                    alpha = int(depth * 255)
+                    row.append((120, 138, 160, alpha))
+            else:
+                row.append((0, 0, 0, 0))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
+def gen_bare_feet(path, size=32):
+    pixels = []
+    for y in range(size):
+        row = []
+        ny = (y - size * 0.5) / (size * 0.5)
+        for x in range(size):
+            nx = (x - size * 0.5) / (size * 0.5)
+
+            in_heel = (ny > 0.35 and ny < 0.8 and abs(nx) < 0.32)
+            in_sole = (ny > -0.45 and ny <= 0.35 and abs(nx) < (0.38 - ny * 0.05))
+
+            in_toes = False
+            for toe_i, (tx, ty, tr) in enumerate([(-0.25, -0.75, 0.10), (-0.12, -0.82, 0.09), (0.0, -0.80, 0.08), (0.12, -0.75, 0.07), (0.24, -0.68, 0.06)]):
+                if math.hypot(nx - tx, ny - ty) < tr:
+                    in_toes = True
+
+            if in_heel or in_sole or in_toes:
+                row.append((125, 142, 165, 230))
             else:
                 row.append((0, 0, 0, 0))
         pixels.append(row)
@@ -69,7 +99,6 @@ def gen_boots_footprint(path, size=32):
 
 
 def gen_scp_claws_footprint(path, size=32):
-    """SCP-939 / Beast 3-clawed footprint with central palm pad."""
     pixels = []
     c = size * 0.5
     for y in range(size):
@@ -78,7 +107,6 @@ def gen_scp_claws_footprint(path, size=32):
             d_pad = math.hypot(x - c, y - (c + 4))
             in_pad = d_pad < 5.5
 
-            # 3 sharp claws
             claw1 = math.hypot(x - (c - 7), y - (c - 5)) < 3.2
             claw2 = math.hypot(x - c, y - (c - 8)) < 3.5
             claw3 = math.hypot(x - (c + 7), y - (c - 5)) < 3.2
@@ -93,7 +121,6 @@ def gen_scp_claws_footprint(path, size=32):
 
 
 def gen_blood_splatter(path, color_rgb=(180, 20, 25), size=32):
-    """Dynamic organic blood splatter droplet mask."""
     pixels = []
     c = size * 0.5
     for y in range(size):
@@ -102,10 +129,8 @@ def gen_blood_splatter(path, color_rgb=(180, 20, 25), size=32):
             dist = math.hypot(x - c, y - c)
             angle = math.atan2(y - c, x - c)
 
-            # Organic blob radius variation
             noise_r = 7.0 + 3.0 * math.sin(angle * 5.0) + 2.0 * math.cos(angle * 3.0)
 
-            # Secondary micro droplets
             is_droplet = (
                 math.hypot(x - (c + 8), y - (c - 6)) < 2.0 or
                 math.hypot(x - (c - 9), y - (c + 5)) < 1.8 or
@@ -122,14 +147,85 @@ def gen_blood_splatter(path, color_rgb=(180, 20, 25), size=32):
     write_png(path, size, size, pixels)
 
 
+def gen_snowy_legs(path, size=32):
+    """Frosted snow crust for lower legs & boots."""
+    pixels = []
+    for y in range(size):
+        row = []
+        for x in range(size):
+            noise = (math.sin(x * 0.8) + math.cos(y * 0.9)) * 0.5 + 0.5
+            if y > size * 0.4:
+                alpha = int(clamp(noise * 0.7 + (y / size) * 0.4) * 230)
+                row.append((240, 248, 255, alpha))
+            else:
+                row.append((0, 0, 0, 0))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
+def gen_snow_crust(path, size=32):
+    """3D procedural snow mantle for arbitrary block surfaces."""
+    pixels = []
+    for y in range(size):
+        row = []
+        for x in range(size):
+            noise = (math.sin(x * 0.6) + math.cos(y * 0.6)) * 0.1
+            shade = 0.92 + noise
+            r = int(clamp(shade) * 255)
+            g = int(clamp(shade * 1.02) * 255)
+            b = int(clamp(shade * 1.05) * 255)
+            row.append((r, g, b, 245))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
+def gen_snow_sprayer(path, size=16):
+    """Snow Sprayer Tool icon."""
+    pixels = []
+    for y in range(size):
+        row = []
+        for x in range(size):
+            # Nozzle tube
+            if x in (7, 8) and y < 8:
+                row.append((180, 190, 205, 255))
+            # Spray tank canister
+            elif (x >= 5 and x <= 10) and (y >= 8 and y <= 14):
+                row.append((70, 160, 240, 255))
+            # Spray tip
+            elif x in (6, 7, 8, 9) and y == 2:
+                row.append((240, 250, 255, 255))
+            else:
+                row.append((0, 0, 0, 0))
+        pixels.append(row)
+    write_png(path, size, size, pixels)
+
+
 def main():
     edir = os.path.join(ROOT, "entity", "snow")
-    gen_boots_footprint(os.path.join(edir, "footprint_boots.png"))
+    bdir = os.path.join(ROOT, "block")
+    idir = os.path.join(ROOT, "item")
+
+    # Entity decals
+    gen_boots_footprint(os.path.join(edir, "footprint_boots.png"), 32, False)
+    gen_boots_footprint(os.path.join(edir, "footprint_snowy_trail.png"), 32, True)
+    gen_bare_feet(os.path.join(edir, "footprint_bare.png"))
     gen_scp_claws_footprint(os.path.join(edir, "footprint_claws.png"))
     gen_blood_splatter(os.path.join(edir, "blood_human.png"), (180, 20, 25))
     gen_blood_splatter(os.path.join(edir, "blood_acid.png"), (60, 210, 40))
     gen_blood_splatter(os.path.join(edir, "blood_anomalous.png"), (25, 25, 30))
     gen_blood_splatter(os.path.join(edir, "blood_ender.png"), (170, 45, 215))
+    gen_snowy_legs(os.path.join(edir, "snowy_legs_overlay.png"))
+
+    # Block & Item textures
+    gen_boots_footprint(os.path.join(bdir, "decal_boots.png"))
+    gen_bare_feet(os.path.join(bdir, "decal_bare_feet.png"))
+    gen_scp_claws_footprint(os.path.join(bdir, "decal_claws.png"))
+    gen_blood_splatter(os.path.join(bdir, "decal_blood_human.png"), (180, 20, 25))
+    gen_blood_splatter(os.path.join(bdir, "decal_blood_acid.png"), (60, 210, 40))
+    gen_blood_splatter(os.path.join(bdir, "decal_blood_anomalous.png"), (25, 25, 30))
+    gen_blood_splatter(os.path.join(bdir, "decal_blood_ender.png"), (170, 45, 215))
+    gen_snow_crust(os.path.join(bdir, "snow_crust_overlay.png"))
+    gen_snow_sprayer(os.path.join(idir, "snow_sprayer.png"))
 
 if __name__ == "__main__":
     main()

@@ -5,9 +5,10 @@ import net.minecraft.resources.ResourceLocation;
 
 public enum FootprintType {
     BOOTS("textures/entity/snow/footprint_boots.png", 0.35f, 0.45f),
-    BARE_FEET("textures/entity/snow/footprint_boots.png", 0.30f, 0.40f),
+    BARE_FEET("textures/entity/snow/footprint_bare.png", 0.30f, 0.40f),
     SCP_CLAWS("textures/entity/snow/footprint_claws.png", 0.45f, 0.45f),
-    HOOVES("textures/entity/snow/footprint_boots.png", 0.28f, 0.28f);
+    HOOVES("textures/entity/snow/footprint_boots.png", 0.28f, 0.28f),
+    SNOWY_TRAIL("textures/entity/snow/footprint_snowy_trail.png", 0.35f, 0.45f);
 
     private final ResourceLocation texture;
     private final float width;

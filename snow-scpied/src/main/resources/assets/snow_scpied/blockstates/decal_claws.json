@@ -1,0 +1,68 @@
+{
+  "variants": {
+    "rotation=0": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 0
+    },
+    "rotation=1": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 22
+    },
+    "rotation=2": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 45
+    },
+    "rotation=3": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 67
+    },
+    "rotation=4": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 90
+    },
+    "rotation=5": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 112
+    },
+    "rotation=6": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 135
+    },
+    "rotation=7": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 157
+    },
+    "rotation=8": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 180
+    },
+    "rotation=9": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 202
+    },
+    "rotation=10": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 225
+    },
+    "rotation=11": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 247
+    },
+    "rotation=12": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 270
+    },
+    "rotation=13": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 292
+    },
+    "rotation=14": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 315
+    },
+    "rotation=15": {
+      "model": "snow_scpied:block/decal_claws",
+      "y": 337
+    }
+  }
+}
