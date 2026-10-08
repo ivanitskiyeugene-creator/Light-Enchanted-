@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates all PNG textures and decals for Snow - SCPied v1.3.0:
+"""Generates all PNG textures and decals for Snow - SCPied v1.3.1:
 - Boots tread footprint decal
 - Fading snowy trail decal on dry ground
 - Bare feet footprint decal
@@ -7,7 +7,7 @@
 - Hooves footprint decal
 - Blood splatters (crimson, acid green, black, ender purple)
 - Snowy legs overlay
-- 3D Volumetric snow mantle texture with edge gradient
+- 3D Volumetric isotropic sparkling snow mantle texture
 - Snow Sprayer tool
 """
 import math
@@ -162,21 +162,19 @@ def gen_snowy_legs(path, size=32):
 
 
 def gen_snow_crust(path, size=64):
-    """Clean volumetric snow mantle with sparkling snow grain and edge gradient."""
+    """Uniform seamless isotropic procedural snow crust texture with crystal sparkles."""
     pixels = []
     for y in range(size):
         row = []
         for x in range(size):
-            noise = (math.sin(x * 0.4) * math.cos(y * 0.4)) * 0.04
-            sparkle = 0.04 if ((x * 17 + y * 31) % 19 == 0) else 0.0
+            n1 = (math.sin(x * 0.35) * math.cos(y * 0.35)) * 0.03
+            n2 = (math.sin((x + y) * 0.7) * math.cos((x - y) * 0.7)) * 0.02
+            sparkle = 0.05 if ((x * 19 + y * 37 + 7) % 17 == 0) else 0.0
 
-            v = y / (size - 1.0)
-            edge_shade = 0.88 if v > 0.85 else 0.96
-
-            base = (edge_shade + noise + sparkle)
-            r = int(clamp(base * 0.98) * 255)
-            g = int(clamp(base * 1.00) * 255)
-            b = int(clamp(base * 1.03) * 255)
+            base = 0.95 + n1 + n2 + sparkle
+            r = int(clamp(base * 0.97) * 255)
+            g = int(clamp(base * 0.99) * 255)
+            b = int(clamp(base * 1.02) * 255)
             row.append((r, g, b, 255))
         pixels.append(row)
     write_png(path, size, size, pixels)

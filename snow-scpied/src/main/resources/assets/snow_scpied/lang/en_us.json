@@ -1,16 +1,18 @@
 {
   "mod.snow_scpied.name": "Snow - SCPied",
   "itemGroup.snow_scpied": "Snow - SCPied",
-  "item.snow_scpied.snow_sprayer": "Snow Sprayer / Applicator",
+  "item.snow_scpied.snow_sprayer": "Snow Sprayer",
+  "item.snow_scpied.snow_sprayer.desc1": "Right-click any face to apply/remove 3D snow mantle",
+  "item.snow_scpied.snow_sprayer.desc2": "Shift + Right-click to toggle snow on all sides of the block",
   "block.snow_scpied.decal_boots": "Tactical Boots Footprint Decal",
   "block.snow_scpied.decal_claws": "SCP Creature Claws Footprint Decal",
   "block.snow_scpied.decal_bare_feet": "Bare Feet Footprint Decal",
   "block.snow_scpied.decal_blood_human": "Human Blood Splatter Decal",
-  "block.snow_scpied.decal_blood_acid": "SCP Acid / Slime Blood Decal",
-  "block.snow_scpied.decal_blood_anomalous": "Anomalous Black Substance Decal",
-  "block.snow_scpied.decal_blood_ender": "Ender Fluid Blood Decal",
-  "config.snow_scpied.enableDeformation": "Dynamic Snow Physical Deformation",
-  "config.snow_scpied.enableFootprints": "Dynamic Footprints (Boots, Claws, Hooves)",
-  "config.snow_scpied.enableBloodStains": "Blood and Fluid Splatters on Snow",
-  "config.snow_scpied.enableUniversalSnowOverlay": "Universal 3D Snow Crust on Any Modded Model"
+  "block.snow_scpied.decal_blood_acid": "SCP Acid Blood / Slime Decal",
+  "block.snow_scpied.decal_blood_anomalous": "Black Anomalous Substance Decal",
+  "block.snow_scpied.decal_blood_ender": "Ender Blood Decal",
+  "config.snow_scpied.enableDeformation": "Dynamic Physical Snow Deformation",
+  "config.snow_scpied.enableFootprints": "Dynamic Footprints (Boots, Claws, Paws)",
+  "config.snow_scpied.enableBloodStains": "Blood Stains and Damage Marks on Snow",
+  "config.snow_scpied.enableUniversalSnowOverlay": "Universal 3D Snow Mantle for Complex Models"
 }
