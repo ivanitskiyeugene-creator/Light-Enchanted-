@@ -30,66 +30,52 @@ import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * Universal True 3D Volumetric Snow Mantle Engine:
- * - Uses exact 16x16 vanilla Minecraft snow texture.
- * - Standard block lighting (LevelRenderer.getLightColor) with directional diffuse shading (no unphysical glowing).
- * - 6-Axis directional support (TOP, NORTH, SOUTH, WEST, EAST, BOTTOM).
- * - Multi-layer geometry extraction conforming to sub-elements (stairs, fences, keypads, grates, fan housings).
- * - Closed double-sided 3D geometry (never hollow or see-through).
+ * Universal Top-Surface 3D Snow Layer Engine:
+ * - Generates physical 3D snow layers ONLY on topmost exposed upward surfaces (with roof/occlusion detection).
+ * - Exact vanilla snow layer thickness (2 pixels / 0.125 blocks thick, matching SnowLayerBlock).
+ * - Authentic 16x16 vanilla snow texture.
+ * - Real world ambient & block lighting (LevelRenderer.getLightColor) with directional diffuse shading.
  */
 @Mod.EventBusSubscriber(modid = "snow_scpied", bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class UniversalSnowRenderer {
     private static final ResourceLocation SNOW_MANTLE_TEX =
             new ResourceLocation("minecraft", "textures/block/snow.png");
 
-    private static final Map<BlockPos, Set<Direction>> SNOW_DATA = new HashMap<>();
+    private static final Set<BlockPos> SNOW_BLOCKS = new HashSet<>();
     private static final RandomSource RANDOM = RandomSource.create(42L);
 
-    public static void toggleSnowFace(BlockPos pos, Direction face) {
+    public static void toggleSnow(BlockPos pos) {
         BlockPos immutablePos = pos.immutable();
-        if (SNOW_DATA.containsKey(immutablePos)) {
-            Set<Direction> set = SNOW_DATA.get(immutablePos);
-            if (set.contains(face)) {
-                set.remove(face);
-                if (set.isEmpty()) {
-                    SNOW_DATA.remove(immutablePos);
-                }
-            } else {
-                set.add(face);
-            }
+        if (SNOW_BLOCKS.contains(immutablePos)) {
+            SNOW_BLOCKS.remove(immutablePos);
         } else {
-            Set<Direction> set = EnumSet.of(face);
-            SNOW_DATA.put(immutablePos, set);
+            SNOW_BLOCKS.add(immutablePos);
         }
+    }
+
+    public static void toggleSnowFace(BlockPos pos, Direction face) {
+        toggleSnow(pos);
     }
 
     public static void toggleAllFaces(BlockPos pos) {
-        BlockPos immutablePos = pos.immutable();
-        if (SNOW_DATA.containsKey(immutablePos)) {
-            SNOW_DATA.remove(immutablePos);
-        } else {
-            SNOW_DATA.put(immutablePos, EnumSet.allOf(Direction.class));
-        }
+        toggleSnow(pos);
     }
 
     public static void toggleSnowOnBlock(BlockPos pos) {
-        toggleSnowFace(pos, Direction.UP);
+        toggleSnow(pos);
     }
 
     public static boolean hasSnow(BlockPos pos) {
-        return SNOW_DATA.containsKey(pos);
+        return SNOW_BLOCKS.contains(pos);
     }
 
     public static boolean hasSnow(BlockPos pos, Direction face) {
-        Set<Direction> set = SNOW_DATA.get(pos);
-        return set != null && set.contains(face);
+        return face == Direction.UP && SNOW_BLOCKS.contains(pos);
     }
 
     @SubscribeEvent
@@ -103,16 +89,12 @@ public class UniversalSnowRenderer {
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
 
         Level level = Minecraft.getInstance().level;
-        if (level == null || SNOW_DATA.isEmpty()) return;
+        if (level == null || SNOW_BLOCKS.isEmpty()) return;
 
         BlockRenderDispatcher brd = Minecraft.getInstance().getBlockRenderer();
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entitySolid(SNOW_MANTLE_TEX));
 
-        for (Map.Entry<BlockPos, Set<Direction>> entry : SNOW_DATA.entrySet()) {
-            BlockPos pos = entry.getKey();
-            Set<Direction> faces = entry.getValue();
-            if (faces == null || faces.isEmpty()) continue;
-
+        for (BlockPos pos : SNOW_BLOCKS) {
             double rx = pos.getX() - camPos.x;
             double ry = pos.getY() - camPos.y;
             double rz = pos.getZ() - camPos.z;
@@ -127,30 +109,25 @@ public class UniversalSnowRenderer {
             Matrix4f m = poseStack.last().pose();
             Matrix3f n = poseStack.last().normal();
 
-            for (Direction face : faces) {
-                // Query real vanilla Minecraft lighting for the exposed face (no fullbright glow!)
-                BlockPos lightSamplePos = pos.relative(face);
-                if (level.getBlockState(lightSamplePos).isSolidRender(level, lightSamplePos)) {
-                    lightSamplePos = pos;
-                }
-                int light = LevelRenderer.getLightColor(level, state, lightSamplePos);
+            // Real vanilla block + sky light for the block above
+            BlockPos abovePos = pos.above();
+            int light = LevelRenderer.getLightColor(level, state, abovePos);
 
-                renderFaceSnow(vc, m, n, level, pos, state, brd, face, light);
-            }
+            renderTopSnowLayers(vc, m, n, level, pos, state, brd, light);
 
             poseStack.popPose();
         }
     }
 
-    private static void renderFaceSnow(VertexConsumer vc, Matrix4f m, Matrix3f n,
-                                       Level level, BlockPos pos, BlockState state,
-                                       BlockRenderDispatcher brd, Direction face, int light) {
-        List<AABB> targetBoxes = new ArrayList<>();
+    private static void renderTopSnowLayers(VertexConsumer vc, Matrix4f m, Matrix3f n,
+                                            Level level, BlockPos pos, BlockState state,
+                                            BlockRenderDispatcher brd, int light) {
+        List<AABB> rawSurfaces = new ArrayList<>();
         BakedModel model = brd.getBlockModel(state);
 
-        // 1. Try to extract directional model quads for custom modded sub-blocks (keypads, fans, trusses)
+        // 1. Extract upward-facing quads from BakedModel
         if (model != null) {
-            List<BakedQuad> quads = new ArrayList<>(model.getQuads(state, face, RANDOM, ModelData.EMPTY, null));
+            List<BakedQuad> quads = new ArrayList<>(model.getQuads(state, Direction.UP, RANDOM, ModelData.EMPTY, null));
             quads.addAll(model.getQuads(state, null, RANDOM, ModelData.EMPTY, null));
 
             for (BakedQuad q : quads) {
@@ -179,136 +156,100 @@ public class UniversalSnowRenderer {
                     float minZ = Math.min(Math.min(z0, z1), Math.min(z2, z3));
                     float maxZ = Math.max(Math.max(z0, z1), Math.max(z2, z3));
 
-                    boolean matches = false;
-                    switch (face) {
-                        case UP -> matches = (maxY >= 0.5f || (maxY - minY < 0.05f));
-                        case DOWN -> matches = (minY <= 0.5f || (maxY - minY < 0.05f));
-                        case NORTH -> matches = (minZ <= 0.5f || (maxZ - minZ < 0.05f));
-                        case SOUTH -> matches = (maxZ >= 0.5f || (maxZ - minZ < 0.05f));
-                        case WEST -> matches = (minX <= 0.5f || (maxX - minX < 0.05f));
-                        case EAST -> matches = (maxX >= 0.5f || (maxX - minX < 0.05f));
-                    }
-
-                    if (matches && (maxX > minX + 0.02f || maxZ > minZ + 0.02f || maxY > minY + 0.02f)) {
-                        targetBoxes.add(new AABB(minX, minY, minZ, maxX, maxY, maxZ));
+                    // Only consider upward surfaces (flat or nearly flat horizontal top face)
+                    if ((maxX - minX > 0.03f) && (maxZ - minZ > 0.03f) && (maxY - minY < 0.06f || q.getDirection() == Direction.UP)) {
+                        rawSurfaces.add(new AABB(minX, maxY, minZ, maxX, maxY, maxZ));
                     }
                 }
             }
         }
 
-        // 2. Fallback to exact VoxelShape sub-boxes (stairs, fences, walls, slabs)
-        if (targetBoxes.isEmpty()) {
-            VoxelShape shape = state.getShape(level, pos);
-            List<AABB> shapeBoxes = shape.toAabbs();
-            if (!shapeBoxes.isEmpty()) {
-                targetBoxes.addAll(shapeBoxes);
-            } else {
-                targetBoxes.add(new AABB(0, 0, 0, 1, 1, 1));
+        // 2. Also check VoxelShape (for stairs, fences, slabs, custom blocks)
+        VoxelShape shape = state.getShape(level, pos);
+        List<AABB> shapeBoxes = shape.toAabbs();
+        if (!shapeBoxes.isEmpty()) {
+            for (AABB box : shapeBoxes) {
+                rawSurfaces.add(new AABB(box.minX, box.maxY, box.minZ, box.maxX, box.maxY, box.maxZ));
             }
         }
 
-        // 3. Render a solid, closed, double-sided 3D snow cushion with standard vanilla shading
-        for (AABB box : targetBoxes) {
-            renderBoxFaceSnow(vc, m, n, box, face, light);
+        if (rawSurfaces.isEmpty()) {
+            rawSurfaces.add(new AABB(0, 1.0, 0, 1.0, 1.0, 1.0));
+        }
+
+        // 3. Occlusion & Topmost Filter:
+        // Filter out any surface that has another surface directly above it (so lower hidden layers don't get snow!)
+        List<AABB> visibleTopSurfaces = new ArrayList<>();
+        for (int i = 0; i < rawSurfaces.size(); i++) {
+            AABB surfA = rawSurfaces.get(i);
+            boolean isOccluded = false;
+
+            for (int j = 0; j < rawSurfaces.size(); j++) {
+                if (i == j) continue;
+                AABB surfB = rawSurfaces.get(j);
+
+                // If surfB is strictly above surfA and overlaps horizontally:
+                if (surfB.minY > surfA.maxY + 0.03) {
+                    boolean overlapX = (surfB.minX <= surfA.minX + 0.03) && (surfB.maxX >= surfA.maxX - 0.03);
+                    boolean overlapZ = (surfB.minZ <= surfA.minZ + 0.03) && (surfB.maxZ >= surfA.maxZ - 0.03);
+                    if (overlapX && overlapZ) {
+                        isOccluded = true;
+                        break;
+                    }
+                }
+                // Deduplicate identical duplicate quads
+                else if (Math.abs(surfB.maxY - surfA.maxY) < 0.015 && j < i) {
+                    if (Math.abs(surfB.minX - surfA.minX) < 0.03 && Math.abs(surfB.maxX - surfA.maxX) < 0.03 &&
+                        Math.abs(surfB.minZ - surfA.minZ) < 0.03 && Math.abs(surfB.maxZ - surfA.maxZ) < 0.03) {
+                        isOccluded = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isOccluded) {
+                visibleTopSurfaces.add(surfA);
+            }
+        }
+
+        // 4. Render thick vanilla-sized snow layer (2 pixels = 0.125 blocks) on each exposed top surface
+        for (AABB surf : visibleTopSurfaces) {
+            renderThickSnowLayer(vc, m, n, surf, light);
         }
     }
 
-    private static void renderBoxFaceSnow(VertexConsumer vc, Matrix4f m, Matrix3f n,
-                                          AABB box, Direction face, int light) {
-        float snowThick = 0.05f;
-        float skirtDepth = 0.02f;
-        float expand = 0.01f;
+    /**
+     * Renders a 3D solid snow layer matching vanilla 1-layer snow block thickness (0.125 blocks = 2 pixels)
+     */
+    private static void renderThickSnowLayer(VertexConsumer vc, Matrix4f m, Matrix3f n, AABB surf, int light) {
+        float snowThick = 0.125f; // Exact 2-pixel vanilla snow layer thickness
+        float expand = 0.005f;
 
-        float minX = (float) box.minX;
-        float maxX = (float) box.maxX;
-        float minY = (float) box.minY;
-        float maxY = (float) box.maxY;
-        float minZ = (float) box.minZ;
-        float maxZ = (float) box.maxZ;
+        float minX = (float) surf.minX - expand;
+        float maxX = (float) surf.maxX + expand;
+        float minZ = (float) surf.minZ - expand;
+        float maxZ = (float) surf.maxZ + expand;
 
-        switch (face) {
-            case UP -> {
-                float topY = maxY + snowThick;
-                float baseY = maxY - skirtDepth;
-                float sx0 = minX - expand, sx1 = maxX + expand;
-                float sz0 = minZ - expand, sz1 = maxZ + expand;
+        float baseY = (float) surf.maxY;
+        float topY = baseY + snowThick;
 
-                // 1. Top snow surface
-                shadedQuad(vc, m, n, sx0, topY, sz0, sx1, topY, sz0, sx1, topY, sz1, sx0, topY, sz1, 0, 1, 0, 1, Direction.UP, light);
-                // 2. Base cap (against block surface)
-                shadedQuad(vc, m, n, sx0, baseY, sz0, sx0, baseY, sz1, sx1, baseY, sz1, sx1, baseY, sz0, 0, 1, 0, 1, Direction.DOWN, light);
-                // 3. 4 Overhanging side skirts
-                shadedQuad(vc, m, n, sx0, topY, sz1, sx1, topY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, sx1, topY, sz0, sx0, topY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, Direction.NORTH, light);
-                shadedQuad(vc, m, n, sx0, topY, sz0, sx0, topY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, sx1, topY, sz1, sx1, topY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, Direction.EAST, light);
-            }
-            case DOWN -> {
-                float botY = minY - snowThick;
-                float baseY = minY + skirtDepth;
-                float sx0 = minX - expand, sx1 = maxX + expand;
-                float sz0 = minZ - expand, sz1 = maxZ + expand;
+        // 1. Top snow face (1.0x light)
+        shadedQuad(vc, m, n, minX, topY, minZ, maxX, topY, minZ, maxX, topY, maxZ, minX, topY, maxZ, 0, 1, 0, 1, Direction.UP, light);
 
-                shadedQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx1, botY, sz1, sx1, botY, sz0, 0, 1, 0, 1, Direction.DOWN, light);
-                shadedQuad(vc, m, n, sx0, baseY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.UP, light);
-                shadedQuad(vc, m, n, sx0, botY, sz1, sx1, botY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, sx1, botY, sz0, sx0, botY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, Direction.NORTH, light);
-                shadedQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, sx1, botY, sz1, sx1, botY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, Direction.EAST, light);
-            }
-            case NORTH -> {
-                float outerZ = minZ - snowThick;
-                float baseZ = minZ + skirtDepth;
-                float sx0 = minX - expand, sx1 = maxX + expand;
-                float sy0 = minY - expand, sy1 = maxY + expand;
+        // 2. Bottom face against block (0.5x light)
+        shadedQuad(vc, m, n, minX, baseY, minZ, minX, baseY, maxZ, maxX, baseY, maxZ, maxX, baseY, minZ, 0, 1, 0, 1, Direction.DOWN, light);
 
-                shadedQuad(vc, m, n, sx1, sy1, outerZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx1, sy0, outerZ, 0, 1, 0, 1, Direction.NORTH, light);
-                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy1, baseZ, sx0, sy1, baseZ, 0, 1, 0, 1, Direction.UP, light);
-                shadedQuad(vc, m, n, sx0, sy0, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.DOWN, light);
-                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, sx1, sy1, outerZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, 0, 1, 0, 1, Direction.EAST, light);
-            }
-            case SOUTH -> {
-                float outerZ = maxZ + snowThick;
-                float baseZ = maxZ - skirtDepth;
-                float sx0 = minX - expand, sx1 = maxX + expand;
-                float sy0 = minY - expand, sy1 = maxY + expand;
+        // 3. North face (0.8x light)
+        shadedQuad(vc, m, n, maxX, topY, minZ, minX, topY, minZ, minX, baseY, minZ, maxX, baseY, minZ, 0, 1, 0, 1, Direction.NORTH, light);
 
-                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, sx1, sy1, baseZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx1, sy0, baseZ, 0, 1, 0, 1, Direction.NORTH, light);
-                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy1, outerZ, sx0, sy1, outerZ, 0, 1, 0, 1, Direction.UP, light);
-                shadedQuad(vc, m, n, sx0, sy0, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.DOWN, light);
-                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, sx1, sy1, baseZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, 0, 1, 0, 1, Direction.EAST, light);
-            }
-            case WEST -> {
-                float outerX = minX - snowThick;
-                float baseX = minX + skirtDepth;
-                float sz0 = minZ - expand, sz1 = maxZ + expand;
-                float sy0 = minY - expand, sy1 = maxY + expand;
+        // 4. South face (0.8x light)
+        shadedQuad(vc, m, n, minX, topY, maxZ, maxX, topY, maxZ, maxX, baseY, maxZ, minX, baseY, maxZ, 0, 1, 0, 1, Direction.SOUTH, light);
 
-                shadedQuad(vc, m, n, outerX, sy1, sz0, outerX, sy1, sz1, outerX, sy0, sz1, outerX, sy0, sz0, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, baseX, sy1, sz1, baseX, sy1, sz0, baseX, sy0, sz0, baseX, sy0, sz1, 0, 1, 0, 1, Direction.EAST, light);
-                shadedQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy1, sz1, outerX, sy1, sz1, 0, 1, 0, 1, Direction.UP, light);
-                shadedQuad(vc, m, n, outerX, sy0, sz1, baseX, sy0, sz1, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, Direction.DOWN, light);
-                shadedQuad(vc, m, n, outerX, sy1, sz1, baseX, sy1, sz1, baseX, sy0, sz1, outerX, sy0, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, Direction.NORTH, light);
-            }
-            case EAST -> {
-                float outerX = maxX + snowThick;
-                float baseX = maxX - skirtDepth;
-                float sz0 = minZ - expand, sz1 = maxZ + expand;
-                float sy0 = minY - expand, sy1 = maxY + expand;
+        // 5. West face (0.6x light)
+        shadedQuad(vc, m, n, minX, topY, minZ, minX, topY, maxZ, minX, baseY, maxZ, minX, baseY, minZ, 0, 1, 0, 1, Direction.WEST, light);
 
-                shadedQuad(vc, m, n, outerX, sy1, sz1, outerX, sy1, sz0, outerX, sy0, sz0, outerX, sy0, sz1, 0, 1, 0, 1, Direction.EAST, light);
-                shadedQuad(vc, m, n, baseX, sy1, sz0, baseX, sy1, sz1, baseX, sy0, sz1, baseX, sy0, sz0, 0, 1, 0, 1, Direction.WEST, light);
-                shadedQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy1, sz1, baseX, sy1, sz1, 0, 1, 0, 1, Direction.UP, light);
-                shadedQuad(vc, m, n, baseX, sy0, sz1, outerX, sy0, sz1, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, Direction.DOWN, light);
-                shadedQuad(vc, m, n, baseX, sy1, sz1, outerX, sy1, sz1, outerX, sy0, sz1, baseX, sy0, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
-                shadedQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, Direction.NORTH, light);
-            }
-        }
+        // 6. East face (0.6x light)
+        shadedQuad(vc, m, n, maxX, topY, maxZ, maxX, topY, minZ, maxX, baseY, minZ, maxX, baseY, maxZ, 0, 1, 0, 1, Direction.EAST, light);
     }
 
     private static void shadedQuad(VertexConsumer vc, Matrix4f m, Matrix3f n,
