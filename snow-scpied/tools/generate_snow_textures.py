@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generates all PNG textures and decals for Snow - SCPied v1.3.1:
+"""Generates all PNG textures and decals for Snow - SCPied v1.3.2:
+- Vanilla-matched 16x16 snow texture
 - Boots tread footprint decal
 - Fading snowy trail decal on dry ground
 - Bare feet footprint decal
@@ -7,7 +8,6 @@
 - Hooves footprint decal
 - Blood splatters (crimson, acid green, black, ender purple)
 - Snowy legs overlay
-- 3D Volumetric isotropic sparkling snow mantle texture
 - Snow Sprayer tool
 """
 import math
@@ -42,6 +42,39 @@ def write_png(path, width, height, pixels):
 
 def clamp(v, lo=0.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
+
+
+def gen_vanilla_snow(path):
+    """Exact 16x16 vanilla Minecraft snow block texture matching user snow.png."""
+    # 16x16 palette matrix matching vanilla snow.png
+    hex_map = [
+        ["FFFFFF","FFFFFF","FFFFFF","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF"],
+        ["FFFFFF","FFFFFF","F1FAFB","EAF8F8","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF"],
+        ["FFFFFF","F1FAFB","EAF8F8","E0F5F5","F1FAFB","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF"],
+        ["FFFFFF","EAF8F8","E0F5F5","D6F1F1","EAF8F8","F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF"],
+        ["FFFFFF","F1FAFB","EAF8F8","E0F5F5","EAF8F8","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF"],
+        ["FFFFFF","FFFFFF","F1FAFB","EAF8F8","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB"],
+        ["FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8"],
+        ["F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8"],
+        ["EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB"],
+        ["E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF"],
+        ["D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF"],
+        ["D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF"],
+        ["E0F5F5","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF"],
+        ["EAF8F8","E0F5F5","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF"],
+        ["F1FAFB","EAF8F8","E0F5F5","D6F1F1","D6F1F1","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF"],
+        ["FFFFFF","F1FAFB","EAF8F8","E0F5F5","E0F5F5","EAF8F8","F1FAFB","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF","FFFFFF"]
+    ]
+    pixels = []
+    for r in hex_map:
+        row = []
+        for h in r:
+            red = int(h[0:2], 16)
+            green = int(h[2:4], 16)
+            blue = int(h[4:6], 16)
+            row.append((red, green, blue, 255))
+        pixels.append(row)
+    write_png(path, 16, 16, pixels)
 
 
 def gen_boots_footprint(path, size=32, is_snow_trail=False):
@@ -161,25 +194,6 @@ def gen_snowy_legs(path, size=32):
     write_png(path, size, size, pixels)
 
 
-def gen_snow_crust(path, size=64):
-    """Uniform seamless isotropic procedural snow crust texture with crystal sparkles."""
-    pixels = []
-    for y in range(size):
-        row = []
-        for x in range(size):
-            n1 = (math.sin(x * 0.35) * math.cos(y * 0.35)) * 0.03
-            n2 = (math.sin((x + y) * 0.7) * math.cos((x - y) * 0.7)) * 0.02
-            sparkle = 0.05 if ((x * 19 + y * 37 + 7) % 17 == 0) else 0.0
-
-            base = 0.95 + n1 + n2 + sparkle
-            r = int(clamp(base * 0.97) * 255)
-            g = int(clamp(base * 0.99) * 255)
-            b = int(clamp(base * 1.02) * 255)
-            row.append((r, g, b, 255))
-        pixels.append(row)
-    write_png(path, size, size, pixels)
-
-
 def gen_snow_sprayer(path, size=16):
     pixels = []
     for y in range(size):
@@ -219,7 +233,7 @@ def main():
     gen_blood_splatter(os.path.join(bdir, "decal_blood_acid.png"), (60, 210, 40))
     gen_blood_splatter(os.path.join(bdir, "decal_blood_anomalous.png"), (25, 25, 30))
     gen_blood_splatter(os.path.join(bdir, "decal_blood_ender.png"), (170, 45, 215))
-    gen_snow_crust(os.path.join(bdir, "snow_crust_overlay.png"))
+    gen_vanilla_snow(os.path.join(bdir, "snow_crust_overlay.png"))
     gen_snow_sprayer(os.path.join(idir, "snow_sprayer.png"))
 
 if __name__ == "__main__":

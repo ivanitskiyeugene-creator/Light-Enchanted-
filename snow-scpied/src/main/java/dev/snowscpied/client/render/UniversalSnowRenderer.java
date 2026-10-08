@@ -2,10 +2,10 @@ package dev.snowscpied.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import dev.snowscpied.SnowSCPied;
 import dev.snowscpied.config.SnowConfig;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
@@ -37,16 +37,17 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Universal True 3D Procedural Volumetric Snow Mantle Engine:
- * - 6-Axis directional support: applies snow accurately to ANY clicked face (TOP, NORTH, SOUTH, WEST, EAST, BOTTOM).
- * - Multi-layer geometry extraction: perfectly conforms to individual sub-elements (stairs, fences, keypads, grates, fan housings).
- * - Full 3D volumetric depth with closed double-sided geometry (never hollow or see-through from any angle).
- * - Zero UV distortion with seamless isotropic snow crystals.
+ * Universal True 3D Volumetric Snow Mantle Engine:
+ * - Uses exact 16x16 vanilla Minecraft snow texture.
+ * - Standard block lighting (LevelRenderer.getLightColor) with directional diffuse shading (no unphysical glowing).
+ * - 6-Axis directional support (TOP, NORTH, SOUTH, WEST, EAST, BOTTOM).
+ * - Multi-layer geometry extraction conforming to sub-elements (stairs, fences, keypads, grates, fan housings).
+ * - Closed double-sided 3D geometry (never hollow or see-through).
  */
 @Mod.EventBusSubscriber(modid = "snow_scpied", bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class UniversalSnowRenderer {
     private static final ResourceLocation SNOW_MANTLE_TEX =
-            new ResourceLocation(SnowSCPied.MOD_ID, "textures/block/snow_crust_overlay.png");
+            new ResourceLocation("minecraft", "textures/block/snow.png");
 
     private static final Map<BlockPos, Set<Direction>> SNOW_DATA = new HashMap<>();
     private static final RandomSource RANDOM = RandomSource.create(42L);
@@ -126,11 +127,14 @@ public class UniversalSnowRenderer {
             Matrix4f m = poseStack.last().pose();
             Matrix3f n = poseStack.last().normal();
 
-            int packedLight = brd.getBlockModel(state) != null ? level.getLightEngine().getRawBrightness(pos.above(), 0) : 15;
-            int light = (packedLight << 20) | (packedLight << 4);
-            if (light == 0) light = 0xF000F0;
-
             for (Direction face : faces) {
+                // Query real vanilla Minecraft lighting for the exposed face (no fullbright glow!)
+                BlockPos lightSamplePos = pos.relative(face);
+                if (level.getBlockState(lightSamplePos).isSolidRender(level, lightSamplePos)) {
+                    lightSamplePos = pos;
+                }
+                int light = LevelRenderer.getLightColor(level, state, lightSamplePos);
+
                 renderFaceSnow(vc, m, n, level, pos, state, brd, face, light);
             }
 
@@ -175,7 +179,6 @@ public class UniversalSnowRenderer {
                     float minZ = Math.min(Math.min(z0, z1), Math.min(z2, z3));
                     float maxZ = Math.max(Math.max(z0, z1), Math.max(z2, z3));
 
-                    // Quad matches if it spans a non-zero area and belongs to this face quadrant
                     boolean matches = false;
                     switch (face) {
                         case UP -> matches = (maxY >= 0.5f || (maxY - minY < 0.05f));
@@ -204,7 +207,7 @@ public class UniversalSnowRenderer {
             }
         }
 
-        // 3. Render a solid, closed, double-sided 3D snow cushion for each target box
+        // 3. Render a solid, closed, double-sided 3D snow cushion with standard vanilla shading
         for (AABB box : targetBoxes) {
             renderBoxFaceSnow(vc, m, n, box, face, light);
         }
@@ -231,14 +234,14 @@ public class UniversalSnowRenderer {
                 float sz0 = minZ - expand, sz1 = maxZ + expand;
 
                 // 1. Top snow surface
-                doubleQuad(vc, m, n, sx0, topY, sz0, sx1, topY, sz0, sx1, topY, sz1, sx0, topY, sz1, 0, 1, 0, 1, 0, 1, 0, light);
-                // 2. Base cap (against block surface - eliminates hollow bottom)
-                doubleQuad(vc, m, n, sx0, baseY, sz0, sx0, baseY, sz1, sx1, baseY, sz1, sx1, baseY, sz0, 0, 1, 0, 1, 0, -1, 0, light);
+                shadedQuad(vc, m, n, sx0, topY, sz0, sx1, topY, sz0, sx1, topY, sz1, sx0, topY, sz1, 0, 1, 0, 1, Direction.UP, light);
+                // 2. Base cap (against block surface)
+                shadedQuad(vc, m, n, sx0, baseY, sz0, sx0, baseY, sz1, sx1, baseY, sz1, sx1, baseY, sz0, 0, 1, 0, 1, Direction.DOWN, light);
                 // 3. 4 Overhanging side skirts
-                doubleQuad(vc, m, n, sx0, topY, sz1, sx1, topY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, 0, 0, 1, light);
-                doubleQuad(vc, m, n, sx1, topY, sz0, sx0, topY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, 0, 0, -1, light);
-                doubleQuad(vc, m, n, sx0, topY, sz0, sx0, topY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, -1, 0, 0, light);
-                doubleQuad(vc, m, n, sx1, topY, sz1, sx1, topY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, 1, 0, 0, light);
+                shadedQuad(vc, m, n, sx0, topY, sz1, sx1, topY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, sx1, topY, sz0, sx0, topY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, Direction.NORTH, light);
+                shadedQuad(vc, m, n, sx0, topY, sz0, sx0, topY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, sx1, topY, sz1, sx1, topY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, Direction.EAST, light);
             }
             case DOWN -> {
                 float botY = minY - snowThick;
@@ -246,12 +249,12 @@ public class UniversalSnowRenderer {
                 float sx0 = minX - expand, sx1 = maxX + expand;
                 float sz0 = minZ - expand, sz1 = maxZ + expand;
 
-                doubleQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx1, botY, sz1, sx1, botY, sz0, 0, 1, 0, 1, 0, -1, 0, light);
-                doubleQuad(vc, m, n, sx0, baseY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, 0, 1, 0, light);
-                doubleQuad(vc, m, n, sx0, botY, sz1, sx1, botY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, 0, 0, 1, light);
-                doubleQuad(vc, m, n, sx1, botY, sz0, sx0, botY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, 0, 0, -1, light);
-                doubleQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, -1, 0, 0, light);
-                doubleQuad(vc, m, n, sx1, botY, sz1, sx1, botY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, 1, 0, 0, light);
+                shadedQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx1, botY, sz1, sx1, botY, sz0, 0, 1, 0, 1, Direction.DOWN, light);
+                shadedQuad(vc, m, n, sx0, baseY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.UP, light);
+                shadedQuad(vc, m, n, sx0, botY, sz1, sx1, botY, sz1, sx1, baseY, sz1, sx0, baseY, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, sx1, botY, sz0, sx0, botY, sz0, sx0, baseY, sz0, sx1, baseY, sz0, 0, 1, 0, 1, Direction.NORTH, light);
+                shadedQuad(vc, m, n, sx0, botY, sz0, sx0, botY, sz1, sx0, baseY, sz1, sx0, baseY, sz0, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, sx1, botY, sz1, sx1, botY, sz0, sx1, baseY, sz0, sx1, baseY, sz1, 0, 1, 0, 1, Direction.EAST, light);
             }
             case NORTH -> {
                 float outerZ = minZ - snowThick;
@@ -259,15 +262,12 @@ public class UniversalSnowRenderer {
                 float sx0 = minX - expand, sx1 = maxX + expand;
                 float sy0 = minY - expand, sy1 = maxY + expand;
 
-                // North front face
-                doubleQuad(vc, m, n, sx1, sy1, outerZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx1, sy0, outerZ, 0, 1, 0, 1, 0, 0, -1, light);
-                // Back cap
-                doubleQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, 0, 0, 1, light);
-                // 4 Side skirts (Top, Bottom, Left, Right)
-                doubleQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy1, baseZ, sx0, sy1, baseZ, 0, 1, 0, 1, 0, 1, 0, light);
-                doubleQuad(vc, m, n, sx0, sy0, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, 0, -1, 0, light);
-                doubleQuad(vc, m, n, sx0, sy1, baseZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx0, sy0, baseZ, 0, 1, 0, 1, -1, 0, 0, light);
-                doubleQuad(vc, m, n, sx1, sy1, outerZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, 0, 1, 0, 1, 1, 0, 0, light);
+                shadedQuad(vc, m, n, sx1, sy1, outerZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx1, sy0, outerZ, 0, 1, 0, 1, Direction.NORTH, light);
+                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy1, baseZ, sx0, sy1, baseZ, 0, 1, 0, 1, Direction.UP, light);
+                shadedQuad(vc, m, n, sx0, sy0, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.DOWN, light);
+                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx0, sy1, outerZ, sx0, sy0, outerZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, sx1, sy1, outerZ, sx1, sy1, baseZ, sx1, sy0, baseZ, sx1, sy0, outerZ, 0, 1, 0, 1, Direction.EAST, light);
             }
             case SOUTH -> {
                 float outerZ = maxZ + snowThick;
@@ -275,15 +275,12 @@ public class UniversalSnowRenderer {
                 float sx0 = minX - expand, sx1 = maxX + expand;
                 float sy0 = minY - expand, sy1 = maxY + expand;
 
-                // South front face
-                doubleQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, 0, 0, 1, light);
-                // Back cap
-                doubleQuad(vc, m, n, sx1, sy1, baseZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx1, sy0, baseZ, 0, 1, 0, 1, 0, 0, -1, light);
-                // 4 Side skirts
-                doubleQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy1, outerZ, sx0, sy1, outerZ, 0, 1, 0, 1, 0, 1, 0, light);
-                doubleQuad(vc, m, n, sx0, sy0, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, 0, -1, 0, light);
-                doubleQuad(vc, m, n, sx0, sy1, outerZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx0, sy0, outerZ, 0, 1, 0, 1, -1, 0, 0, light);
-                doubleQuad(vc, m, n, sx1, sy1, baseZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, 0, 1, 0, 1, 1, 0, 0, light);
+                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, sx1, sy1, baseZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx1, sy0, baseZ, 0, 1, 0, 1, Direction.NORTH, light);
+                shadedQuad(vc, m, n, sx0, sy1, baseZ, sx1, sy1, baseZ, sx1, sy1, outerZ, sx0, sy1, outerZ, 0, 1, 0, 1, Direction.UP, light);
+                shadedQuad(vc, m, n, sx0, sy0, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, sx0, sy0, baseZ, 0, 1, 0, 1, Direction.DOWN, light);
+                shadedQuad(vc, m, n, sx0, sy1, outerZ, sx0, sy1, baseZ, sx0, sy0, baseZ, sx0, sy0, outerZ, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, sx1, sy1, baseZ, sx1, sy1, outerZ, sx1, sy0, outerZ, sx1, sy0, baseZ, 0, 1, 0, 1, Direction.EAST, light);
             }
             case WEST -> {
                 float outerX = minX - snowThick;
@@ -291,15 +288,12 @@ public class UniversalSnowRenderer {
                 float sz0 = minZ - expand, sz1 = maxZ + expand;
                 float sy0 = minY - expand, sy1 = maxY + expand;
 
-                // West front face
-                doubleQuad(vc, m, n, outerX, sy1, sz0, outerX, sy1, sz1, outerX, sy0, sz1, outerX, sy0, sz0, 0, 1, 0, 1, -1, 0, 0, light);
-                // Back cap
-                doubleQuad(vc, m, n, baseX, sy1, sz1, baseX, sy1, sz0, baseX, sy0, sz0, baseX, sy0, sz1, 0, 1, 0, 1, 1, 0, 0, light);
-                // 4 Side skirts
-                doubleQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy1, sz1, outerX, sy1, sz1, 0, 1, 0, 1, 0, 1, 0, light);
-                doubleQuad(vc, m, n, outerX, sy0, sz1, baseX, sy0, sz1, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, 0, -1, 0, light);
-                doubleQuad(vc, m, n, outerX, sy1, sz1, baseX, sy1, sz1, baseX, sy0, sz1, outerX, sy0, sz1, 0, 1, 0, 1, 0, 0, 1, light);
-                doubleQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, 0, 0, -1, light);
+                shadedQuad(vc, m, n, outerX, sy1, sz0, outerX, sy1, sz1, outerX, sy0, sz1, outerX, sy0, sz0, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, baseX, sy1, sz1, baseX, sy1, sz0, baseX, sy0, sz0, baseX, sy0, sz1, 0, 1, 0, 1, Direction.EAST, light);
+                shadedQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy1, sz1, outerX, sy1, sz1, 0, 1, 0, 1, Direction.UP, light);
+                shadedQuad(vc, m, n, outerX, sy0, sz1, baseX, sy0, sz1, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, Direction.DOWN, light);
+                shadedQuad(vc, m, n, outerX, sy1, sz1, baseX, sy1, sz1, baseX, sy0, sz1, outerX, sy0, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, Direction.NORTH, light);
             }
             case EAST -> {
                 float outerX = maxX + snowThick;
@@ -307,36 +301,47 @@ public class UniversalSnowRenderer {
                 float sz0 = minZ - expand, sz1 = maxZ + expand;
                 float sy0 = minY - expand, sy1 = maxY + expand;
 
-                // East front face
-                doubleQuad(vc, m, n, outerX, sy1, sz1, outerX, sy1, sz0, outerX, sy0, sz0, outerX, sy0, sz1, 0, 1, 0, 1, 1, 0, 0, light);
-                // Back cap
-                doubleQuad(vc, m, n, baseX, sy1, sz0, baseX, sy1, sz1, baseX, sy0, sz1, baseX, sy0, sz0, 0, 1, 0, 1, -1, 0, 0, light);
-                // 4 Side skirts
-                doubleQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy1, sz1, baseX, sy1, sz1, 0, 1, 0, 1, 0, 1, 0, light);
-                doubleQuad(vc, m, n, baseX, sy0, sz1, outerX, sy0, sz1, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, 0, -1, 0, light);
-                doubleQuad(vc, m, n, baseX, sy1, sz1, outerX, sy1, sz1, outerX, sy0, sz1, baseX, sy0, sz1, 0, 1, 0, 1, 0, 0, 1, light);
-                doubleQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, 0, 0, -1, light);
+                shadedQuad(vc, m, n, outerX, sy1, sz1, outerX, sy1, sz0, outerX, sy0, sz0, outerX, sy0, sz1, 0, 1, 0, 1, Direction.EAST, light);
+                shadedQuad(vc, m, n, baseX, sy1, sz0, baseX, sy1, sz1, baseX, sy0, sz1, baseX, sy0, sz0, 0, 1, 0, 1, Direction.WEST, light);
+                shadedQuad(vc, m, n, baseX, sy1, sz0, outerX, sy1, sz0, outerX, sy1, sz1, baseX, sy1, sz1, 0, 1, 0, 1, Direction.UP, light);
+                shadedQuad(vc, m, n, baseX, sy0, sz1, outerX, sy0, sz1, outerX, sy0, sz0, baseX, sy0, sz0, 0, 1, 0, 1, Direction.DOWN, light);
+                shadedQuad(vc, m, n, baseX, sy1, sz1, outerX, sy1, sz1, outerX, sy0, sz1, baseX, sy0, sz1, 0, 1, 0, 1, Direction.SOUTH, light);
+                shadedQuad(vc, m, n, outerX, sy1, sz0, baseX, sy1, sz0, baseX, sy0, sz0, outerX, sy0, sz0, 0, 1, 0, 1, Direction.NORTH, light);
             }
         }
     }
 
-    private static void doubleQuad(VertexConsumer vc, Matrix4f m, Matrix3f n,
+    private static void shadedQuad(VertexConsumer vc, Matrix4f m, Matrix3f n,
                                    float x0, float y0, float z0,
                                    float x1, float y1, float z1,
                                    float x2, float y2, float z2,
                                    float x3, float y3, float z3,
                                    float u0, float u1, float v0, float v1,
-                                   float nx, float ny, float nz, int light) {
-        // Front face
-        vc.vertex(m, x0, y0, z0).color(255, 255, 255, 255).uv(u0, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
-        vc.vertex(m, x1, y1, z1).color(255, 255, 255, 255).uv(u1, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
-        vc.vertex(m, x2, y2, z2).color(255, 255, 255, 255).uv(u1, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
-        vc.vertex(m, x3, y3, z3).color(255, 255, 255, 255).uv(u0, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
+                                   Direction quadDir, int light) {
+        float shade = switch (quadDir) {
+            case UP -> 1.0f;
+            case DOWN -> 0.5f;
+            case NORTH, SOUTH -> 0.8f;
+            case WEST, EAST -> 0.6f;
+        };
+        int r = (int) (shade * 255.0f);
+        int g = (int) (shade * 255.0f);
+        int b = (int) (shade * 255.0f);
 
-        // Back face (counter-winding to prevent cull issues)
-        vc.vertex(m, x3, y3, z3).color(255, 255, 255, 255).uv(u0, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
-        vc.vertex(m, x2, y2, z2).color(255, 255, 255, 255).uv(u1, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
-        vc.vertex(m, x1, y1, z1).color(255, 255, 255, 255).uv(u1, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
-        vc.vertex(m, x0, y0, z0).color(255, 255, 255, 255).uv(u0, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
+        float nx = quadDir.getStepX();
+        float ny = quadDir.getStepY();
+        float nz = quadDir.getStepZ();
+
+        // Front face
+        vc.vertex(m, x0, y0, z0).color(r, g, b, 255).uv(u0, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
+        vc.vertex(m, x1, y1, z1).color(r, g, b, 255).uv(u1, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
+        vc.vertex(m, x2, y2, z2).color(r, g, b, 255).uv(u1, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
+        vc.vertex(m, x3, y3, z3).color(r, g, b, 255).uv(u0, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, nx, ny, nz).endVertex();
+
+        // Back face (no culling)
+        vc.vertex(m, x3, y3, z3).color(r, g, b, 255).uv(u0, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
+        vc.vertex(m, x2, y2, z2).color(r, g, b, 255).uv(u1, v1).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
+        vc.vertex(m, x1, y1, z1).color(r, g, b, 255).uv(u1, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
+        vc.vertex(m, x0, y0, z0).color(r, g, b, 255).uv(u0, v0).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(light).normal(n, -nx, -ny, -nz).endVertex();
     }
 }
