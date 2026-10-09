@@ -179,9 +179,10 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         float rot = cfg.rotation > 0.001f ? time * cfg.rotation * 1.3f : 0.0f;
 
-        float coreR = r * 0.35f + 0.65f;
-        float coreG = g * 0.35f + 0.65f;
-        float coreB = b * 0.35f + 0.65f;
+        // Pure true color reproduction (100% saturation without pastel wash / pink shift)
+        float beamR = r;
+        float beamG = g;
+        float beamB = b;
 
         VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
         Quaternionf camOrientation = camera.rotation();
@@ -228,9 +229,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     float x1_bot = r1.localX + (r1.targetLocalX - r1.localX) * p1;
                     float z1_bot = r1.targetLocalZ + (r1.targetLocalZ - r1.localZ) * p1;
 
-                    float sR = coreR * (r0.tintR + r1.tintR) * 0.5f;
-                    float sG = coreG * (r0.tintG + r1.tintG) * 0.5f;
-                    float sB = coreB * (r0.tintB + r1.tintB) * 0.5f;
+                    float sR = beamR * (r0.tintR + r1.tintR) * 0.5f;
+                    float sG = beamG * (r0.tintG + r1.tintG) * 0.5f;
+                    float sB = beamB * (r0.tintB + r1.tintB) * 0.5f;
 
                     drawVolumetricQuad(vc, mat, nmat,
                             x0_top, 0.0f, z0_top,
@@ -255,9 +256,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 float xOut_bot = rOuter.localX + (rOuter.targetLocalX - rOuter.localX) * pOut;
                 float zOut_bot = rOuter.localZ + (rOuter.targetLocalZ - rOuter.localZ) * pOut;
 
-                float fR = coreR * rOuter.tintR;
-                float fG = coreG * rOuter.tintG;
-                float fB = coreB * rOuter.tintB;
+                float fR = beamR * rOuter.tintR;
+                float fG = beamG * rOuter.tintG;
+                float fB = beamB * rOuter.tintB;
 
                 drawVolumetricQuad(vc, mat, nmat,
                         0.0f, 0.0f, 0.0f,
@@ -270,7 +271,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             // ---- Cinematic 3D Micro-Turbulence Dust Motes
             if (LightEnchantedConfig.CLIENT.enableVolumetricDust.get()) {
                 renderCinematicDustMotes(vc, mat, nmat, cLen, w, endW, time, camPos, startVec,
-                        coreR, coreG, coreB, alpha, mieBoost);
+                        beamR, beamG, beamB, alpha, mieBoost);
             }
 
             poseStack.popPose();
@@ -291,9 +292,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     Matrix4f rMat = poseStack.last().pose();
                     Matrix3f rNmat = poseStack.last().normal();
 
-                    float rayR = coreR * ray.tintR;
-                    float rayG = coreG * ray.tintG;
-                    float rayB = coreB * ray.tintB;
+                    float rayR = beamR * ray.tintR;
+                    float rayG = beamG * ray.tintG;
+                    float rayB = beamB * ray.tintB;
                     float rayAlpha = alpha * 0.55f;
 
                     float refRadius = Math.max(0.08f, w * 0.15f);
@@ -308,7 +309,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             // ---- Cinematic Anamorphic & Starburst Lens Flare System
             if (LightEnchantedConfig.CLIENT.enableLensFlares.get()) {
                 renderCinematicLensFlare(vc, poseStack, camOrientation, originX, originY, originZ,
-                        w, r, g, b, coreR, coreG, coreB, alpha, mieBoost, cosAngle, cfg.glow);
+                        w, beamR, beamG, beamB, alpha, mieBoost, cosAngle, cfg.glow);
             }
 
             // ---- 6-Axis Ground/Wall/Ceiling Surface Decal Projection with Crisp Negative Shadow Silhouettes
@@ -323,9 +324,9 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     double hitRelY = ray.impactY - pos.getY();
                     double hitRelZ = ray.impactZ - pos.getZ();
 
-                    float rayR = coreR * ray.tintR;
-                    float rayG = coreG * ray.tintG;
-                    float rayB = coreB * ray.tintB;
+                    float rayR = beamR * ray.tintR;
+                    float rayG = beamG * ray.tintG;
+                    float rayB = beamB * ray.tintB;
 
                     float photonAlpha = Math.min(1.0f, alpha * (0.45f + ray.intensity * 0.55f));
                     drawSurfaceDisc(vc, poseStack, hitRelX, hitRelY, hitRelZ, surfaceDiscRadius,
@@ -457,7 +458,6 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                                                 Quaternionf camOrientation,
                                                 float ox, float oy, float oz, float w,
                                                 float r, float g, float b,
-                                                float cr, float cg, float cb,
                                                 float alpha, float mieBoost,
                                                 double cosAngle, float glow) {
         if (cosAngle < 0.45) return;
@@ -475,7 +475,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         // 1. Concentric Iris Glow
         float irisRadius = (w * 0.35f + 0.30f) * (0.8f + 0.4f * directFacing);
-        drawFlareDisc(vc, flareMat, flareNmat, irisRadius, cr, cg, cb, flareIntensity * 0.90f);
+        drawFlareDisc(vc, flareMat, flareNmat, irisRadius, r, g, b, flareIntensity * 0.90f);
 
         // 2. Wide Anamorphic Streak (Hollywood Horizontal Streak)
         float streakLength = irisRadius * 4.5f * (1.0f + 0.5f * directFacing);
@@ -484,7 +484,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         // 3. Multi-Blade Starburst Spikes
         drawStarburstSpikes(vc, flareMat, flareNmat, irisRadius * 2.2f, irisRadius * 0.12f,
-                cr, cg, cb, flareIntensity * 0.55f);
+                r, g, b, flareIntensity * 0.55f);
 
         poseStack.popPose();
     }
