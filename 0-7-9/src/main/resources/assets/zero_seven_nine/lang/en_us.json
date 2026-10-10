@@ -1,0 +1,11 @@
+{
+  "itemGroup.zero_seven_nine": "0-7-9 // Facility AI Network",
+  "block.zero_seven_nine.hcz_camera": "HCZ Heavy Containment Camera",
+  "block.zero_seven_nine.lcz_camera": "LCZ Light Containment Camera",
+  "block.zero_seven_nine.ez_camera": "EZ Entrance Zone Camera",
+  "block.zero_seven_nine.facility_map_node": "Facility Tactical Map Node",
+  "item.zero_seven_nine.screwdriver": "Facility Screwdriver",
+  "item.zero_seven_nine.screwdriver.desc1": "RMB Camera to select, then RMB doors/devices to link.",
+  "item.zero_seven_nine.screwdriver.desc2": "Shift + RMB Camera to open room & zone config.",
+  "item.zero_seven_nine.screwdriver.desc3": "RMB Map Node to configure 2D tactical schematic position."
+}

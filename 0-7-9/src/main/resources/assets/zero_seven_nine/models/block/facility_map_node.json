@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "zero_seven_nine:block/facility_map_node",
+    "particle": "zero_seven_nine:block/facility_map_node"
+  }
+}

@@ -45,6 +45,16 @@ jobs:
             exit 1
           }
 
+      - name: Build 0-7-9
+        shell: bash
+        run: |
+          cd 0-7-9
+          gradle build --no-daemon --console=plain > ../zero_seven_nine_build_output.txt 2>&1 || {
+            echo "0-7-9 Gradle build failed — publishing error digest"
+            python3 ../.github/scripts/gradle_error_digest.py ../zero_seven_nine_build_output.txt
+            exit 1
+          }
+
       - name: Upload Light Enchanted jar
         uses: actions/upload-artifact@v4
         if: success()
@@ -61,6 +71,14 @@ jobs:
           path: snow-scpied/build/libs/*.jar
           if-no-files-found: error
 
+      - name: Upload 0-7-9 jar
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: zero-seven-nine-jar
+          path: 0-7-9/build/libs/*.jar
+          if-no-files-found: error
+
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -68,6 +86,7 @@ jobs:
           files: |
             build/libs/*.jar
             snow-scpied/build/libs/*.jar
+            0-7-9/build/libs/*.jar
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

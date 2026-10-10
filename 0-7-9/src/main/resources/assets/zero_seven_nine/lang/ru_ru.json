@@ -1,0 +1,11 @@
+{
+  "itemGroup.zero_seven_nine": "0-7-9 // Сеть ИИ Комплекса",
+  "block.zero_seven_nine.hcz_camera": "Камера тяжелой зоны (HCZ)",
+  "block.zero_seven_nine.lcz_camera": "Камера легкой зоны (LCZ)",
+  "block.zero_seven_nine.ez_camera": "Камера входной зоны (EZ)",
+  "block.zero_seven_nine.facility_map_node": "Узел тактической карты Комплекса",
+  "item.zero_seven_nine.screwdriver": "Отвертка настройки систем",
+  "item.zero_seven_nine.screwdriver.desc1": "ПКМ по камере для выбора, затем ПКМ по двери/устройству для связки.",
+  "item.zero_seven_nine.screwdriver.desc2": "Shift + ПКМ по камере для настройки названия и зоны.",
+  "item.zero_seven_nine.screwdriver.desc3": "ПКМ по узлу карты для настройки координат на схеме TAB."
+}
