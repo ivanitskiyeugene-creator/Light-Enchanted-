@@ -86,7 +86,10 @@ public class Scp079PlayerManager {
         camBe.setOccupied(true, player.getUUID());
         player.setGameMode(GameType.SPECTATOR);
         player.setDeltaMovement(0, 0, 0);
-        player.teleportTo(startingCameraPos.getX() + 0.5, startingCameraPos.getY() + 0.5, startingCameraPos.getZ() + 0.5);
+
+        // Position player so their eye height matches exactly the camera center (Y + 0.5)
+        double eyeOffset = player.getEyeHeight();
+        player.teleportTo(startingCameraPos.getX() + 0.5, (startingCameraPos.getY() + 0.5) - eyeOffset, startingCameraPos.getZ() + 0.5);
 
         ModNetwork.send079StateToClient(player, session);
         return true;
@@ -118,7 +121,8 @@ public class Scp079PlayerManager {
             newCam.setOccupied(true, player.getUUID());
             session.setCurrentCameraPos(newCamPos);
             player.setDeltaMovement(0, 0, 0);
-            player.teleportTo(newCamPos.getX() + 0.5, newCamPos.getY() + 0.5, newCamPos.getZ() + 0.5);
+            double eyeOffset = player.getEyeHeight();
+            player.teleportTo(newCamPos.getX() + 0.5, (newCamPos.getY() + 0.5) - eyeOffset, newCamPos.getZ() + 0.5);
             ModNetwork.send079StateToClient(player, session);
         }
     }
@@ -139,7 +143,8 @@ public class Scp079PlayerManager {
                 BlockPos cp = entry.getValue().getCurrentCameraPos();
                 player.setDeltaMovement(0, 0, 0);
                 player.fallDistance = 0;
-                player.teleportTo(cp.getX() + 0.5, cp.getY() + 0.5, cp.getZ() + 0.5);
+                double eyeOffset = player.getEyeHeight();
+                player.teleportTo(cp.getX() + 0.5, (cp.getY() + 0.5) - eyeOffset, cp.getZ() + 0.5);
                 entry.getValue().tick(player);
             }
         }

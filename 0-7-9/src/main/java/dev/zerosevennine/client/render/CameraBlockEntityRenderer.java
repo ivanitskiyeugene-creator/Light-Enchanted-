@@ -6,7 +6,6 @@ import com.mojang.math.Axis;
 import dev.zerosevennine.ZeroSevenNine;
 import dev.zerosevennine.block.AbstractCameraBlock;
 import dev.zerosevennine.block.EzCameraBlock;
-import dev.zerosevennine.block.HczCameraBlock;
 import dev.zerosevennine.block.LczCameraBlock;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import net.minecraft.client.renderer.LightTexture;
@@ -14,7 +13,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix3f;
@@ -84,12 +82,23 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         // ==========================================
         // 2. Dynamic Swivel Camera Head (Yaw & Pitch)
         // ==========================================
-        float yaw = be.currentYaw;
+        float baseYaw = switch (facing) {
+            case NORTH -> 180.0f;
+            case SOUTH -> 0.0f;
+            case WEST -> 90.0f;
+            case EAST -> -90.0f;
+            default -> 0.0f;
+        };
+
+        float relYaw = be.currentYaw - baseYaw;
+        while (relYaw < -180.0f) relYaw += 360.0f;
+        while (relYaw > 180.0f) relYaw -= 360.0f;
+
         float pitch = be.currentPitch;
 
         poseStack.pushPose();
         poseStack.translate(0.0, 0.0, 0.10);
-        poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+        poseStack.mulPose(Axis.YP.rotationDegrees(-relYaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
 
         // Main Camera Body Housing

@@ -1,5 +1,6 @@
 package dev.zerosevennine.client.handler;
 
+import dev.zerosevennine.block.AbstractCameraBlock;
 import dev.zerosevennine.client.gui.Scp079CameraOverlay;
 import dev.zerosevennine.client.gui.Scp079MapScreen;
 import dev.zerosevennine.network.C2SInteractDevicePacket;
@@ -10,6 +11,7 @@ import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
@@ -44,12 +46,14 @@ public class ClientCameraHandler {
     public static float zoomFovFactor = 0.82f;
 
     private static float initialYaw = 0.0f;
-    private static float initialPitch = 0.0f;
+    private static float initialPitch = 15.0f;
     private static boolean hasInitialAngles = false;
 
     public static void handleSyncState(boolean active, BlockPos cameraPos, int t, int e, int ne,
                                       float currAp, float mAp, float regen, boolean breachScanner, List<Scp079Session.LogEntry> l) {
         boolean wasIn079 = in079Mode;
+        boolean cameraChanged = !cameraPos.equals(activeCameraPos);
+
         in079Mode = active;
         activeCameraPos = cameraPos;
         tier = t;
@@ -61,10 +65,37 @@ public class ClientCameraHandler {
         breachScannerActive = breachScanner;
         logs = l;
 
-        if (active && !wasIn079) {
-            hasInitialAngles = false;
-            isZoomed = false;
-            zoomFovFactor = 0.82f;
+        if (active && (!hasInitialAngles || cameraChanged || !wasIn079)) {
+            updateInitialCameraAngles();
+        }
+    }
+
+    public static void updateInitialCameraAngles() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level != null && activeCameraPos != null) {
+            BlockState state = mc.level.getBlockState(activeCameraPos);
+            Direction facing = Direction.NORTH;
+            if (state.hasProperty(AbstractCameraBlock.FACING)) {
+                facing = state.getValue(AbstractCameraBlock.FACING);
+            }
+
+            // Facing direction in Minecraft coords
+            initialYaw = switch (facing) {
+                case NORTH -> 180.0f;
+                case SOUTH -> 0.0f;
+                case WEST -> 90.0f;
+                case EAST -> -90.0f;
+                default -> 0.0f;
+            };
+            initialPitch = 15.0f;
+            hasInitialAngles = true;
+
+            if (mc.player != null) {
+                mc.player.setYRot(initialYaw);
+                mc.player.setXRot(initialPitch);
+                mc.player.yRotO = initialYaw;
+                mc.player.xRotO = initialPitch;
+            }
         }
     }
 
@@ -90,9 +121,7 @@ public class ClientCameraHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
             if (!hasInitialAngles) {
-                initialYaw = mc.player.getYRot();
-                initialPitch = mc.player.getXRot();
-                hasInitialAngles = true;
+                updateInitialCameraAngles();
             }
 
             // Target smooth FOV (Narrower security camera FOV 0.82x base, 0.30x zoom)
@@ -118,7 +147,7 @@ public class ClientCameraHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || !hasInitialAngles) return;
 
-        // Clamp rotation angles relative to camera mount
+        // Clamp rotation angles relative to camera mount facing into the room
         float currentYaw = mc.player.getYRot();
         float currentPitch = mc.player.getXRot();
 
@@ -127,12 +156,16 @@ public class ClientCameraHandler {
         while (diffYaw > 180.0f) diffYaw -= 360.0f;
 
         float clampedDiffYaw = Math.max(-80.0f, Math.min(80.0f, diffYaw));
-        float clampedPitch = Math.max(-40.0f, Math.min(30.0f, currentPitch));
+        float clampedPitch = Math.max(-35.0f, Math.min(45.0f, currentPitch));
 
+        float targetYaw = initialYaw + clampedDiffYaw;
         if (diffYaw != clampedDiffYaw || currentPitch != clampedPitch) {
-            mc.player.setYRot(initialYaw + clampedDiffYaw);
+            mc.player.setYRot(targetYaw);
             mc.player.setXRot(clampedPitch);
         }
+
+        event.setYaw(targetYaw);
+        event.setPitch(clampedPitch);
     }
 
     @SubscribeEvent
