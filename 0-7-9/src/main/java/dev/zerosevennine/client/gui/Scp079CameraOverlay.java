@@ -4,14 +4,12 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.ZeroSevenNine;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
-import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
@@ -19,7 +17,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 
 import java.util.List;
-import java.util.Map;
 
 public class Scp079CameraOverlay {
     private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
@@ -35,13 +32,12 @@ public class Scp079CameraOverlay {
         // 1. Draw Analog CRT Curved Bezel / Fisheye Vignette & Scanlines
         renderCrtFisheyeVignette(graphics, width, height, mc);
 
-        // 2. Center Reticle (Optical zoom text removed per user feedback)
+        // 2. Center Reticle (Clean reticle without optical zoom text)
         int cx = width / 2;
         int cy = height / 2;
-
         int cyanGlow = 0xFF00E5FF;
 
-        // Center reticle brackets
+        // Reticle brackets
         graphics.fill(cx - 16, cy - 16, cx - 10, cy - 15, cyanGlow);
         graphics.fill(cx - 16, cy - 16, cx - 15, cy - 10, cyanGlow);
 
@@ -57,19 +53,16 @@ public class Scp079CameraOverlay {
         // Center dot
         graphics.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xFFE0F7FA);
 
-        // 3. 3D World Markers projected onto Camera Viewport
-        renderWorldDeviceMarkers(graphics, font, mc, width, height, cx, cy);
-
-        // 4. Top-Left Panel: Room Information & Lifeform Status (Monochrome)
+        // 3. Top-Left Panel: Room Information & Lifeform Status (Monochrome)
         renderTopLeftPanel(graphics, font, mc);
 
-        // 5. Top-Right Panel: WASD Camera Jumps & Ability Shortcuts (Monochrome)
+        // 4. Top-Right Panel: WASD Camera Jumps & Ability Shortcuts (Monochrome)
         renderTopRightPanel(graphics, font, width);
 
-        // 6. Bottom-Left Panel: Live Event Log Feed (Monochrome)
+        // 5. Bottom-Left Panel: Live Event Log Feed (Monochrome)
         renderBottomLeftLog(graphics, font, height);
 
-        // 7. Bottom-Right Panel: Tier Badge, AP Bar, EXP Bar (Monochrome)
+        // 6. Bottom-Right Panel: Tier Badge, AP Bar, EXP Bar (Monochrome)
         renderBottomRightResources(graphics, font, width, height);
     }
 
@@ -121,144 +114,7 @@ public class Scp079CameraOverlay {
         graphics.fill(width - 14, height - 18, width - 12, height - 12, glassFrame);
     }
 
-    private static void renderWorldDeviceMarkers(GuiGraphics graphics, Font font, Minecraft mc, int width, int height, int cx, int cy) {
-        BlockPos camPos = ClientCameraHandler.activeCameraPos;
-        if (camPos == null || mc.level == null || mc.player == null) return;
-
-        CameraBlockEntity cam = FacilityNetworkManager.getCamera(camPos);
-        if (cam == null && mc.level.getBlockEntity(camPos) instanceof CameraBlockEntity cbe) {
-            cam = cbe;
-        }
-        if (cam == null) return;
-
-        double camX = camPos.getX() + 0.5;
-        double camY = camPos.getY() + 0.5;
-        double camZ = camPos.getZ() + 0.5;
-
-        double yawRad = Math.toRadians(mc.player.getYRot());
-        double pitchRad = Math.toRadians(mc.player.getXRot());
-
-        double cosY = Math.cos(yawRad);
-        double sinY = Math.sin(yawRad);
-        double cosP = Math.cos(pitchRad);
-        double sinP = Math.sin(pitchRad);
-
-        double fovYDeg = mc.options.fov().get() * ClientCameraHandler.zoomFovFactor;
-        double fovYRad = Math.toRadians(Math.max(10.0, fovYDeg));
-        double scale = (height / 2.0) / Math.tan(fovYRad / 2.0);
-
-        // Render Linked Devices (Doors, Lights, Tesla, Speaker, Elevator)
-        for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
-            double dx = (dev.pos.getX() + 0.5) - camX;
-            double dy = (dev.pos.getY() + 0.5) - camY;
-            double dz = (dev.pos.getZ() + 0.5) - camZ;
-
-            // Accurate Camera Coordinate Space Transformation
-            double viewX = -dx * cosY - dz * sinY;
-            double viewForwardXZ = -dx * sinY + dz * cosY;
-            double viewY = dy * cosP - viewForwardXZ * sinP;
-            double viewZ = dy * sinP + viewForwardXZ * cosP;
-
-            if (viewZ > 0.3) {
-                int sx = (int) (cx + (viewX / viewZ) * scale);
-                int sy = (int) (cy - (viewY / viewZ) * scale);
-
-                if (sx >= 25 && sx <= width - 25 && sy >= 25 && sy <= height - 25) {
-                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    boolean isHovered = (Math.abs(sx - cx) < 28 && Math.abs(sy - cy) < 28);
-                    renderSingleDeviceMarker(graphics, font, dev, sx, sy, dist, isHovered);
-                }
-            }
-        }
-
-        // Render Neighbor Camera Transition Doorways
-        for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
-            BlockPos nPos = neighbor.getValue();
-            double dx = (nPos.getX() + 0.5) - camX;
-            double dy = (nPos.getY() + 0.5) - camY;
-            double dz = (nPos.getZ() + 0.5) - camZ;
-
-            double viewX = -dx * cosY - dz * sinY;
-            double viewForwardXZ = -dx * sinY + dz * cosY;
-            double viewY = dy * cosP - viewForwardXZ * sinP;
-            double viewZ = dy * sinP + viewForwardXZ * cosP;
-
-            if (viewZ > 0.3) {
-                int sx = (int) (cx + (viewX / viewZ) * scale);
-                int sy = (int) (cy - (viewY / viewZ) * scale);
-
-                if (sx >= 25 && sx <= width - 25 && sy >= 25 && sy <= height - 25) {
-                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    boolean isHovered = (Math.abs(sx - cx) < 28 && Math.abs(sy - cy) < 28);
-                    renderNeighborCameraMarker(graphics, font, neighbor.getKey(), sx, sy, dist, isHovered);
-                }
-            }
-        }
-    }
-
-    private static void renderSingleDeviceMarker(GuiGraphics graphics, Font font, CameraBlockEntity.LinkedDevice dev,
-                                                 int sx, int sy, double dist, boolean isHovered) {
-        int bracketCol = isHovered ? 0xFFFFFFFF : 0xFF00E5FF;
-        int textCol = 0xFFE0F7FA;
-
-        // Holographic Target Diamond & Brackets
-        graphics.fill(sx - 12, sy - 12, sx - 6, sy - 11, bracketCol);
-        graphics.fill(sx - 12, sy - 12, sx - 11, sy - 6, bracketCol);
-
-        graphics.fill(sx + 6, sy - 12, sx + 12, sy - 11, bracketCol);
-        graphics.fill(sx + 11, sy - 12, sx + 12, sy - 6, bracketCol);
-
-        graphics.fill(sx - 12, sy + 11, sx - 6, sy + 12, bracketCol);
-        graphics.fill(sx - 12, sy + 6, sx - 11, sy + 12, bracketCol);
-
-        graphics.fill(sx + 6, sy + 11, sx + 12, sy + 12, bracketCol);
-        graphics.fill(sx + 11, sy + 6, sx + 12, sy + 12, bracketCol);
-
-        String typeLabel = dev.type.getLabel().toUpperCase();
-        String actionPrompt;
-
-        if (dev.type == DeviceType.DOOR) {
-            actionPrompt = dev.isLocked ? "[LOCKED // RMB TO UNLOCK]" : "[LMB] TOGGLE  [RMB] LOCK";
-        } else if (dev.type == DeviceType.TESLA) {
-            actionPrompt = "[LMB] OVERCHARGE (Tesla)";
-        } else if (dev.type == DeviceType.ELEVATOR) {
-            actionPrompt = "[LMB] CALL / SEND ELEVATOR";
-        } else if (dev.type == DeviceType.SPEAKER) {
-            actionPrompt = "[V] INTERCOM BROADCAST";
-        } else {
-            actionPrompt = "[F] BLACKOUT LIGHTS";
-        }
-
-        String distStr = String.format("%.0fm", dist);
-
-        graphics.fill(sx - 40, sy + 15, sx + 40, sy + 27, 0xDD061018);
-        graphics.fill(sx - 40, sy + 15, sx + 40, sy + 16, bracketCol);
-
-        graphics.drawString(font, typeLabel + " // " + distStr, sx - (font.width(typeLabel + " // " + distStr) / 2), sy + 17, textCol, false);
-        graphics.drawString(font, actionPrompt, sx - (font.width(actionPrompt) / 2), sy + 30, 0xAA80DEEA, true);
-    }
-
-    private static void renderNeighborCameraMarker(GuiGraphics graphics, Font font, Direction dir, int sx, int sy, double dist, boolean isHovered) {
-        int col = isHovered ? 0xFFFFFFFF : 0xFF00E5FF;
-        String dirKey = switch (dir) {
-            case NORTH -> "[W]";
-            case SOUTH -> "[S]";
-            case WEST -> "[A]";
-            case EAST -> "[D]";
-            default -> "[JUMP]";
-        };
-
-        graphics.fill(sx - 12, sy - 12, sx + 12, sy + 12, 0xDD061018);
-        graphics.fill(sx - 12, sy - 12, sx + 12, sy - 10, col);
-        graphics.fill(sx - 12, sy + 10, sx + 12, sy + 12, col);
-
-        graphics.drawString(font, dirKey, sx - (font.width(dirKey) / 2), sy - 4, 0xFFE0F7FA, false);
-        String label = "[LMB] JUMP CAMERA (2 AP)";
-        graphics.drawString(font, label, sx - (font.width(label) / 2), sy + 15, 0xAA80DEEA, true);
-    }
-
     private static void renderTopLeftPanel(GuiGraphics graphics, Font font, Minecraft mc) {
-        // Monochrome dark CRT glass background card
         graphics.fill(14, 14, 215, 88, 0xCC061018);
         graphics.fill(14, 14, 16, 88, 0xFF00E5FF);
         graphics.fill(14, 14, 215, 15, 0x6600E5FF);
@@ -316,7 +172,7 @@ public class Scp079CameraOverlay {
 
         graphics.drawString(font, "2 AP PER JUMP", rx + 108, 42, 0xAA80DEEA, false);
 
-        // Ability shortcuts (Monochrome)
+        // Ability shortcuts
         String fTxt = ClientCameraHandler.tier >= 2 ? "[F] BLACKOUT (40 AP)" : "[F] BLACKOUT (TIER 2)";
         String gTxt = ClientCameraHandler.tier >= 3 ? "[G] LOCKDOWN (60 AP)" : "[G] LOCKDOWN (TIER 3)";
         graphics.drawString(font, fTxt, rx + 10, 64, 0xAA80DEEA, false);
@@ -353,10 +209,10 @@ public class Scp079CameraOverlay {
         graphics.fill(width - 16, ry, width - 14, height - 14, 0xFF00E5FF);
         graphics.fill(rx, ry, width - 14, ry + 1, 0x6600E5FF);
 
-        // Tier Badge (Monochrome)
+        // Tier Badge
         graphics.drawString(font, "ACCESS TIER " + ClientCameraHandler.tier + " / 5", rx + 10, ry + 6, 0xFFE0F7FA, true);
 
-        // AP Bar (Monochrome Cyan Phosphor)
+        // AP Bar
         String apTxt = String.format("AUXILIARY POWER: %.0f / %.0f", ClientCameraHandler.ap, ClientCameraHandler.maxAp);
         graphics.drawString(font, apTxt, rx + 10, ry + 20, 0xAA80DEEA, false);
 
@@ -370,7 +226,7 @@ public class Scp079CameraOverlay {
         int fillW = (int) (barW * apRatio);
         graphics.fill(barX, barY, barX + fillW, barY + barH, 0xFF00E5FF);
 
-        // EXP Bar (Monochrome)
+        // EXP Bar
         String expTxt = String.format("EXP: %d / %d", ClientCameraHandler.exp, ClientCameraHandler.nextExp);
         graphics.drawString(font, expTxt, rx + 10, ry + 48, 0xAA80DEEA, false);
 

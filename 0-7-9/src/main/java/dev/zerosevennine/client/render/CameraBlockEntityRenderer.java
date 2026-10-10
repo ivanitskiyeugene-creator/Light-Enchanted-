@@ -8,6 +8,8 @@ import dev.zerosevennine.block.AbstractCameraBlock;
 import dev.zerosevennine.block.EzCameraBlock;
 import dev.zerosevennine.block.LczCameraBlock;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
+import dev.zerosevennine.client.handler.ClientCameraHandler;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -28,6 +30,21 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
 
     @Override
     public void render(CameraBlockEntity be, float partialTick, PoseStack poseStack, MultiBufferSource buffer, int packedLight, int packedOverlay) {
+        Minecraft mc = Minecraft.getInstance();
+
+        // When in 079 mode, make the active camera (and any camera within 2.5 blocks) invisible so it never obstructs the player's view
+        if (ClientCameraHandler.in079Mode) {
+            if (be.isOccupied() || be.getBlockPos().equals(ClientCameraHandler.activeCameraPos)) {
+                return;
+            }
+            if (mc.cameraEntity != null) {
+                double distSq = mc.cameraEntity.distanceToSqr(be.getBlockPos().getX() + 0.5, be.getBlockPos().getY() + 0.5, be.getBlockPos().getZ() + 0.5);
+                if (distSq < 6.25) {
+                    return;
+                }
+            }
+        }
+
         poseStack.pushPose();
 
         Direction facing = Direction.NORTH;
@@ -173,6 +190,8 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         vertex(builder, mat, nmat, maxX, minY, minZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
         vertex(builder, mat, nmat, maxX, minY, maxZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
         vertex(builder, mat, nmat, minX, minY, maxZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
+
+        poseStack.popPose();
     }
 
     private void vertex(VertexConsumer builder, Matrix4f mat, Matrix3f nmat, float x, float y, float z,
