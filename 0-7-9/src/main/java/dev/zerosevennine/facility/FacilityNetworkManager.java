@@ -156,7 +156,6 @@ public class FacilityNetworkManager {
             }
         }
     }
-    }
 
     public static void applyClientMapSync(List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.NodeData> nodes,
                                           List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData> cameras) {
