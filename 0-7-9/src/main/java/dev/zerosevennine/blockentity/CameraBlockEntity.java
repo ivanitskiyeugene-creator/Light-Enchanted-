@@ -491,15 +491,11 @@ public class CameraBlockEntity extends BlockEntity {
 
     public void triggerTesla(BlockPos teslaPos) {
         if (level == null) return;
-<<<<<<< HEAD
-        level.setBlock(teslaPos, level.getBlockState(teslaPos), 3);
-=======
         net.minecraft.server.level.ServerPlayer player = null;
         if (occupantUuid != null && level.getServer() != null) {
             player = level.getServer().getPlayerList().getPlayer(occupantUuid);
         }
         dev.zerosevennine.facility.UniversalDoorHandler.triggerTeslaGate(level, teslaPos, player);
->>>>>>> 3afd358 (feat(0-7-9): add SCP The Facility mod support and SCP:FR emergency generator monitoring)
     }
 
     public void triggerBlackout(int durationTicks) {
