@@ -1,6 +1,7 @@
 package dev.zerosevennine.blockentity;
 
 import dev.zerosevennine.facility.DeviceType;
+import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
@@ -15,8 +16,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.DoorHingeSide;
-import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -81,7 +80,27 @@ public class CameraBlockEntity extends BlockEntity {
         super(ModBlockEntities.CAMERA.get(), pos, state);
     }
 
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        if (level != null && !level.isClientSide) {
+            FacilityNetworkManager.registerCamera(worldPosition, this);
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        if (level != null && !level.isClientSide) {
+            FacilityNetworkManager.unregisterCamera(worldPosition);
+        }
+        super.setRemoved();
+    }
+
     public static void tick(Level level, BlockPos pos, BlockState state, CameraBlockEntity be) {
+        if (!level.isClientSide) {
+            FacilityNetworkManager.registerCamera(pos, be);
+        }
+
         // Smooth rotation interpolation
         float yawDiff = be.targetYaw - be.currentYaw;
         while (yawDiff < -180.0f) yawDiff += 360.0f;
