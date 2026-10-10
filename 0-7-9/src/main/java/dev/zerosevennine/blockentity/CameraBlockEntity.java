@@ -3,6 +3,7 @@ package dev.zerosevennine.blockentity;
 import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
+import dev.zerosevennine.facility.UniversalDoorHandler;
 import dev.zerosevennine.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -12,15 +13,8 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.ButtonBlock;
-import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FenceGateBlock;
-import net.minecraft.world.level.block.LeverBlock;
-import net.minecraft.world.level.block.RedstoneLampBlock;
-import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -86,7 +80,6 @@ public class CameraBlockEntity extends BlockEntity {
 
     private int blackoutTimer = 0;
     private int lockdownTimer = 0;
-    private boolean autoDiscovered = false;
 
     public CameraBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CAMERA.get(), pos, state);
@@ -97,9 +90,6 @@ public class CameraBlockEntity extends BlockEntity {
         super.onLoad();
         if (level != null && !level.isClientSide) {
             FacilityNetworkManager.registerCamera(worldPosition, this);
-            if (!autoDiscovered) {
-                autoDiscoverSurroundings();
-            }
         }
     }
 
@@ -114,9 +104,6 @@ public class CameraBlockEntity extends BlockEntity {
     public static void tick(Level level, BlockPos pos, BlockState state, CameraBlockEntity be) {
         if (!level.isClientSide) {
             FacilityNetworkManager.registerCamera(pos, be);
-            if (!be.autoDiscovered && level.getGameTime() % 40 == 0) {
-                be.autoDiscoverSurroundings();
-            }
         }
 
         // Smooth rotation interpolation
@@ -149,7 +136,7 @@ public class CameraBlockEntity extends BlockEntity {
                 pulse.remainingTicks--;
                 if (pulse.remainingTicks <= 0) {
                     it.remove();
-                    be.endRedstonePulse(pulse.pos);
+                    UniversalDoorHandler.notifyNeighbors(level, pulse.pos);
                 }
             }
         }
@@ -188,66 +175,6 @@ public class CameraBlockEntity extends BlockEntity {
                         }
                     } else if (!genState.isEngaging && !genState.isEngaged) {
                         lastKnownGenBooting = false;
-                    }
-                }
-            }
-        }
-    }
-
-    public void autoDiscoverSurroundings() {
-        if (level == null || level.isClientSide) return;
-        autoDiscovered = true;
-
-        // Auto-discover nearby doors, lights, tesla gates, and generators in 16-block radius
-        BlockPos cp = worldPosition;
-        for (int dx = -16; dx <= 16; dx++) {
-            for (int dy = -8; dy <= 8; dy++) {
-                for (int dz = -16; dz <= 16; dz++) {
-                    BlockPos p = cp.offset(dx, dy, dz);
-                    BlockState s = level.getBlockState(p);
-                    if (dev.zerosevennine.facility.UniversalGeneratorHandler.isGeneratorBlock(s)) {
-                        dev.zerosevennine.facility.UniversalGeneratorHandler.registerGenerator(p);
-                        if (!hasDevice(p)) {
-                            addOrUpdateDevice(p, DeviceType.GENERATOR);
-                        }
-                    } else if (dev.zerosevennine.facility.UniversalDoorHandler.isTeslaGateBlock(s)) {
-                        if (!hasDevice(p)) {
-                            addOrUpdateDevice(p, DeviceType.TESLA);
-                        }
-                    } else if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(s)) {
-                        if (!hasDevice(p)) {
-                            addOrUpdateDevice(p, DeviceType.DOOR);
-                        }
-                    } else if (s.getBlock() instanceof RedstoneLampBlock) {
-                        if (!hasDevice(p)) {
-                            addOrUpdateDevice(p, DeviceType.LIGHT);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Auto-discover neighbor cameras for WASD routing
-        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getCameras().entrySet()) {
-            BlockPos otherPos = entry.getKey();
-            if (otherPos.equals(cp)) continue;
-
-            double dx = otherPos.getX() - cp.getX();
-            double dz = otherPos.getZ() - cp.getZ();
-            double distSq = dx * dx + dz * dz;
-
-            if (distSq <= 48 * 48) {
-                if (Math.abs(dz) >= Math.abs(dx)) {
-                    if (dz < -2.0 && !wasdNeighbors.containsKey(Direction.NORTH)) {
-                        setWasdNeighbor(Direction.NORTH, otherPos);
-                    } else if (dz > 2.0 && !wasdNeighbors.containsKey(Direction.SOUTH)) {
-                        setWasdNeighbor(Direction.SOUTH, otherPos);
-                    }
-                } else {
-                    if (dx < -2.0 && !wasdNeighbors.containsKey(Direction.WEST)) {
-                        setWasdNeighbor(Direction.WEST, otherPos);
-                    } else if (dx > 2.0 && !wasdNeighbors.containsKey(Direction.EAST)) {
-                        setWasdNeighbor(Direction.EAST, otherPos);
                     }
                 }
             }
@@ -301,6 +228,9 @@ public class CameraBlockEntity extends BlockEntity {
     public void setCameraName(String cameraName) {
         this.cameraName = cameraName;
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public FacilityZone getZone() {
@@ -310,6 +240,9 @@ public class CameraBlockEntity extends BlockEntity {
     public void setZone(FacilityZone zone) {
         this.zone = zone;
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public List<LinkedDevice> getLinkedDevices() {
@@ -413,8 +346,9 @@ public class CameraBlockEntity extends BlockEntity {
     private final List<ActivePulse> activePulses = new ArrayList<>();
 
     // Ability Handlers
-    public boolean toggleDoor(BlockPos doorPos) {
+    public boolean toggleDoor(BlockPos doorPos, ServerPlayer player) {
         if (level == null) return false;
+
         // Check lock status
         for (LinkedDevice d : linkedDevices) {
             if ((d.pos.equals(doorPos) || d.pos.equals(doorPos.below()) || d.pos.equals(doorPos.above())) && d.isLocked) {
@@ -422,78 +356,50 @@ public class CameraBlockEntity extends BlockEntity {
             }
         }
 
-        // If door currently has an active pulse, cancel it and close immediately
-        for (int i = 0; i < activePulses.size(); i++) {
-            ActivePulse p = activePulses.get(i);
-            if (p.pos.equals(doorPos) || p.pos.equals(doorPos.below()) || p.pos.equals(doorPos.above())) {
-                activePulses.remove(i);
-                endRedstonePulse(p.pos);
-                return true;
-            }
-        }
-
-        // Send 20-tick redstone pulse (1 second) to the target door/point
-        activePulses.add(new ActivePulse(doorPos, 20));
-        startRedstonePulse(doorPos);
-        return true;
-    }
-
-    private void startRedstonePulse(BlockPos pos) {
-        if (level == null) return;
-        net.minecraft.server.level.ServerPlayer player = null;
-        if (occupantUuid != null && level.getServer() != null) {
-            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
-        }
-        dev.zerosevennine.facility.UniversalDoorHandler.openDoor(level, pos, player);
-    }
-
-    private void endRedstonePulse(BlockPos pos) {
-        if (level == null) return;
-        net.minecraft.server.level.ServerPlayer player = null;
-        if (occupantUuid != null && level.getServer() != null) {
-            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
-        }
-        dev.zerosevennine.facility.UniversalDoorHandler.closeDoor(level, pos, player);
-    }
-
-    public boolean lockDoor(BlockPos doorPos, boolean lock) {
-        for (LinkedDevice d : linkedDevices) {
-            if (d.pos.equals(doorPos) || d.pos.equals(doorPos.below()) || d.pos.equals(doorPos.above())) {
-                d.isLocked = lock;
-                if (lock) {
-                    activePulses.removeIf(p -> p.pos.equals(d.pos) || p.pos.equals(d.pos.below()) || p.pos.equals(d.pos.above()));
-                    endRedstonePulse(d.pos);
-                }
-                setChanged();
-                return true;
-            }
-        }
-
-        // Auto-register on click if not in linked list
-        if (level != null) {
-            BlockState state = level.getBlockState(doorPos);
-            if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(state)) {
-                LinkedDevice newDev = new LinkedDevice(doorPos, DeviceType.DOOR);
-                newDev.isLocked = lock;
-                linkedDevices.add(newDev);
-                if (lock) {
-                    activePulses.removeIf(p -> p.pos.equals(doorPos) || p.pos.equals(doorPos.below()) || p.pos.equals(doorPos.above()));
-                    endRedstonePulse(doorPos);
-                }
-                setChanged();
-                return true;
-            }
+        boolean toggled = UniversalDoorHandler.toggleDoor(level, doorPos, player);
+        if (toggled) {
+            activePulses.add(new ActivePulse(doorPos, 20));
+            return true;
         }
         return false;
     }
 
-    public void triggerTesla(BlockPos teslaPos) {
-        if (level == null) return;
-        net.minecraft.server.level.ServerPlayer player = null;
-        if (occupantUuid != null && level.getServer() != null) {
-            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
+    public boolean lockDoor(BlockPos doorPos, ServerPlayer player, boolean lock) {
+        if (level == null) return false;
+
+        boolean found = false;
+        for (LinkedDevice d : linkedDevices) {
+            if (d.pos.equals(doorPos) || d.pos.equals(doorPos.below()) || d.pos.equals(doorPos.above())) {
+                d.isLocked = lock;
+                found = true;
+                break;
+            }
         }
-        dev.zerosevennine.facility.UniversalDoorHandler.triggerTeslaGate(level, teslaPos, player);
+
+        if (!found) {
+            BlockState state = level.getBlockState(doorPos);
+            if (UniversalDoorHandler.isDoorLikeBlock(state)) {
+                LinkedDevice newDev = new LinkedDevice(doorPos, DeviceType.DOOR);
+                newDev.isLocked = lock;
+                linkedDevices.add(newDev);
+                found = true;
+            }
+        }
+
+        if (lock) {
+            UniversalDoorHandler.closeDoor(level, doorPos, player);
+        }
+
+        setChanged();
+        if (!level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+        return found;
+    }
+
+    public void triggerTesla(BlockPos teslaPos, ServerPlayer player) {
+        if (level == null) return;
+        UniversalDoorHandler.triggerTeslaGate(level, teslaPos, player);
     }
 
     public void triggerBlackout(int durationTicks) {
@@ -501,11 +407,11 @@ public class CameraBlockEntity extends BlockEntity {
         setChanged();
     }
 
-    public void triggerLockdown(int durationTicks) {
+    public void triggerLockdown(int durationTicks, ServerPlayer player) {
         this.lockdownTimer = durationTicks;
         for (LinkedDevice d : linkedDevices) {
             if (d.type == DeviceType.DOOR) {
-                lockDoor(d.pos, true);
+                lockDoor(d.pos, player, true);
             }
         }
         setChanged();
@@ -522,6 +428,9 @@ public class CameraBlockEntity extends BlockEntity {
             }
         }
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     @Override
@@ -535,7 +444,6 @@ public class CameraBlockEntity extends BlockEntity {
         }
         tag.putFloat("yaw", currentYaw);
         tag.putFloat("pitch", currentPitch);
-        tag.putBoolean("autoDisc", autoDiscovered);
 
         ListTag devList = new ListTag();
         for (LinkedDevice d : linkedDevices) {
@@ -573,7 +481,6 @@ public class CameraBlockEntity extends BlockEntity {
         currentPitch = tag.getFloat("pitch");
         targetYaw = currentYaw;
         targetPitch = currentPitch;
-        autoDiscovered = tag.getBoolean("autoDisc");
 
         linkedDevices.clear();
         ListTag devList = tag.getList("devices", Tag.TAG_COMPOUND);

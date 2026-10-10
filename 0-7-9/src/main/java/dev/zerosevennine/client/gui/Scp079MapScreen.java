@@ -2,7 +2,10 @@ package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.ZeroSevenNine;
+<<<<<<< HEAD
 import dev.zerosevennine.blockentity.CameraBlockEntity;
+=======
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
@@ -10,6 +13,10 @@ import dev.zerosevennine.network.C2SInteractDevicePacket;
 import dev.zerosevennine.network.C2SRequestMapSyncPacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.ModNetwork;
+<<<<<<< HEAD
+=======
+import net.minecraft.client.Minecraft;
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -45,6 +52,13 @@ public class Scp079MapScreen extends Screen {
         lastMouseX = -1.0;
         lastMouseY = -1.0;
 
+<<<<<<< HEAD
+=======
+        if (this.minecraft != null) {
+            this.minecraft.mouseHandler.grabMouse();
+        }
+
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         // Request live facility map layout from server
         ModNetwork.CHANNEL.sendToServer(new C2SRequestMapSyncPacket());
     }
@@ -60,6 +74,12 @@ public class Scp079MapScreen extends Screen {
             isClosing = true;
             return;
         }
+<<<<<<< HEAD
+=======
+        if (this.minecraft != null) {
+            this.minecraft.mouseHandler.grabMouse();
+        }
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         super.onClose();
     }
 
@@ -85,15 +105,34 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
+<<<<<<< HEAD
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         panX += dragX;
         panY += dragY;
+=======
+    public void mouseMoved(double mouseX, double mouseY) {
+        if (lastMouseX >= 0 && lastMouseY >= 0) {
+            double dx = mouseX - lastMouseX;
+            double dy = mouseY - lastMouseY;
+            panX -= dx * 1.5;
+            panY -= dy * 1.5;
+        }
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        panX -= dragX * 1.5;
+        panY -= dragY * 1.5;
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         return true;
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+<<<<<<< HEAD
             int cx = width / 2;
             int cy = height / 2;
             Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRooms();
@@ -115,6 +154,8 @@ public class Scp079MapScreen extends Screen {
             }
 
             // 2. Click with room centered under reticle
+=======
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             if (focusedRoomPos != null) {
                 ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
                 this.onClose();
@@ -169,7 +210,11 @@ public class Scp079MapScreen extends Screen {
         renderHeader(graphics, font, topY);
 
         // Render Vector Schematic Grid with Center Reticle & Panning
+<<<<<<< HEAD
         renderVectorMap(graphics, font, mouseX, mouseY, cx, cy, topY, bottomY);
+=======
+        renderVectorMap(graphics, font, cx, cy, topY, bottomY);
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 
         // Fixed Reticle Locked at Screen Center
         renderCenterFixedReticle(graphics, font, cx, cy);
@@ -221,7 +266,11 @@ public class Scp079MapScreen extends Screen {
         }
     }
 
+<<<<<<< HEAD
     private void renderVectorMap(GuiGraphics graphics, Font font, int mouseX, int mouseY, int cx, int cy, int topY, int bottomY) {
+=======
+    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY) {
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         // Background coordinate grid lines
         int gridSpacing = 48;
         int gridOffsetX = ((int) panX) % gridSpacing;
@@ -236,7 +285,11 @@ public class Scp079MapScreen extends Screen {
 
         Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRooms();
         focusedRoomPos = null;
+<<<<<<< HEAD
         double closestDistSq = 36.0 * 36.0;
+=======
+        double closestDistSq = 40.0 * 40.0;
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 
         for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
             BlockPos roomPos = entry.getKey();
@@ -250,6 +303,7 @@ public class Scp079MapScreen extends Screen {
             int cellCenterX = nodeX + (nodeW / 2);
             int cellCenterY = nodeY + (nodeH / 2);
 
+<<<<<<< HEAD
             // Check if focused by center reticle or hovered by mouse cursor
             double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
             boolean isMouseHover = (mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH);
@@ -257,6 +311,11 @@ public class Scp079MapScreen extends Screen {
 
             boolean isFocused = isMouseHover || isReticleFocus;
             if (isFocused) {
+=======
+            // Check if focused by center reticle
+            double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
+            if (distSq <= closestDistSq) {
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                 closestDistSq = distSq;
                 focusedRoomPos = roomPos;
             }
@@ -264,6 +323,10 @@ public class Scp079MapScreen extends Screen {
             boolean isCurrent = roomPos.equals(ClientCameraHandler.activeCameraPos);
             boolean isTransition = (room.roomType == FacilityMapNodeBlockEntity.RoomType.ELEVATOR ||
                                     room.roomType == FacilityMapNodeBlockEntity.RoomType.CHECKPOINT);
+<<<<<<< HEAD
+=======
+            boolean isFocused = roomPos.equals(focusedRoomPos);
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 
             renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, room.hasGenerator, room.isGeneratorBooting);
         }
@@ -295,21 +358,33 @@ public class Scp079MapScreen extends Screen {
 
         // Pure Geometric Symbols (NO text names, NO "FREE" labels, NO generator icons)
         if (isCurrent) {
+<<<<<<< HEAD
             // Active Camera Blinking Dot
             graphics.fill(midX - 4, midY - 4, midX + 4, midY + 4, 0xFF00E5FF);
             graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF040A10);
         } else if (isTransition) {
             // Elevator / Airlock Symbol
+=======
+            graphics.fill(midX - 4, midY - 4, midX + 4, midY + 4, 0xFF00E5FF);
+            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF040A10);
+        } else if (isTransition) {
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             graphics.fill(midX - 8, midY - 6, midX - 6, midY + 6, frameCol);
             graphics.fill(midX + 6, midY - 6, midX + 8, midY + 6, frameCol);
             graphics.fill(midX - 4, midY - 1, midX + 4, midY + 1, frameCol);
         } else {
+<<<<<<< HEAD
             // Standard Camera Point
+=======
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, frameCol);
         }
 
         if (isFocused) {
+<<<<<<< HEAD
             // Glowing Focus Diamond Brackets
+=======
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             graphics.fill(x - 4, y - 4, x, y - 3, 0xFFFFFFFF);
             graphics.fill(x - 4, y - 4, x - 3, y, 0xFFFFFFFF);
 
@@ -336,7 +411,11 @@ public class Scp079MapScreen extends Screen {
 
         graphics.drawString(font, scannerTxt, 30, by + 8, 0xFFE0F7FA, true);
 
+<<<<<<< HEAD
         String helpTxt = "DRAG: PAN MAP  |  [LMB / SPACE]: JUMP TO RETICLE ROOM  |  [TAB / ESC]: EXIT";
+=======
+        String helpTxt = "MOUSE MOVE: PAN MAP  |  [LMB / SPACE]: JUMP TO RETICLE ROOM  |  [TAB / ESC]: EXIT";
+>>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 30, by + 8, 0xAA80DEEA, false);
     }
 }
