@@ -22,7 +22,8 @@ public class C2SInteractDevicePacket {
         BLACKOUT,
         LOCKDOWN,
         PING,
-        SPEAKER
+        SPEAKER,
+        BREACH_SCANNER
     }
 
     private final BlockPos targetPos;
@@ -101,6 +102,9 @@ public class C2SInteractDevicePacket {
                 }
                 case SPEAKER -> {
                     player.level().playSound(null, camBe.getBlockPos(), SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 2.0f);
+                }
+                case BREACH_SCANNER -> {
+                    session.toggleBreachScanner(player);
                 }
             }
         });

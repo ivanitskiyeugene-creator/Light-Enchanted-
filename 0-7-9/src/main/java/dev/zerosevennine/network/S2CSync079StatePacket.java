@@ -19,10 +19,12 @@ public class S2CSync079StatePacket {
     private final float ap;
     private final float maxAp;
     private final float apRegen;
+    private final boolean breachScannerActive;
     private final List<Scp079Session.LogEntry> logEntries;
 
     public S2CSync079StatePacket(boolean active, BlockPos cameraPos, int tier, int exp, int nextExp,
-                                 float ap, float maxAp, float apRegen, List<Scp079Session.LogEntry> logEntries) {
+                                 float ap, float maxAp, float apRegen, boolean breachScannerActive,
+                                 List<Scp079Session.LogEntry> logEntries) {
         this.active = active;
         this.cameraPos = cameraPos;
         this.tier = tier;
@@ -31,6 +33,7 @@ public class S2CSync079StatePacket {
         this.ap = ap;
         this.maxAp = maxAp;
         this.apRegen = apRegen;
+        this.breachScannerActive = breachScannerActive;
         this.logEntries = logEntries;
     }
 
@@ -43,6 +46,7 @@ public class S2CSync079StatePacket {
         buf.writeFloat(msg.ap);
         buf.writeFloat(msg.maxAp);
         buf.writeFloat(msg.apRegen);
+        buf.writeBoolean(msg.breachScannerActive);
 
         buf.writeInt(msg.logEntries != null ? msg.logEntries.size() : 0);
         if (msg.logEntries != null) {
@@ -62,6 +66,7 @@ public class S2CSync079StatePacket {
         float ap = buf.readFloat();
         float maxAp = buf.readFloat();
         float apRegen = buf.readFloat();
+        boolean breachScanner = buf.readBoolean();
 
         int logCount = buf.readInt();
         List<Scp079Session.LogEntry> logs = new ArrayList<>();
@@ -71,13 +76,13 @@ public class S2CSync079StatePacket {
             logs.add(new Scp079Session.LogEntry(m, c, 0));
         }
 
-        return new S2CSync079StatePacket(active, camPos, tier, exp, nextExp, ap, maxAp, apRegen, logs);
+        return new S2CSync079StatePacket(active, camPos, tier, exp, nextExp, ap, maxAp, apRegen, breachScanner, logs);
     }
 
     public static void handle(S2CSync079StatePacket msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ClientCameraHandler.handleSyncState(msg.active, msg.cameraPos, msg.tier, msg.exp, msg.nextExp,
-                    msg.ap, msg.maxAp, msg.apRegen, msg.logEntries);
+                    msg.ap, msg.maxAp, msg.apRegen, msg.breachScannerActive, msg.logEntries);
         });
         ctx.get().setPacketHandled(true);
     }

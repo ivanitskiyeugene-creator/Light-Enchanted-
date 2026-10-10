@@ -77,12 +77,13 @@ public class ModNetwork {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new S2CSync079StatePacket(true, session.getCurrentCameraPos(),
                         session.getTier(), session.getExp(), session.getExpForNextTier(),
-                        session.getAp(), session.getMaxAp(), session.getApRegen(), session.getSystemLog()));
+                        session.getAp(), session.getMaxAp(), session.getApRegen(),
+                        session.isBreachScannerActive(), session.getSystemLog()));
     }
 
     public static void sendExit079ToClient(ServerPlayer player) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new S2CSync079StatePacket(false, BlockPos.ZERO, 1, 0, 100, 0, 100, 0, new ArrayList<>()));
+                new S2CSync079StatePacket(false, BlockPos.ZERO, 1, 0, 100, 0, 100, 0, false, new ArrayList<>()));
     }
 
     public static void sendOpenCameraConfig(ServerPlayer player, BlockPos camPos) {

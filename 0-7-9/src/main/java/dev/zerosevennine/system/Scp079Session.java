@@ -33,6 +33,7 @@ public class Scp079Session {
     private float ap = 100.0f;
     private float maxAp = 100.0f;
     private float apRegen = 3.2f;
+    private boolean breachScannerActive = false;
 
     private final List<LogEntry> systemLog = new ArrayList<>();
     private int syncCooldown = 0;
@@ -92,7 +93,27 @@ public class Scp079Session {
     }
 
     public float getApRegen() {
+        return breachScannerActive ? (apRegen * 0.5f) : apRegen;
+    }
+
+    public float getBaseApRegen() {
         return apRegen;
+    }
+
+    public boolean isBreachScannerActive() {
+        return breachScannerActive;
+    }
+
+    public void toggleBreachScanner(ServerPlayer player) {
+        if (tier < 4) return;
+        this.breachScannerActive = !this.breachScannerActive;
+        if (breachScannerActive) {
+            addLog("BREACH SCANNER ONLINE (-50% AP REGEN)", 0xF39C12, player.level().getGameTime());
+            player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0f, 1.8f);
+        } else {
+            addLog("BREACH SCANNER OFFLINE (AP REGEN RESTORED)", 0x2ECC71, player.level().getGameTime());
+            player.level().playSound(null, player.blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0f, 1.4f);
+        }
     }
 
     public List<LogEntry> getSystemLog() {
@@ -139,8 +160,9 @@ public class Scp079Session {
     }
 
     public void tick(ServerPlayer player) {
-        // Regenerate AP (20 ticks per second)
-        ap = Math.min(maxAp, ap + (apRegen / 20.0f));
+        // Regenerate AP (20 ticks per second, -50% if breach scanner is active)
+        float currentRegen = getApRegen();
+        ap = Math.min(maxAp, ap + (currentRegen / 20.0f));
 
         syncCooldown++;
         if (syncCooldown >= 4) {

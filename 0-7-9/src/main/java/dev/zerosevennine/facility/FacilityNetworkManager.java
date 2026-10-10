@@ -14,16 +14,21 @@ public class FacilityNetworkManager {
         public BlockPos pos;
         public String roomName;
         public FacilityZone zone;
+        public FacilityMapNodeBlockEntity.RoomType roomType;
+        public FacilityZone targetZone;
         public int gridX;
         public int gridY;
         public boolean hasGenerator;
         public boolean isGeneratorBooting;
-        public final List<BlockPos> cameraPositions = new ArrayList<>();
 
-        public RoomNode(BlockPos pos, String roomName, FacilityZone zone, int gridX, int gridY) {
+        public RoomNode(BlockPos pos, String roomName, FacilityZone zone,
+                        FacilityMapNodeBlockEntity.RoomType roomType, FacilityZone targetZone,
+                        int gridX, int gridY) {
             this.pos = pos;
             this.roomName = roomName;
             this.zone = zone;
+            this.roomType = roomType;
+            this.targetZone = targetZone;
             this.gridX = gridX;
             this.gridY = gridY;
             this.hasGenerator = false;
@@ -35,7 +40,8 @@ public class FacilityNetworkManager {
     private static final Map<BlockPos, CameraBlockEntity> CAMERAS = new HashMap<>();
 
     public static void registerMapNode(BlockPos pos, FacilityMapNodeBlockEntity be) {
-        RoomNode node = new RoomNode(pos.immutable(), be.getRoomName(), be.getZone(), be.getGridX(), be.getGridY());
+        RoomNode node = new RoomNode(pos.immutable(), be.getRoomName(), be.getZone(),
+                be.getRoomType(), be.getTargetZone(), be.getGridX(), be.getGridY());
         node.hasGenerator = be.hasGenerator();
         node.isGeneratorBooting = be.isGeneratorBooting();
         ROOMS.put(pos.immutable(), node);
@@ -63,6 +69,20 @@ public class FacilityNetworkManager {
 
     public static CameraBlockEntity getCamera(BlockPos pos) {
         return CAMERAS.get(pos);
+    }
+
+    public static BlockPos findCameraInZone(FacilityZone zone) {
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : CAMERAS.entrySet()) {
+            if (entry.getValue().getZone() == zone) {
+                return entry.getKey();
+            }
+        }
+        for (Map.Entry<BlockPos, RoomNode> entry : ROOMS.entrySet()) {
+            if (entry.getValue().zone == zone) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     public static BlockPos findNextCamera(BlockPos currentPos, Direction direction) {

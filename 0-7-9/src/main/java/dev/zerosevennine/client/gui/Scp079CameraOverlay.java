@@ -55,7 +55,7 @@ public class Scp079CameraOverlay {
         graphics.fill(cx - 15, cy + 10, cx - 14, cy + 15, rColor);
 
         graphics.fill(cx + 10, cy + 14, cx + 15, cy + 15, rColor);
-        graphics.fill(cx + 14, cy + 10, cx + 15, cy + 15, rColor);
+        graphics.fill(cx + 14, cy + 10, cx + 15, cy + 10, rColor);
 
         // Center dot
         graphics.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xFF00E5FF);
@@ -159,7 +159,7 @@ public class Scp079CameraOverlay {
 
     private static void renderBottomRightResources(GuiGraphics graphics, Font font, int width, int height) {
         int bx = width - 230;
-        int by = height - 85;
+        int by = height - 95;
 
         // Background card
         graphics.fill(bx, by, width - 12, height - 12, 0xCC0A1118);
@@ -168,6 +168,10 @@ public class Scp079CameraOverlay {
         // Tier Badge
         String tierStr = "ACCESS TIER " + ClientCameraHandler.tier;
         graphics.drawString(font, tierStr, bx + 12, by + 8, 0x00E5FF, true);
+
+        if (ClientCameraHandler.breachScannerActive) {
+            graphics.drawString(font, "● SCANNER ON (-50%)", bx + 115, by + 8, 0x2ECC71, true);
+        }
 
         // AP Progress Bar
         float apPct = Math.min(1.0f, Math.max(0.0f, ClientCameraHandler.ap / Math.max(1.0f, ClientCameraHandler.maxAp)));
@@ -190,6 +194,6 @@ public class Scp079CameraOverlay {
         graphics.fill(barX, expBarY, barX + barW, expBarY + 6, 0xFF1C2833);
         graphics.fill(barX, expBarY, barX + (int)(barW * expPct), expBarY + 6, 0xFF2ECC71);
 
-        graphics.drawString(font, "[TAB] TACTICAL MAP", bx + 12, by + 62, 0xF39C12, false);
+        graphics.drawString(font, "[TAB] TACTICAL MAP", bx + 12, by + 68, 0xF39C12, false);
     }
 }

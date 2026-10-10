@@ -1,6 +1,8 @@
 package dev.zerosevennine.network;
 
+import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.facility.FacilityNetworkManager;
+import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.system.Scp079PlayerManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.core.BlockPos;
@@ -54,14 +56,30 @@ public class C2SSwitchCameraPacket {
             if (session == null) return;
 
             BlockPos targetPos = msg.targetCamPos;
-            if (msg.wasdDir != null) {
+            boolean isWasd = (msg.wasdDir != null);
+
+            if (isWasd) {
                 targetPos = FacilityNetworkManager.findNextCamera(session.getCurrentCameraPos(), msg.wasdDir);
             }
 
             if (targetPos != null && !targetPos.equals(session.getCurrentCameraPos())) {
-                if (session.spendAp(2.0f)) {
+                CameraBlockEntity currentCam = FacilityNetworkManager.getCamera(session.getCurrentCameraPos());
+                FacilityZone currentZone = currentCam != null ? currentCam.getZone() : FacilityZone.HCZ;
+
+                CameraBlockEntity targetCam = FacilityNetworkManager.getCamera(targetPos);
+                FacilityZone targetZone = targetCam != null ? targetCam.getZone() : currentZone;
+
+                boolean isCrossZone = (targetZone != currentZone);
+                // Map navigation within same zone is 0 AP (FREE). Cross-zone transition (Elevators/Checkpoints) is 10 AP. WASD is 2 AP.
+                float cost = isWasd ? 2.0f : (isCrossZone ? 10.0f : 0.0f);
+
+                if (session.spendAp(cost)) {
                     Scp079PlayerManager.switchCamera(player, targetPos);
-                    player.level().playSound(null, targetPos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 0.8f, 1.8f);
+                    float pitch = isCrossZone ? 1.0f : 1.8f;
+                    player.level().playSound(null, targetPos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 0.8f, pitch);
+                    if (isCrossZone) {
+                        session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-10 AP)", 0x00E5FF, player.level().getGameTime());
+                    }
                 }
             }
         });

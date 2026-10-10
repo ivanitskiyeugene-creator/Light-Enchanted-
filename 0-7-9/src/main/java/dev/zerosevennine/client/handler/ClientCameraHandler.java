@@ -39,6 +39,7 @@ public class ClientCameraHandler {
     public static float ap = 100.0f;
     public static float maxAp = 100.0f;
     public static float apRegen = 3.2f;
+    public static boolean breachScannerActive = false;
     public static List<Scp079Session.LogEntry> logs = new ArrayList<>();
 
     public static boolean isZoomed = false;
@@ -49,7 +50,7 @@ public class ClientCameraHandler {
     private static boolean hasInitialAngles = false;
 
     public static void handleSyncState(boolean active, BlockPos cameraPos, int t, int e, int ne,
-                                      float currAp, float mAp, float regen, List<Scp079Session.LogEntry> l) {
+                                      float currAp, float mAp, float regen, boolean breachScanner, List<Scp079Session.LogEntry> l) {
         boolean wasIn079 = in079Mode;
         in079Mode = active;
         activeCameraPos = cameraPos;
@@ -59,6 +60,7 @@ public class ClientCameraHandler {
         ap = currAp;
         maxAp = mAp;
         apRegen = regen;
+        breachScannerActive = breachScanner;
         logs = l;
 
         if (active && !wasIn079) {

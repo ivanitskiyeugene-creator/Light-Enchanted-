@@ -13,8 +13,26 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class FacilityMapNodeBlockEntity extends BlockEntity {
+    public enum RoomType {
+        STANDARD("Standard Room"),
+        ELEVATOR("Elevator"),
+        CHECKPOINT("Checkpoint");
+
+        private final String label;
+
+        RoomType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
     private String roomName = "Heavy Hallway";
     private FacilityZone zone = FacilityZone.HCZ;
+    private RoomType roomType = RoomType.STANDARD;
+    private FacilityZone targetZone = null;
     private int gridX = 0;
     private int gridY = 0;
     private boolean hasGenerator = false;
@@ -77,6 +95,30 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
         }
     }
 
+    public RoomType getRoomType() {
+        return roomType;
+    }
+
+    public void setRoomType(RoomType roomType) {
+        this.roomType = roomType;
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public FacilityZone getTargetZone() {
+        return targetZone;
+    }
+
+    public void setTargetZone(FacilityZone targetZone) {
+        this.targetZone = targetZone;
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
     public int getGridX() {
         return gridX;
     }
@@ -120,6 +162,10 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
         super.saveAdditional(tag);
         tag.putString("roomName", roomName);
         tag.putString("zone", zone.name());
+        tag.putString("roomType", roomType.name());
+        if (targetZone != null) {
+            tag.putString("targetZone", targetZone.name());
+        }
         tag.putInt("gridX", gridX);
         tag.putInt("gridY", gridY);
         tag.putBoolean("hasGen", hasGenerator);
@@ -135,6 +181,18 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
             try {
                 zone = FacilityZone.valueOf(tag.getString("zone"));
             } catch (Exception ignored) {}
+        }
+        if (tag.contains("roomType")) {
+            try {
+                roomType = RoomType.valueOf(tag.getString("roomType"));
+            } catch (Exception ignored) {}
+        }
+        if (tag.contains("targetZone")) {
+            try {
+                targetZone = FacilityZone.valueOf(tag.getString("targetZone"));
+            } catch (Exception ignored) {}
+        } else {
+            targetZone = null;
         }
         gridX = tag.getInt("gridX");
         gridY = tag.getInt("gridY");
