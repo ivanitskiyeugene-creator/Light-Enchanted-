@@ -73,6 +73,10 @@ public class CameraBlockEntity extends BlockEntity {
     private final List<LinkedDevice> linkedDevices = new ArrayList<>();
     private final Map<Direction, BlockPos> wasdNeighbors = new EnumMap<>(Direction.class);
 
+    private final List<BlockPos> boundaryPoints = new ArrayList<>();
+    private BlockPos minBound = null;
+    private BlockPos maxBound = null;
+
     private int blackoutTimer = 0;
     private int lockdownTimer = 0;
 
@@ -202,6 +206,48 @@ public class CameraBlockEntity extends BlockEntity {
         setChanged();
     }
 
+    public List<BlockPos> getBoundaryPoints() {
+        return boundaryPoints;
+    }
+
+    public BlockPos getMinBound() {
+        return minBound;
+    }
+
+    public BlockPos getMaxBound() {
+        return maxBound;
+    }
+
+    public void setBoundaryPoints(List<BlockPos> points) {
+        this.boundaryPoints.clear();
+        this.boundaryPoints.addAll(points);
+        recalcBounds();
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    private void recalcBounds() {
+        if (boundaryPoints.isEmpty()) {
+            minBound = null;
+            maxBound = null;
+            return;
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos p : boundaryPoints) {
+            minX = Math.min(minX, p.getX());
+            minY = Math.min(minY, p.getY());
+            minZ = Math.min(minZ, p.getZ());
+            maxX = Math.max(maxX, p.getX());
+            maxY = Math.max(maxY, p.getY());
+            maxZ = Math.max(maxZ, p.getZ());
+        }
+        minBound = new BlockPos(minX, minY, minZ);
+        maxBound = new BlockPos(maxX, maxY, maxZ);
+    }
+
     // Ability Handlers
     public boolean toggleDoor(BlockPos doorPos) {
         if (level == null) return false;
@@ -233,7 +279,6 @@ public class CameraBlockEntity extends BlockEntity {
 
     public void triggerTesla(BlockPos teslaPos) {
         if (level == null) return;
-        // Pulse redstone / damage living entities in radius
         level.setBlock(teslaPos, level.getBlockState(teslaPos), 3);
     }
 
@@ -288,6 +333,12 @@ public class CameraBlockEntity extends BlockEntity {
             wasdTag.putLong(entry.getKey().getName(), entry.getValue().asLong());
         }
         tag.put("wasd", wasdTag);
+
+        long[] pts = new long[boundaryPoints.size()];
+        for (int i = 0; i < boundaryPoints.size(); i++) {
+            pts[i] = boundaryPoints.get(i).asLong();
+        }
+        tag.putLongArray("boundaryPoints", pts);
     }
 
     @Override
@@ -324,6 +375,15 @@ public class CameraBlockEntity extends BlockEntity {
                 }
             }
         }
+
+        boundaryPoints.clear();
+        if (tag.contains("boundaryPoints")) {
+            long[] pts = tag.getLongArray("boundaryPoints");
+            for (long p : pts) {
+                boundaryPoints.add(BlockPos.of(p));
+            }
+        }
+        recalcBounds();
     }
 
     @Override

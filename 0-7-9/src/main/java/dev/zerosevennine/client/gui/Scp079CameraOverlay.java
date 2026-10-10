@@ -90,13 +90,20 @@ public class Scp079CameraOverlay {
         graphics.drawString(font, "● LIVE FEED [" + zone + "]", 20, 18, 0xFF3333, true);
         graphics.drawString(font, roomName.toUpperCase(), 20, 29, 0xFFFFFF, true);
 
-        // Count lifeforms in 30-block radius
+        // Count lifeforms in room boundary or radius
         int totalLifeforms = 0;
         int scps = 0;
         int humans = 0;
         if (mc.level != null && ClientCameraHandler.activeCameraPos != null) {
             BlockPos cp = ClientCameraHandler.activeCameraPos;
-            List<LivingEntity> list = mc.level.getEntitiesOfClass(LivingEntity.class, new AABB(cp).inflate(32));
+            AABB searchBox;
+            if (cam != null && cam.getMinBound() != null && cam.getMaxBound() != null) {
+                searchBox = new AABB(cam.getMinBound(), cam.getMaxBound()).inflate(0.5);
+            } else {
+                searchBox = new AABB(cp).inflate(24.0);
+            }
+
+            List<LivingEntity> list = mc.level.getEntitiesOfClass(LivingEntity.class, searchBox);
             for (LivingEntity e : list) {
                 if (e instanceof Player p && !p.isSpectator()) {
                     totalLifeforms++;
