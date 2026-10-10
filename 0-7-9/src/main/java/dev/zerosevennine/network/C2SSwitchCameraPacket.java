@@ -13,6 +13,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraftforge.network.NetworkEvent;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class C2SSwitchCameraPacket {
