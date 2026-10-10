@@ -12,9 +12,15 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.RedstoneLampBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -336,10 +342,48 @@ public class CameraBlockEntity extends BlockEntity {
     // Ability Handlers
     public boolean toggleDoor(BlockPos doorPos) {
         if (level == null) return false;
+        // Check lock status
+        for (LinkedDevice d : linkedDevices) {
+            if ((d.pos.equals(doorPos) || d.pos.equals(doorPos.below()) || d.pos.equals(doorPos.above())) && d.isLocked) {
+                return false;
+            }
+        }
+
         BlockState state = level.getBlockState(doorPos);
         if (state.getBlock() instanceof DoorBlock) {
             boolean open = state.getValue(DoorBlock.OPEN);
-            level.setBlock(doorPos, state.setValue(DoorBlock.OPEN, !open), 3);
+            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? doorPos : doorPos.below();
+            BlockPos upperPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? doorPos.above() : doorPos;
+
+            BlockState lowerState = level.getBlockState(lowerPos);
+            BlockState upperState = level.getBlockState(upperPos);
+
+            if (lowerState.getBlock() instanceof DoorBlock) {
+                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, !open), 3);
+            }
+            if (upperState.getBlock() instanceof DoorBlock) {
+                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, !open), 3);
+            }
+            level.playSound(null, doorPos, open ? SoundEvents.IRON_DOOR_CLOSE : SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            return true;
+        } else if (state.getBlock() instanceof TrapDoorBlock) {
+            boolean open = state.getValue(TrapDoorBlock.OPEN);
+            level.setBlock(doorPos, state.setValue(TrapDoorBlock.OPEN, !open), 3);
+            level.playSound(null, doorPos, open ? SoundEvents.IRON_TRAPDOOR_CLOSE : SoundEvents.IRON_TRAPDOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            return true;
+        } else if (state.getBlock() instanceof FenceGateBlock) {
+            boolean open = state.getValue(FenceGateBlock.OPEN);
+            level.setBlock(doorPos, state.setValue(FenceGateBlock.OPEN, !open), 3);
+            level.playSound(null, doorPos, open ? SoundEvents.FENCE_GATE_CLOSE : SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            return true;
+        } else if (state.getBlock() instanceof ButtonBlock button) {
+            button.press(state, level, doorPos);
+            level.playSound(null, doorPos, SoundEvents.STONE_BUTTON_CLICK_ON, SoundSource.BLOCKS, 1.0f, 1.0f);
+            return true;
+        } else if (state.getBlock() instanceof LeverBlock) {
+            boolean powered = state.getValue(LeverBlock.POWERED);
+            level.setBlock(doorPos, state.setValue(LeverBlock.POWERED, !powered), 3);
+            level.playSound(null, doorPos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, powered ? 0.5f : 0.6f);
             return true;
         }
         return false;
@@ -347,12 +391,33 @@ public class CameraBlockEntity extends BlockEntity {
 
     public boolean lockDoor(BlockPos doorPos, boolean lock) {
         for (LinkedDevice d : linkedDevices) {
-            if (d.pos.equals(doorPos) && (d.type == DeviceType.DOOR || d.type == DeviceType.ELEVATOR)) {
+            if (d.pos.equals(doorPos) || d.pos.equals(doorPos.below()) || d.pos.equals(doorPos.above())) {
                 d.isLocked = lock;
                 if (lock && level != null) {
-                    BlockState state = level.getBlockState(doorPos);
-                    if (state.getBlock() instanceof DoorBlock) {
-                        level.setBlock(doorPos, state.setValue(DoorBlock.OPEN, false), 3);
+                    BlockState state = level.getBlockState(d.pos);
+                    if (state.getBlock() instanceof DoorBlock && state.getValue(DoorBlock.OPEN)) {
+                        toggleDoor(d.pos);
+                    } else if (state.getBlock() instanceof TrapDoorBlock && state.getValue(TrapDoorBlock.OPEN)) {
+                        toggleDoor(d.pos);
+                    }
+                }
+                setChanged();
+                return true;
+            }
+        }
+
+        // Auto-register on click if not in linked list
+        if (level != null) {
+            BlockState state = level.getBlockState(doorPos);
+            if (state.getBlock() instanceof DoorBlock || state.getBlock() instanceof TrapDoorBlock || state.getBlock() instanceof FenceGateBlock) {
+                LinkedDevice newDev = new LinkedDevice(doorPos, DeviceType.DOOR);
+                newDev.isLocked = lock;
+                linkedDevices.add(newDev);
+                if (lock) {
+                    if (state.getBlock() instanceof DoorBlock && state.getValue(DoorBlock.OPEN)) {
+                        toggleDoor(doorPos);
+                    } else if (state.getBlock() instanceof TrapDoorBlock && state.getValue(TrapDoorBlock.OPEN)) {
+                        toggleDoor(doorPos);
                     }
                 }
                 setChanged();

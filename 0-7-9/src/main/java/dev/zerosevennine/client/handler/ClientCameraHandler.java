@@ -1,5 +1,6 @@
 package dev.zerosevennine.client.handler;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.zerosevennine.block.AbstractCameraBlock;
@@ -21,6 +22,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -62,6 +64,102 @@ public class ClientCameraHandler {
     private static float initialYaw = 0.0f;
     private static float initialPitch = 15.0f;
     private static boolean hasInitialAngles = false;
+
+    public static class AimTarget {
+        public enum Type { DEVICE_MARKER, NEIGHBOR_MARKER, WORLD_BLOCK }
+        public final Type type;
+        public final BlockPos pos;
+        public final CameraBlockEntity.LinkedDevice device;
+        public final Direction neighborDir;
+        public final double distance;
+
+        public AimTarget(Type type, BlockPos pos, CameraBlockEntity.LinkedDevice device, Direction neighborDir, double distance) {
+            this.type = type;
+            this.pos = pos;
+            this.device = device;
+            this.neighborDir = neighborDir;
+            this.distance = distance;
+        }
+    }
+
+    public static AimTarget findAimTarget(Minecraft mc) {
+        if (mc.level == null || mc.player == null || activeCameraPos == null) return null;
+
+        Vec3 eyePos = mc.player.getEyePosition(1.0f);
+        Vec3 lookVec = mc.player.getViewVector(1.0f);
+        double maxDist = 60.0;
+
+        CameraBlockEntity cam = FacilityNetworkManager.getCamera(activeCameraPos);
+        if (cam == null && mc.level.getBlockEntity(activeCameraPos) instanceof CameraBlockEntity cbe) {
+            cam = cbe;
+        }
+
+        AimTarget bestMarkerTarget = null;
+        double bestMarkerDistToRay = Double.MAX_VALUE;
+
+        if (cam != null) {
+            // 1. Check 3D Floating Device Markers up to 60m
+            for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
+                Vec3 target = new Vec3(dev.pos.getX() + 0.5, dev.pos.getY() + 1.2, dev.pos.getZ() + 0.5);
+                Vec3 toTarget = target.subtract(eyePos);
+                double dist = toTarget.length();
+                if (dist > maxDist) continue;
+
+                double proj = toTarget.dot(lookVec);
+                if (proj > 0.0) {
+                    Vec3 closest = eyePos.add(lookVec.scale(proj));
+                    double distToRay = closest.distanceTo(target);
+                    double hitRadius = Math.max(1.2, proj * 0.08);
+                    if (distToRay <= hitRadius && distToRay < bestMarkerDistToRay) {
+                        bestMarkerDistToRay = distToRay;
+                        bestMarkerTarget = new AimTarget(AimTarget.Type.DEVICE_MARKER, dev.pos, dev, null, dist);
+                    }
+                }
+            }
+
+            // 2. Check 3D Floating Neighbor Camera Doorway Jump Markers up to 60m
+            for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
+                BlockPos nPos = neighbor.getValue();
+                Vec3 target = new Vec3(nPos.getX() + 0.5, nPos.getY() + 1.2, nPos.getZ() + 0.5);
+                Vec3 toTarget = target.subtract(eyePos);
+                double dist = toTarget.length();
+                if (dist > maxDist) continue;
+
+                double proj = toTarget.dot(lookVec);
+                if (proj > 0.0) {
+                    Vec3 closest = eyePos.add(lookVec.scale(proj));
+                    double distToRay = closest.distanceTo(target);
+                    double hitRadius = Math.max(1.5, proj * 0.09);
+                    if (distToRay <= hitRadius && distToRay < bestMarkerDistToRay) {
+                        bestMarkerDistToRay = distToRay;
+                        bestMarkerTarget = new AimTarget(AimTarget.Type.NEIGHBOR_MARKER, nPos, null, neighbor.getKey(), dist);
+                    }
+                }
+            }
+        }
+
+        if (bestMarkerTarget != null) {
+            return bestMarkerTarget;
+        }
+
+        // 3. 60-meter raycast for world blocks (doors, gates, trapdoors, lamps, buttons, levers)
+        Vec3 traceEnd = eyePos.add(lookVec.scale(maxDist));
+        BlockHitResult hit = mc.level.clip(new ClipContext(
+            eyePos,
+            traceEnd,
+            ClipContext.Block.OUTLINE,
+            ClipContext.Fluid.NONE,
+            mc.player
+        ));
+
+        if (hit.getType() == HitResult.Type.BLOCK) {
+            BlockPos hitPos = hit.getBlockPos();
+            double dist = eyePos.distanceTo(new Vec3(hitPos.getX() + 0.5, hitPos.getY() + 0.5, hitPos.getZ() + 0.5));
+            return new AimTarget(AimTarget.Type.WORLD_BLOCK, hitPos, null, null, dist);
+        }
+
+        return null;
+    }
 
     public static void handleSyncState(boolean active, BlockPos cameraPos, int t, int e, int ne,
                                       float currAp, float mAp, float regen, boolean breachScanner, List<Scp079Session.LogEntry> l) {
@@ -196,10 +294,15 @@ public class ClientCameraHandler {
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
         Font font = mc.font;
 
-        Vec3 lookVec = mc.player.getViewVector(1.0f);
-        Vec3 eyePos = mc.player.getEyePosition(1.0f);
+        AimTarget currentAim = findAimTarget(mc);
 
-        // 1. Real 3D In-World Device Hologram Markers
+        // Disable depth testing so holographic UI markers render 100% on top of all blocks and walls
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+
+        // 1. Real 3D In-World Device Hologram Markers (up to 60m)
         for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
             BlockPos p = dev.pos;
             double targetX = p.getX() + 0.5;
@@ -210,11 +313,9 @@ public class ClientCameraHandler {
             double dy = targetY - camPos.y;
             double dz = targetZ - camPos.z;
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > 60.0) continue;
 
-            Vec3 toTarget = new Vec3(targetX - eyePos.x, targetY - eyePos.y, targetZ - eyePos.z);
-            double toTargetDist = toTarget.length();
-            double dot = lookVec.dot(toTarget.normalize());
-            boolean isHovered = (dot > 0.985 || (toTargetDist < 6.0 && dot > 0.97));
+            boolean isHovered = (currentAim != null && currentAim.pos.equals(dev.pos));
 
             poseStack.pushPose();
             poseStack.translate(dx, dy, dz);
@@ -228,7 +329,7 @@ public class ClientCameraHandler {
             poseStack.popPose();
         }
 
-        // 2. Real 3D In-World Neighbor Camera Doorway Jump Markers
+        // 2. Real 3D In-World Neighbor Camera Doorway Jump Markers (up to 60m)
         for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
             BlockPos nPos = neighbor.getValue();
             double targetX = nPos.getX() + 0.5;
@@ -239,11 +340,9 @@ public class ClientCameraHandler {
             double dy = targetY - camPos.y;
             double dz = targetZ - camPos.z;
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > 60.0) continue;
 
-            Vec3 toTarget = new Vec3(targetX - eyePos.x, targetY - eyePos.y, targetZ - eyePos.z);
-            double toTargetDist = toTarget.length();
-            double dot = lookVec.dot(toTarget.normalize());
-            boolean isHovered = (dot > 0.985 || (toTargetDist < 6.0 && dot > 0.97));
+            boolean isHovered = (currentAim != null && currentAim.pos.equals(nPos));
 
             poseStack.pushPose();
             poseStack.translate(dx, dy, dz);
@@ -258,16 +357,20 @@ public class ClientCameraHandler {
         }
 
         bufferSource.endBatch();
+
+        // Restore depth testing for subsequent render stages
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
     }
 
     private static void render3DDeviceMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
                                              CameraBlockEntity.LinkedDevice dev, double dist, boolean isHovered) {
         Matrix4f mat = poseStack.last().pose();
-        int bracketCol = isHovered ? 0xFFFFFFFF : 0xFF00E5FF;
-        int textCol = 0xFFE0F7FA;
+        int bracketCol = isHovered ? 0xFFFFFFFF : (dev.isLocked ? 0xFFFF3333 : 0xFF00E5FF);
+        int textCol = isHovered ? 0xFFFFFFFF : 0xFFE0F7FA;
 
-        int bw = 20;
-        int bh = 20;
+        int bw = isHovered ? 24 : 20;
+        int bh = isHovered ? 24 : 20;
 
         // Draw 3D holographic brackets
         fillQuad(bufferSource, mat, -bw, -bh, -bw + 8, -bh + 2, bracketCol);
@@ -285,24 +388,26 @@ public class ClientCameraHandler {
         // Center dot
         fillQuad(bufferSource, mat, -2, -2, 2, 2, bracketCol);
 
-        String typeLabel = dev.type.getLabel().toUpperCase() + " // " + ((int) dist) + "m";
+        String statusSuffix = dev.isLocked ? " [LOCKED]" : "";
+        String typeLabel = dev.type.getLabel().toUpperCase() + statusSuffix + " // " + ((int) dist) + "m";
         String actionPrompt = switch (dev.type) {
-            case DOOR -> dev.isLocked ? "[LOCKED // RMB UNLOCK]" : "[LMB] TOGGLE  [RMB] LOCK";
-            case TESLA -> "[LMB] OVERCHARGE (Tesla)";
+            case DOOR -> dev.isLocked ? "[LMB: UNLOCK (-5 AP)]  [RMB: UNLOCK]" : "[LMB] TOGGLE (-5 AP)  [RMB] LOCK (-15 AP)";
+            case TESLA -> "[LMB] OVERCHARGE (-35 AP)";
             case ELEVATOR -> "[LMB] CALL / SEND";
             case SPEAKER -> "[V] INTERCOM BROADCAST";
-            case LIGHT -> "[F] BLACKOUT LIGHTS";
+            case LIGHT -> "[F] BLACKOUT LIGHTS (-40 AP)";
         };
 
         float tw1 = font.width(typeLabel);
         float tw2 = font.width(actionPrompt);
         float maxW = Math.max(tw1, tw2) + 8;
 
-        fillQuad(bufferSource, mat, -maxW / 2, bh + 5, maxW / 2, bh + 27, 0xCC061018);
+        int bgCol = isHovered ? 0xDD0D1B2A : 0xCC061018;
+        fillQuad(bufferSource, mat, -maxW / 2, bh + 5, maxW / 2, bh + 27, bgCol);
         fillQuad(bufferSource, mat, -maxW / 2, bh + 5, maxW / 2, bh + 6, bracketCol);
 
         font.drawInBatch(typeLabel, -tw1 / 2, bh + 7, textCol, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-        font.drawInBatch(actionPrompt, -tw2 / 2, bh + 17, 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+        font.drawInBatch(actionPrompt, -tw2 / 2, bh + 17, isHovered ? 0xFF00E5FF : 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
     }
 
     private static void render3DNeighborMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
@@ -317,7 +422,8 @@ public class ClientCameraHandler {
             default -> "[JUMP]";
         };
 
-        fillQuad(bufferSource, mat, -14, -14, 14, 14, 0xCC061018);
+        int bgCol = isHovered ? 0xDD0D1B2A : 0xCC061018;
+        fillQuad(bufferSource, mat, -14, -14, 14, 14, bgCol);
         fillQuad(bufferSource, mat, -14, -14, 14, -12, col);
         fillQuad(bufferSource, mat, -14, 12, 14, 14, col);
 
@@ -326,8 +432,8 @@ public class ClientCameraHandler {
 
         String label = "[LMB] JUMP CAMERA (2 AP)";
         float lw = font.width(label);
-        fillQuad(bufferSource, mat, -lw / 2 - 4, 18, lw / 2 + 4, 30, 0xCC061018);
-        font.drawInBatch(label, -lw / 2, 20, 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+        fillQuad(bufferSource, mat, -lw / 2 - 4, 18, lw / 2 + 4, 30, bgCol);
+        font.drawInBatch(label, -lw / 2, 20, isHovered ? 0xFF00E5FF : 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
     }
 
     private static void fillQuad(MultiBufferSource bufferSource, Matrix4f mat, float x1, float y1, float x2, float y2, int color) {
@@ -359,109 +465,47 @@ public class ClientCameraHandler {
 
         // LMB (Button 0): Primary Device Interaction / Camera Jump / Toggle Door / Elevator / Tesla
         if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_LEFT && event.getAction() == GLFW.GLFW_PRESS) {
-            if (handlePrimaryInteraction(mc)) {
-                event.setCanceled(true);
-                return;
-            }
+            handlePrimaryInteraction(mc);
+            event.setCanceled(true);
+            return;
         }
 
         // RMB (Button 1): Secondary Action / Door Lockdown (locks single door, spends AP)
         if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && event.getAction() == GLFW.GLFW_PRESS) {
-            if (handleSecondaryInteraction(mc)) {
-                event.setCanceled(true);
-                return;
-            }
+            handleSecondaryInteraction(mc);
+            event.setCanceled(true);
+            return;
         }
     }
 
-    private static boolean handlePrimaryInteraction(Minecraft mc) {
-        if (mc.level == null || mc.player == null || activeCameraPos == null) return false;
+    private static void handlePrimaryInteraction(Minecraft mc) {
+        AimTarget target = findAimTarget(mc);
+        if (target == null) return;
 
-        CameraBlockEntity cam = FacilityNetworkManager.getCamera(activeCameraPos);
-        if (cam == null && mc.level.getBlockEntity(activeCameraPos) instanceof CameraBlockEntity cbe) {
-            cam = cbe;
-        }
-
-        Vec3 lookVec = mc.player.getViewVector(1.0f);
-        Vec3 eyePos = mc.player.getEyePosition(1.0f);
-
-        if (cam != null) {
-            // 1. Check if aiming at linked 3D device marker
-            for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
-                Vec3 target = new Vec3(dev.pos.getX() + 0.5, dev.pos.getY() + 1.2, dev.pos.getZ() + 0.5);
-                Vec3 toTarget = target.subtract(eyePos);
-                double dist = toTarget.length();
-                double dot = lookVec.dot(toTarget.normalize());
-
-                if (dot > 0.985 || (dist < 6.0 && dot > 0.97)) {
-                    if (dev.type == DeviceType.DOOR || dev.type == DeviceType.ELEVATOR) {
-                        ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(dev.pos, C2SInteractDevicePacket.Action.TOGGLE_DOOR));
-                        return true;
-                    } else if (dev.type == DeviceType.TESLA) {
-                        ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(dev.pos, C2SInteractDevicePacket.Action.PING));
-                        return true;
-                    } else if (dev.type == DeviceType.LIGHT) {
-                        ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(dev.pos, C2SInteractDevicePacket.Action.BLACKOUT));
-                        return true;
-                    }
-                }
+        if (target.type == AimTarget.Type.NEIGHBOR_MARKER) {
+            ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(target.pos));
+        } else if (target.type == AimTarget.Type.DEVICE_MARKER && target.device != null) {
+            if (target.device.type == DeviceType.DOOR || target.device.type == DeviceType.ELEVATOR) {
+                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.TOGGLE_DOOR));
+            } else if (target.device.type == DeviceType.TESLA) {
+                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.TRIGGER_TESLA));
+            } else if (target.device.type == DeviceType.LIGHT) {
+                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.BLACKOUT));
+            } else if (target.device.type == DeviceType.SPEAKER) {
+                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.SPEAKER));
             }
-
-            // 2. Check if aiming at neighbor camera doorway
-            for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
-                BlockPos nPos = neighbor.getValue();
-                Vec3 target = new Vec3(nPos.getX() + 0.5, nPos.getY() + 1.2, nPos.getZ() + 0.5);
-                Vec3 toTarget = target.subtract(eyePos);
-                double dist = toTarget.length();
-                double dot = lookVec.dot(toTarget.normalize());
-
-                if (dot > 0.985 || (dist < 6.0 && dot > 0.97)) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(nPos));
-                    return true;
-                }
-            }
+        } else if (target.type == AimTarget.Type.WORLD_BLOCK) {
+            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.TOGGLE_DOOR));
         }
-
-        // 3. Fallback: direct block hit
-        if (mc.hitResult instanceof BlockHitResult blockHit && mc.hitResult.getType() == HitResult.Type.BLOCK) {
-            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(blockHit.getBlockPos(), C2SInteractDevicePacket.Action.TOGGLE_DOOR));
-            return true;
-        }
-
-        return false;
     }
 
-    private static boolean handleSecondaryInteraction(Minecraft mc) {
-        if (mc.level == null || mc.player == null || activeCameraPos == null) return false;
+    private static void handleSecondaryInteraction(Minecraft mc) {
+        AimTarget target = findAimTarget(mc);
+        if (target == null) return;
 
-        CameraBlockEntity cam = FacilityNetworkManager.getCamera(activeCameraPos);
-        if (cam == null && mc.level.getBlockEntity(activeCameraPos) instanceof CameraBlockEntity cbe) {
-            cam = cbe;
+        if (target.type == AimTarget.Type.DEVICE_MARKER || target.type == AimTarget.Type.WORLD_BLOCK) {
+            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
         }
-
-        Vec3 lookVec = mc.player.getViewVector(1.0f);
-        Vec3 eyePos = mc.player.getEyePosition(1.0f);
-
-        if (cam != null) {
-            for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
-                Vec3 target = new Vec3(dev.pos.getX() + 0.5, dev.pos.getY() + 1.2, dev.pos.getZ() + 0.5);
-                Vec3 toTarget = target.subtract(eyePos);
-                double dist = toTarget.length();
-                double dot = lookVec.dot(toTarget.normalize());
-
-                if (dot > 0.985 || (dist < 6.0 && dot > 0.97)) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(dev.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
-                    return true;
-                }
-            }
-        }
-
-        if (mc.hitResult instanceof BlockHitResult blockHit && mc.hitResult.getType() == HitResult.Type.BLOCK) {
-            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(blockHit.getBlockPos(), C2SInteractDevicePacket.Action.LOCK_DOOR));
-            return true;
-        }
-
-        return false;
     }
 
     @SubscribeEvent
@@ -504,17 +548,19 @@ public class ClientCameraHandler {
                 ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(activeCameraPos, C2SInteractDevicePacket.Action.SPEAKER));
             }
 
-            // Space: Door Lock
+            // Space: Door Lock on aimed target
             if (event.getKey() == GLFW.GLFW_KEY_SPACE) {
-                if (mc.hitResult instanceof BlockHitResult blockHit) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(blockHit.getBlockPos(), C2SInteractDevicePacket.Action.LOCK_DOOR));
+                AimTarget target = findAimTarget(mc);
+                if (target != null) {
+                    ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
                 }
             }
 
-            // E: Tactical Ping
+            // E: Tactical Ping on aimed target
             if (event.getKey() == GLFW.GLFW_KEY_E) {
-                if (mc.hitResult instanceof BlockHitResult blockHit) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(blockHit.getBlockPos(), C2SInteractDevicePacket.Action.PING));
+                AimTarget target = findAimTarget(mc);
+                if (target != null) {
+                    ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.PING));
                 }
             }
         }

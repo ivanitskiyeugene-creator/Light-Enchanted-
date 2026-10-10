@@ -52,6 +52,10 @@ public class C2SInteractDevicePacket {
             if (session == null) return;
 
             CameraBlockEntity camBe = FacilityNetworkManager.getCamera(session.getCurrentCameraPos());
+            if (camBe == null && player.level().getBlockEntity(session.getCurrentCameraPos()) instanceof CameraBlockEntity cbe) {
+                camBe = cbe;
+                FacilityNetworkManager.registerCamera(session.getCurrentCameraPos(), cbe);
+            }
             if (camBe == null) return;
 
             switch (msg.action) {
@@ -60,6 +64,9 @@ public class C2SInteractDevicePacket {
                         boolean ok = camBe.toggleDoor(msg.targetPos);
                         if (ok) {
                             session.addExp(10, player);
+                            session.addLog("DOOR TOGGLED (-5 AP)", 0x2ECC71, player.level().getGameTime());
+                        } else {
+                            session.spendAp(-5.0f); // Refund
                         }
                     }
                 }
@@ -68,7 +75,10 @@ public class C2SInteractDevicePacket {
                         boolean ok = camBe.lockDoor(msg.targetPos, true);
                         if (ok) {
                             session.addExp(25, player);
-                            session.addLog("DOOR LOCKDOWN ENGAGED", 0xE74C3C, player.level().getGameTime());
+                            session.addLog("DOOR LOCKDOWN ENGAGED (-15 AP)", 0xE74C3C, player.level().getGameTime());
+                            player.level().playSound(null, msg.targetPos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 0.6f);
+                        } else {
+                            session.spendAp(-15.0f); // Refund
                         }
                     }
                 }
@@ -76,7 +86,7 @@ public class C2SInteractDevicePacket {
                     if (session.spendAp(35.0f)) {
                         camBe.triggerTesla(msg.targetPos);
                         session.addExp(50, player);
-                        session.addLog("TESLA GATE OVERCHARGED", 0x3498DB, player.level().getGameTime());
+                        session.addLog("TESLA OVERCHARGED (-35 AP)", 0x3498DB, player.level().getGameTime());
                         player.level().playSound(null, msg.targetPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 1.0f, 1.8f);
                     }
                 }
@@ -84,7 +94,7 @@ public class C2SInteractDevicePacket {
                     if (session.getTier() >= 2 && session.spendAp(40.0f)) {
                         camBe.triggerBlackout(200);
                         session.addExp(35, player);
-                        session.addLog("FACILITY BLACKOUT INITIATED", 0xF39C12, player.level().getGameTime());
+                        session.addLog("FACILITY BLACKOUT (-40 AP)", 0xF39C12, player.level().getGameTime());
                         player.level().playSound(null, camBe.getBlockPos(), SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.0f, 0.8f);
                     }
                 }
@@ -92,7 +102,7 @@ public class C2SInteractDevicePacket {
                     if (session.getTier() >= 3 && session.spendAp(80.0f)) {
                         camBe.triggerLockdown(240);
                         session.addExp(100, player);
-                        session.addLog("ROOM FULL LOCKDOWN ENGAGED", 0xE74C3C, player.level().getGameTime());
+                        session.addLog("ROOM FULL LOCKDOWN (-80 AP)", 0xE74C3C, player.level().getGameTime());
                         player.level().playSound(null, camBe.getBlockPos(), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.2f, 0.5f);
                     }
                 }
@@ -102,6 +112,7 @@ public class C2SInteractDevicePacket {
                 }
                 case SPEAKER -> {
                     player.level().playSound(null, camBe.getBlockPos(), SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 2.0f);
+                    session.addLog("INTERCOM BROADCAST ACTIVE", 0x9B59B6, player.level().getGameTime());
                 }
                 case BREACH_SCANNER -> {
                     session.toggleBreachScanner(player);
