@@ -41,11 +41,16 @@ public class UniversalDoorHandler {
             if (path.contains("door") || path.contains("gate") || path.contains("blast") ||
                 path.contains("airlock") || path.contains("checkpoint") || path.contains("cell") ||
                 path.contains("shutter") || path.contains("hatch") || path.contains("panel") ||
-                path.contains("reader") || path.contains("button") || path.contains("keycard")) {
+                path.contains("reader") || path.contains("button") || path.contains("keycard") ||
+                path.contains("keypad") || path.contains("scanner") || path.contains("sliding") ||
+                path.contains("bulkhead") || path.contains("containment") || path.contains("decontamination") ||
+                path.contains("iris") || path.contains("vault")) {
                 return true;
             }
-            if (ns.contains("scp") || ns.contains("facility")) {
-                if (path.contains("elevator") || path.contains("transit")) {
+            if (ns.contains("scp") || ns.contains("facility") || ns.contains("foundation") ||
+                ns.contains("scpthefacility") || ns.contains("thefacility")) {
+                if (path.contains("elevator") || path.contains("transit") || path.contains("intercom") ||
+                    path.contains("speaker") || path.contains("lock") || path.contains("terminal")) {
                     return true;
                 }
             }
@@ -53,6 +58,46 @@ public class UniversalDoorHandler {
         return false;
     }
 
+    public static boolean isTeslaGateBlock(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        var block = state.getBlock();
+        var key = ForgeRegistries.BLOCKS.getKey(block);
+        if (key != null) {
+            String path = key.getPath().toLowerCase();
+            String ns = key.getNamespace().toLowerCase();
+            if (path.contains("tesla") || path.contains("shock_gate") || path.contains("electric_gate") ||
+                path.contains("arc_gate")) {
+                return true;
+            }
+            if ((ns.contains("scp") || ns.contains("facility")) && path.contains("tesla")) {
+                return true;
+            }
+        }
+        String className = block.getClass().getSimpleName().toLowerCase();
+        return className.contains("tesla");
+    }
+
+    public static boolean triggerTeslaGate(Level level, BlockPos pos, Player player) {
+        if (level == null || pos == null) return false;
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos p = pos.offset(dx, dy, dz);
+                    BlockEntity be = level.getBlockEntity(p);
+                    if (be != null) {
+                        if (invokeMethod(be, "discharge")) return true;
+                        if (invokeMethod(be, "shock")) return true;
+                        if (invokeMethod(be, "overcharge")) return true;
+                        if (invokeMethod(be, "trigger")) return true;
+                        if (invokeMethod(be, "activate")) return true;
+                        if (invokeMethod(be, "setPowered", boolean.class, true)) return true;
+                    }
+                }
+            }
+        }
+        notifyNeighbors(level, pos);
+        return true;
+    }
     public static boolean openDoor(Level level, BlockPos pos, Player player) {
         if (level == null || pos == null) return false;
         BlockState state = level.getBlockState(pos);

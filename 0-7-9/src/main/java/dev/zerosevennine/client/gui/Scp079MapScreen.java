@@ -265,14 +265,22 @@ public class Scp079MapScreen extends Screen {
             boolean isTransition = (room.roomType == FacilityMapNodeBlockEntity.RoomType.ELEVATOR ||
                                     room.roomType == FacilityMapNodeBlockEntity.RoomType.CHECKPOINT);
 
-            renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, room.hasGenerator);
+            renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, room.hasGenerator, room.isGeneratorBooting);
         }
     }
 
     private void renderGeometricCell(GuiGraphics graphics, Font font, int x, int y, int w, int h,
-                                     boolean isCurrent, boolean isTransition, boolean isFocused, boolean hasGenerator) {
+                                     boolean isCurrent, boolean isTransition, boolean isFocused,
+                                     boolean hasGenerator, boolean isGeneratorBooting) {
         int bgCol = isCurrent ? 0x8800E5FF : (isFocused ? 0xBB0D2636 : 0xDD061018);
         int frameCol = isFocused ? 0xFFFFFFFF : (isCurrent ? 0xFFE0F7FA : 0xAA00E5FF);
+
+        if (isGeneratorBooting) {
+            long time = System.currentTimeMillis() / 250;
+            int alertCol = (time % 2 == 0) ? 0xFFFF3300 : 0xFFFFAA00;
+            bgCol = 0x88FF3300;
+            frameCol = alertCol;
+        }
 
         graphics.fill(x, y, x + w, y + h, bgCol);
 
@@ -300,8 +308,11 @@ public class Scp079MapScreen extends Screen {
             graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, frameCol);
         }
 
-        if (hasGenerator) {
+        if (isGeneratorBooting) {
+            graphics.drawString(font, "⚠️", x + w - 14, y + 2, 0xFFFF3300, false);
+        } else if (hasGenerator) {
             graphics.drawString(font, "⚡", x + w - 10, y + 2, 0xFFF39C12, false);
+        }
         }
 
         if (isFocused) {

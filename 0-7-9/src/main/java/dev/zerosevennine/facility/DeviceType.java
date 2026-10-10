@@ -5,7 +5,8 @@ public enum DeviceType {
     TESLA("Tesla Gate", 35, 50),
     LIGHT("Room Lighting", 40, 35),
     SPEAKER("Intercom Speaker", 0, 0),
-    ELEVATOR("Elevator", 10, 15);
+    ELEVATOR("Elevator", 10, 15),
+    GENERATOR("Emergency Generator", 0, 0);
 
     private final String label;
     private final int apCost;

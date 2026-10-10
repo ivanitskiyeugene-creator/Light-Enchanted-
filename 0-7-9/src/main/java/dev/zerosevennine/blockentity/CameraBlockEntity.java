@@ -153,20 +153,70 @@ public class CameraBlockEntity extends BlockEntity {
                 }
             }
         }
+
+        // Live generator monitoring
+        if (!level.isClientSide && level.getGameTime() % 20 == 0) {
+            be.monitorGenerators(level);
+        }
+    }
+
+    private boolean lastKnownGenBooting = false;
+    private boolean lastKnownGenEngaged = false;
+
+    private void monitorGenerators(Level level) {
+        for (LinkedDevice d : linkedDevices) {
+            if (d.type == DeviceType.GENERATOR) {
+                dev.zerosevennine.facility.UniversalGeneratorHandler.GeneratorState genState =
+                        dev.zerosevennine.facility.UniversalGeneratorHandler.getGeneratorState(level, d.pos);
+                if (genState.exists) {
+                    if (genState.isEngaging && !lastKnownGenBooting) {
+                        lastKnownGenBooting = true;
+                        String msg = "⚠️ [GENERATOR ALERT] ENGAGING IN " + cameraName + (genState.remainingSeconds > 0 ? " (" + genState.remainingSeconds + "s)" : "");
+                        dev.zerosevennine.system.Scp079PlayerManager.broadcastSystemAlert(msg, 0xF39C12);
+                        FacilityNetworkManager.RoomNode r = FacilityNetworkManager.getRooms().get(worldPosition);
+                        if (r != null) {
+                            r.hasGenerator = true;
+                            r.isGeneratorBooting = true;
+                        }
+                    } else if (genState.isEngaged && !lastKnownGenEngaged) {
+                        lastKnownGenEngaged = true;
+                        lastKnownGenBooting = false;
+                        String msg = "⚠️ [GENERATOR ONLINE] FACILITY POWER LEVEL INCREASED IN " + cameraName;
+                        dev.zerosevennine.system.Scp079PlayerManager.broadcastSystemAlert(msg, 0xE74C3C);
+                        FacilityNetworkManager.RoomNode r = FacilityNetworkManager.getRooms().get(worldPosition);
+                        if (r != null) {
+                            r.hasGenerator = true;
+                            r.isGeneratorBooting = false;
+                        }
+                    } else if (!genState.isEngaging && !genState.isEngaged) {
+                        lastKnownGenBooting = false;
+                    }
+                }
+            }
+        }
     }
 
     public void autoDiscoverSurroundings() {
         if (level == null || level.isClientSide) return;
         autoDiscovered = true;
 
-        // Auto-discover nearby doors (including SCP:FR and modded doors), buttons, and lights in 14-block radius
+        // Auto-discover nearby doors, lights, tesla gates, and generators in 16-block radius
         BlockPos cp = worldPosition;
-        for (int dx = -14; dx <= 14; dx++) {
+        for (int dx = -16; dx <= 16; dx++) {
             for (int dy = -8; dy <= 8; dy++) {
-                for (int dz = -14; dz <= 14; dz++) {
+                for (int dz = -16; dz <= 16; dz++) {
                     BlockPos p = cp.offset(dx, dy, dz);
                     BlockState s = level.getBlockState(p);
-                    if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(s)) {
+                    if (dev.zerosevennine.facility.UniversalGeneratorHandler.isGeneratorBlock(s)) {
+                        dev.zerosevennine.facility.UniversalGeneratorHandler.registerGenerator(p);
+                        if (!hasDevice(p)) {
+                            addOrUpdateDevice(p, DeviceType.GENERATOR);
+                        }
+                    } else if (dev.zerosevennine.facility.UniversalDoorHandler.isTeslaGateBlock(s)) {
+                        if (!hasDevice(p)) {
+                            addOrUpdateDevice(p, DeviceType.TESLA);
+                        }
+                    } else if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(s)) {
                         if (!hasDevice(p)) {
                             addOrUpdateDevice(p, DeviceType.DOOR);
                         }
@@ -441,7 +491,15 @@ public class CameraBlockEntity extends BlockEntity {
 
     public void triggerTesla(BlockPos teslaPos) {
         if (level == null) return;
+<<<<<<< HEAD
         level.setBlock(teslaPos, level.getBlockState(teslaPos), 3);
+=======
+        net.minecraft.server.level.ServerPlayer player = null;
+        if (occupantUuid != null && level.getServer() != null) {
+            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
+        }
+        dev.zerosevennine.facility.UniversalDoorHandler.triggerTeslaGate(level, teslaPos, player);
+>>>>>>> 3afd358 (feat(0-7-9): add SCP The Facility mod support and SCP:FR emergency generator monitoring)
     }
 
     public void triggerBlackout(int durationTicks) {
