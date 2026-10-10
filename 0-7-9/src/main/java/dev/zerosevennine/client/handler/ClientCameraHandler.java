@@ -142,10 +142,11 @@ public class ClientCameraHandler {
             return bestMarkerTarget;
         }
 
-        // 3. 60-meter raycast for world blocks (doors, gates, trapdoors, lamps, buttons, levers)
+        // 3. 60-meter raycast for world blocks (offset rayStart past camera bounding box)
+        Vec3 rayStart = eyePos.add(lookVec.scale(0.7));
         Vec3 traceEnd = eyePos.add(lookVec.scale(maxDist));
         BlockHitResult hit = mc.level.clip(new ClipContext(
-            eyePos,
+            rayStart,
             traceEnd,
             ClipContext.Block.OUTLINE,
             ClipContext.Fluid.NONE,
@@ -154,8 +155,10 @@ public class ClientCameraHandler {
 
         if (hit.getType() == HitResult.Type.BLOCK) {
             BlockPos hitPos = hit.getBlockPos();
-            double dist = eyePos.distanceTo(new Vec3(hitPos.getX() + 0.5, hitPos.getY() + 0.5, hitPos.getZ() + 0.5));
-            return new AimTarget(AimTarget.Type.WORLD_BLOCK, hitPos, null, null, dist);
+            if (!hitPos.equals(activeCameraPos)) {
+                double dist = eyePos.distanceTo(new Vec3(hitPos.getX() + 0.5, hitPos.getY() + 0.5, hitPos.getZ() + 0.5));
+                return new AimTarget(AimTarget.Type.WORLD_BLOCK, hitPos, null, null, dist);
+            }
         }
 
         return null;
