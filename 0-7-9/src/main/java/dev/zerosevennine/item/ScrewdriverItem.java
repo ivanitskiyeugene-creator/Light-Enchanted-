@@ -74,24 +74,45 @@ public class ScrewdriverItem extends Item {
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
 
-        // Link Device to Selected Camera
+        // Link Device to Selected Camera or Cycle Device Type if already linked
         CompoundTag tag = stack.getTag();
         if (tag != null && tag.contains("selectedCamera")) {
             BlockPos camPos = BlockPos.of(tag.getLong("selectedCamera"));
             if (level.getBlockEntity(camPos) instanceof CameraBlockEntity camBe) {
-                DeviceType detectedType = DeviceType.DOOR;
-                if (state.getBlock() instanceof RedstoneLampBlock) {
-                    detectedType = DeviceType.LIGHT;
-                }
+                if (camBe.hasDevice(pos)) {
+                    // Already linked: cycle device type (DOOR -> TESLA -> ELEVATOR -> LIGHT -> SPEAKER -> DOOR)
+                    CameraBlockEntity.LinkedDevice existing = camBe.getDevice(pos);
+                    DeviceType nextType = switch (existing.type) {
+                        case DOOR -> DeviceType.TESLA;
+                        case TESLA -> DeviceType.ELEVATOR;
+                        case ELEVATOR -> DeviceType.LIGHT;
+                        case LIGHT -> DeviceType.SPEAKER;
+                        case SPEAKER -> DeviceType.DOOR;
+                    };
+                    camBe.addOrUpdateDevice(pos, nextType);
+                    if (!level.isClientSide && player != null) {
+                        player.displayClientMessage(
+                                Component.literal("Device type changed to: " + nextType.getLabel())
+                                        .withStyle(ChatFormatting.AQUA), true);
+                    }
+                    level.playSound(player, pos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 1.0f, 1.6f);
+                    return InteractionResult.sidedSuccess(level.isClientSide);
+                } else {
+                    // New device link
+                    DeviceType detectedType = DeviceType.DOOR;
+                    if (state.getBlock() instanceof RedstoneLampBlock) {
+                        detectedType = DeviceType.LIGHT;
+                    }
 
-                camBe.addOrUpdateDevice(pos, detectedType);
-                if (!level.isClientSide && player != null) {
-                    player.displayClientMessage(
-                            Component.literal("Linked " + detectedType.getLabel() + " at [" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + "] to Camera!")
-                                    .withStyle(ChatFormatting.GREEN), true);
+                    camBe.addOrUpdateDevice(pos, detectedType);
+                    if (!level.isClientSide && player != null) {
+                        player.displayClientMessage(
+                                Component.literal("Linked " + detectedType.getLabel() + " at [" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + "] to Camera!")
+                                        .withStyle(ChatFormatting.GREEN), true);
+                    }
+                    level.playSound(player, pos, SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 1.8f);
+                    return InteractionResult.sidedSuccess(level.isClientSide);
                 }
-                level.playSound(player, pos, SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 1.8f);
-                return InteractionResult.sidedSuccess(level.isClientSide);
             }
         }
 

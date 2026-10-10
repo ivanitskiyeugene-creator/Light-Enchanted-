@@ -14,6 +14,7 @@ import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.RedstoneLampBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -79,6 +80,7 @@ public class CameraBlockEntity extends BlockEntity {
 
     private int blackoutTimer = 0;
     private int lockdownTimer = 0;
+    private boolean autoDiscovered = false;
 
     public CameraBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CAMERA.get(), pos, state);
@@ -89,6 +91,9 @@ public class CameraBlockEntity extends BlockEntity {
         super.onLoad();
         if (level != null && !level.isClientSide) {
             FacilityNetworkManager.registerCamera(worldPosition, this);
+            if (!autoDiscovered) {
+                autoDiscoverSurroundings();
+            }
         }
     }
 
@@ -103,6 +108,9 @@ public class CameraBlockEntity extends BlockEntity {
     public static void tick(Level level, BlockPos pos, BlockState state, CameraBlockEntity be) {
         if (!level.isClientSide) {
             FacilityNetworkManager.registerCamera(pos, be);
+            if (!be.autoDiscovered && level.getGameTime() % 40 == 0) {
+                be.autoDiscoverSurroundings();
+            }
         }
 
         // Smooth rotation interpolation
@@ -126,6 +134,71 @@ public class CameraBlockEntity extends BlockEntity {
                 be.unlockAllDoors();
             }
         }
+    }
+
+    public void autoDiscoverSurroundings() {
+        if (level == null || level.isClientSide) return;
+        autoDiscovered = true;
+
+        // Auto-discover nearby doors and lights in 14-block radius
+        BlockPos cp = worldPosition;
+        for (int dx = -14; dx <= 14; dx++) {
+            for (int dy = -8; dy <= 8; dy++) {
+                for (int dz = -14; dz <= 14; dz++) {
+                    BlockPos p = cp.offset(dx, dy, dz);
+                    BlockState s = level.getBlockState(p);
+                    if (s.getBlock() instanceof DoorBlock) {
+                        if (!hasDevice(p)) {
+                            addOrUpdateDevice(p, DeviceType.DOOR);
+                        }
+                    } else if (s.getBlock() instanceof RedstoneLampBlock) {
+                        if (!hasDevice(p)) {
+                            addOrUpdateDevice(p, DeviceType.LIGHT);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Auto-discover neighbor cameras for WASD routing
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getCameras().entrySet()) {
+            BlockPos otherPos = entry.getKey();
+            if (otherPos.equals(cp)) continue;
+
+            double dx = otherPos.getX() - cp.getX();
+            double dz = otherPos.getZ() - cp.getZ();
+            double distSq = dx * dx + dz * dz;
+
+            if (distSq <= 48 * 48) {
+                if (Math.abs(dz) >= Math.abs(dx)) {
+                    if (dz < -2.0 && !wasdNeighbors.containsKey(Direction.NORTH)) {
+                        setWasdNeighbor(Direction.NORTH, otherPos);
+                    } else if (dz > 2.0 && !wasdNeighbors.containsKey(Direction.SOUTH)) {
+                        setWasdNeighbor(Direction.SOUTH, otherPos);
+                    }
+                } else {
+                    if (dx < -2.0 && !wasdNeighbors.containsKey(Direction.WEST)) {
+                        setWasdNeighbor(Direction.WEST, otherPos);
+                    } else if (dx > 2.0 && !wasdNeighbors.containsKey(Direction.EAST)) {
+                        setWasdNeighbor(Direction.EAST, otherPos);
+                    }
+                }
+            }
+        }
+    }
+
+    public boolean hasDevice(BlockPos p) {
+        for (LinkedDevice d : linkedDevices) {
+            if (d.pos.equals(p)) return true;
+        }
+        return false;
+    }
+
+    public LinkedDevice getDevice(BlockPos p) {
+        for (LinkedDevice d : linkedDevices) {
+            if (d.pos.equals(p)) return d;
+        }
+        return null;
     }
 
     public void setOccupied(boolean occupied, UUID uuid) {
@@ -181,16 +254,25 @@ public class CameraBlockEntity extends BlockEntity {
             if (d.pos.equals(devPos)) {
                 d.type = type;
                 setChanged();
+                if (level != null && !level.isClientSide) {
+                    level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                }
                 return;
             }
         }
         linkedDevices.add(new LinkedDevice(devPos, type));
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public void removeDevice(BlockPos devPos) {
         linkedDevices.removeIf(d -> d.pos.equals(devPos));
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public Map<Direction, BlockPos> getWasdNeighbors() {
@@ -204,6 +286,9 @@ public class CameraBlockEntity extends BlockEntity {
             wasdNeighbors.put(dir, targetPos.immutable());
         }
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public List<BlockPos> getBoundaryPoints() {
@@ -262,7 +347,7 @@ public class CameraBlockEntity extends BlockEntity {
 
     public boolean lockDoor(BlockPos doorPos, boolean lock) {
         for (LinkedDevice d : linkedDevices) {
-            if (d.pos.equals(doorPos) && d.type == DeviceType.DOOR) {
+            if (d.pos.equals(doorPos) && (d.type == DeviceType.DOOR || d.type == DeviceType.ELEVATOR)) {
                 d.isLocked = lock;
                 if (lock && level != null) {
                     BlockState state = level.getBlockState(doorPos);
@@ -321,6 +406,7 @@ public class CameraBlockEntity extends BlockEntity {
         }
         tag.putFloat("yaw", currentYaw);
         tag.putFloat("pitch", currentPitch);
+        tag.putBoolean("autoDisc", autoDiscovered);
 
         ListTag devList = new ListTag();
         for (LinkedDevice d : linkedDevices) {
@@ -358,6 +444,7 @@ public class CameraBlockEntity extends BlockEntity {
         currentPitch = tag.getFloat("pitch");
         targetYaw = currentYaw;
         targetPitch = currentPitch;
+        autoDiscovered = tag.getBoolean("autoDisc");
 
         linkedDevices.clear();
         ListTag devList = tag.getList("devices", Tag.TAG_COMPOUND);
