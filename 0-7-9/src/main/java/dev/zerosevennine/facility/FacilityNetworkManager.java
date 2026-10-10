@@ -132,4 +132,33 @@ public class FacilityNetworkManager {
         String msg = "CRITICAL: GENERATOR OVERCHARGE COMPLETED! FACILITY LOCKDOWN ENGAGED";
         Scp079PlayerManager.broadcastSystemAlert(msg, 0xE74C3C);
     }
+
+    public static void applyClientMapSync(List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.NodeData> nodes,
+                                          List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData> cameras) {
+        ROOMS.clear();
+        for (dev.zerosevennine.network.S2CSyncFacilityMapPacket.NodeData n : nodes) {
+            RoomNode node = new RoomNode(n.pos, n.name, n.zone, n.roomType, n.targetZone, n.gridX, n.gridY);
+            node.hasGenerator = n.hasGenerator;
+            node.isGeneratorBooting = n.isGeneratorBooting;
+            ROOMS.put(n.pos, node);
+        }
+
+        // For any camera that doesn't have an explicit map node, auto-create a RoomNode so it appears on the schematic!
+        for (dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData cam : cameras) {
+            boolean hasNode = false;
+            for (RoomNode r : ROOMS.values()) {
+                if (r.pos.distSqr(cam.pos) <= 16 * 16 && r.zone == cam.zone) {
+                    hasNode = true;
+                    break;
+                }
+            }
+            if (!hasNode) {
+                int gx = ((cam.pos.getX() / 16) % 5);
+                int gy = ((cam.pos.getZ() / 16) % 5);
+                RoomNode autoNode = new RoomNode(cam.pos, cam.name, cam.zone,
+                        FacilityMapNodeBlockEntity.RoomType.STANDARD, cam.zone, gx, gy);
+                ROOMS.put(cam.pos, autoNode);
+            }
+        }
+    }
 }

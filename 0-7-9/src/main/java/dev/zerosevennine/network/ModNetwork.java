@@ -13,6 +13,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class ModNetwork {
     private static final String PROTOCOL_VERSION = "1.0";
@@ -73,6 +75,37 @@ public class ModNetwork {
                 .decoder(C2SUpdateCameraOrientationPacket::decode)
                 .consumerMainThread(C2SUpdateCameraOrientationPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(S2CSyncFacilityMapPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CSyncFacilityMapPacket::encode)
+                .decoder(S2CSyncFacilityMapPacket::decode)
+                .consumerMainThread(S2CSyncFacilityMapPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(C2SRequestMapSyncPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SRequestMapSyncPacket::encode)
+                .decoder(C2SRequestMapSyncPacket::decode)
+                .consumerMainThread(C2SRequestMapSyncPacket::handle)
+                .add();
+    }
+
+    public static void sendFacilityMapToClient(ServerPlayer player) {
+        List<S2CSyncFacilityMapPacket.NodeData> nodeDataList = new ArrayList<>();
+        for (dev.zerosevennine.facility.FacilityNetworkManager.RoomNode node : dev.zerosevennine.facility.FacilityNetworkManager.getRooms().values()) {
+            nodeDataList.add(new S2CSyncFacilityMapPacket.NodeData(
+                    node.pos, node.roomName, node.zone, node.roomType, node.targetZone,
+                    node.gridX, node.gridY, node.hasGenerator, node.isGeneratorBooting
+            ));
+        }
+
+        List<S2CSyncFacilityMapPacket.CameraData> camDataList = new ArrayList<>();
+        for (Map.Entry<BlockPos, dev.zerosevennine.blockentity.CameraBlockEntity> entry : dev.zerosevennine.facility.FacilityNetworkManager.getCameras().entrySet()) {
+            camDataList.add(new S2CSyncFacilityMapPacket.CameraData(
+                    entry.getKey(), entry.getValue().getCameraName(), entry.getValue().getZone()
+            ));
+        }
+
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CSyncFacilityMapPacket(nodeDataList, camDataList));
     }
 
     public static void send079StateToClient(ServerPlayer player, Scp079Session session) {

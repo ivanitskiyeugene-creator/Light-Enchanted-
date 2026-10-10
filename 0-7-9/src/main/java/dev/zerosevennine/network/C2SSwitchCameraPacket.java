@@ -62,23 +62,47 @@ public class C2SSwitchCameraPacket {
                 targetPos = FacilityNetworkManager.findNextCamera(session.getCurrentCameraPos(), msg.wasdDir);
             }
 
-            if (targetPos != null && !targetPos.equals(session.getCurrentCameraPos())) {
-                CameraBlockEntity currentCam = FacilityNetworkManager.getCamera(session.getCurrentCameraPos());
-                FacilityZone currentZone = currentCam != null ? currentCam.getZone() : FacilityZone.HCZ;
-
+            if (targetPos != null) {
+                // If targetPos is a MapNode position, resolve to its camera
                 CameraBlockEntity targetCam = FacilityNetworkManager.getCamera(targetPos);
-                FacilityZone targetZone = targetCam != null ? targetCam.getZone() : currentZone;
+                if (targetCam == null && player.level().getBlockEntity(targetPos) instanceof CameraBlockEntity cbe) {
+                    targetCam = cbe;
+                    FacilityNetworkManager.registerCamera(targetPos, cbe);
+                }
 
-                boolean isCrossZone = (targetZone != currentZone);
-                // Map navigation within same zone is 0 AP (FREE). Cross-zone transition (Elevators/Checkpoints) is 10 AP. WASD is 2 AP.
-                float cost = isWasd ? 2.0f : (isCrossZone ? 10.0f : 0.0f);
+                if (targetCam == null) {
+                    double bestDist = Double.MAX_VALUE;
+                    BlockPos bestCamPos = null;
+                    for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getCameras().entrySet()) {
+                        double d = entry.getKey().distSqr(targetPos);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            bestCamPos = entry.getKey();
+                        }
+                    }
+                    if (bestCamPos != null) {
+                        targetPos = bestCamPos;
+                        targetCam = FacilityNetworkManager.getCamera(bestCamPos);
+                    }
+                }
 
-                if (session.spendAp(cost)) {
-                    Scp079PlayerManager.switchCamera(player, targetPos);
-                    float pitch = isCrossZone ? 1.0f : 1.8f;
-                    player.level().playSound(null, targetPos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 0.8f, pitch);
-                    if (isCrossZone) {
-                        session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-10 AP)", 0x00E5FF, player.level().getGameTime());
+                if (targetPos != null && !targetPos.equals(session.getCurrentCameraPos())) {
+                    CameraBlockEntity currentCam = FacilityNetworkManager.getCamera(session.getCurrentCameraPos());
+                    FacilityZone currentZone = currentCam != null ? currentCam.getZone() : FacilityZone.HCZ;
+
+                    FacilityZone targetZone = targetCam != null ? targetCam.getZone() : currentZone;
+
+                    boolean isCrossZone = (targetZone != currentZone);
+                    // Map navigation within same zone is 0 AP (FREE). Cross-zone transition (Elevators/Checkpoints) is 10 AP. WASD is 2 AP.
+                    float cost = isWasd ? 2.0f : (isCrossZone ? 10.0f : 0.0f);
+
+                    if (session.spendAp(cost)) {
+                        Scp079PlayerManager.switchCamera(player, targetPos);
+                        float pitch = isCrossZone ? 1.0f : 1.8f;
+                        player.level().playSound(null, targetPos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 0.8f, pitch);
+                        if (isCrossZone) {
+                            session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-10 AP)", 0x00E5FF, player.level().getGameTime());
+                        }
                     }
                 }
             }

@@ -92,6 +92,7 @@ public class Scp079PlayerManager {
         player.teleportTo(startingCameraPos.getX() + 0.5, (startingCameraPos.getY() + 0.5) - eyeOffset, startingCameraPos.getZ() + 0.5);
 
         ModNetwork.send079StateToClient(player, session);
+        ModNetwork.sendFacilityMapToClient(player);
         return true;
     }
 
@@ -124,6 +125,7 @@ public class Scp079PlayerManager {
             double eyeOffset = player.getEyeHeight();
             player.teleportTo(newCamPos.getX() + 0.5, (newCamPos.getY() + 0.5) - eyeOffset, newCamPos.getZ() + 0.5);
             ModNetwork.send079StateToClient(player, session);
+            ModNetwork.sendFacilityMapToClient(player);
         }
     }
 

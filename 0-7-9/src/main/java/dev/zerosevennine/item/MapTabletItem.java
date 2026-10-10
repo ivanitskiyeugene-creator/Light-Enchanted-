@@ -24,6 +24,9 @@ public class MapTabletItem extends Item {
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+        if (!level.isClientSide && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            dev.zerosevennine.network.ModNetwork.sendFacilityMapToClient(sp);
+        }
         if (level.isClientSide) {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
                 Minecraft.getInstance().setScreen(new Scp079MapScreen());
