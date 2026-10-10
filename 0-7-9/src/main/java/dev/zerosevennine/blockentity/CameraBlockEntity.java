@@ -159,14 +159,14 @@ public class CameraBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide) return;
         autoDiscovered = true;
 
-        // Auto-discover nearby doors and lights in 14-block radius
+        // Auto-discover nearby doors (including SCP:FR and modded doors), buttons, and lights in 14-block radius
         BlockPos cp = worldPosition;
         for (int dx = -14; dx <= 14; dx++) {
             for (int dy = -8; dy <= 8; dy++) {
                 for (int dz = -14; dz <= 14; dz++) {
                     BlockPos p = cp.offset(dx, dy, dz);
                     BlockState s = level.getBlockState(p);
-                    if (s.getBlock() instanceof DoorBlock) {
+                    if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(s)) {
                         if (!hasDevice(p)) {
                             addOrUpdateDevice(p, DeviceType.DOOR);
                         }
@@ -392,85 +392,20 @@ public class CameraBlockEntity extends BlockEntity {
 
     private void startRedstonePulse(BlockPos pos) {
         if (level == null) return;
-        BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof DoorBlock) {
-            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? pos : pos.below();
-            BlockPos upperPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? pos.above() : pos;
-
-            BlockState lowerState = level.getBlockState(lowerPos);
-            BlockState upperState = level.getBlockState(upperPos);
-
-            if (lowerState.getBlock() instanceof DoorBlock) {
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true).setValue(DoorBlock.POWERED, true), 3);
-            }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, true).setValue(DoorBlock.POWERED, true), 3);
-            }
-            level.playSound(null, pos, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(lowerPos, lowerState.getBlock());
-            level.updateNeighborsAt(upperPos, upperState.getBlock());
-        } else if (state.getBlock() instanceof TrapDoorBlock) {
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, true).setValue(TrapDoorBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof FenceGateBlock) {
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, true).setValue(FenceGateBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof ButtonBlock button) {
-            button.press(state, level, pos);
-            level.playSound(null, pos, SoundEvents.STONE_BUTTON_CLICK_ON, SoundSource.BLOCKS, 1.0f, 1.0f);
-        } else if (state.getBlock() instanceof LeverBlock) {
-            level.setBlock(pos, state.setValue(LeverBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, 0.6f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof RedstoneLampBlock) {
-            level.setBlock(pos, state.setValue(RedstoneLampBlock.LIT, true), 3);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else {
-            level.updateNeighborsAt(pos, state.getBlock());
-            level.updateNeighborsAt(pos.below(), state.getBlock());
-            level.updateNeighborsAt(pos.above(), state.getBlock());
+        net.minecraft.server.level.ServerPlayer player = null;
+        if (occupantUuid != null && level.getServer() != null) {
+            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
         }
+        dev.zerosevennine.facility.UniversalDoorHandler.openDoor(level, pos, player);
     }
 
     private void endRedstonePulse(BlockPos pos) {
         if (level == null) return;
-        BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof DoorBlock) {
-            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? pos : pos.below();
-            BlockPos upperPos = state.getValue(DoorBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER ? pos.above() : pos;
-
-            BlockState lowerState = level.getBlockState(lowerPos);
-            BlockState upperState = level.getBlockState(upperPos);
-
-            if (lowerState.getBlock() instanceof DoorBlock) {
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, false).setValue(DoorBlock.POWERED, false), 3);
-            }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, false).setValue(DoorBlock.POWERED, false), 3);
-            }
-            level.playSound(null, pos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(lowerPos, lowerState.getBlock());
-            level.updateNeighborsAt(upperPos, upperState.getBlock());
-        } else if (state.getBlock() instanceof TrapDoorBlock) {
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, false).setValue(TrapDoorBlock.POWERED, false), 3);
-            level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof FenceGateBlock) {
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, false).setValue(FenceGateBlock.POWERED, false), 3);
-            level.playSound(null, pos, SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof LeverBlock) {
-            level.setBlock(pos, state.setValue(LeverBlock.POWERED, false), 3);
-            level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, 0.5f);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else if (state.getBlock() instanceof RedstoneLampBlock) {
-            level.setBlock(pos, state.setValue(RedstoneLampBlock.LIT, false), 3);
-            level.updateNeighborsAt(pos, state.getBlock());
-        } else {
-            level.updateNeighborsAt(pos, state.getBlock());
+        net.minecraft.server.level.ServerPlayer player = null;
+        if (occupantUuid != null && level.getServer() != null) {
+            player = level.getServer().getPlayerList().getPlayer(occupantUuid);
         }
+        dev.zerosevennine.facility.UniversalDoorHandler.closeDoor(level, pos, player);
     }
 
     public boolean lockDoor(BlockPos doorPos, boolean lock) {
@@ -489,7 +424,7 @@ public class CameraBlockEntity extends BlockEntity {
         // Auto-register on click if not in linked list
         if (level != null) {
             BlockState state = level.getBlockState(doorPos);
-            if (state.getBlock() instanceof DoorBlock || state.getBlock() instanceof TrapDoorBlock || state.getBlock() instanceof FenceGateBlock) {
+            if (dev.zerosevennine.facility.UniversalDoorHandler.isDoorLikeBlock(state)) {
                 LinkedDevice newDev = new LinkedDevice(doorPos, DeviceType.DOOR);
                 newDev.isLocked = lock;
                 linkedDevices.add(newDev);
