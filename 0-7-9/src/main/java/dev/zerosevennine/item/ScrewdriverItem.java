@@ -80,14 +80,15 @@ public class ScrewdriverItem extends Item {
             BlockPos camPos = BlockPos.of(tag.getLong("selectedCamera"));
             if (level.getBlockEntity(camPos) instanceof CameraBlockEntity camBe) {
                 if (camBe.hasDevice(pos)) {
-                    // Already linked: cycle device type (DOOR -> TESLA -> ELEVATOR -> LIGHT -> SPEAKER -> DOOR)
+                    // Already linked: cycle device type (DOOR -> TESLA -> ELEVATOR -> LIGHT -> SPEAKER -> GENERATOR -> DOOR)
                     CameraBlockEntity.LinkedDevice existing = camBe.getDevice(pos);
                     DeviceType nextType = switch (existing.type) {
                         case DOOR -> DeviceType.TESLA;
                         case TESLA -> DeviceType.ELEVATOR;
                         case ELEVATOR -> DeviceType.LIGHT;
                         case LIGHT -> DeviceType.SPEAKER;
-                        case SPEAKER -> DeviceType.DOOR;
+                        case SPEAKER -> DeviceType.GENERATOR;
+                        case GENERATOR -> DeviceType.DOOR;
                     };
                     camBe.addOrUpdateDevice(pos, nextType);
                     if (!level.isClientSide && player != null) {
@@ -100,7 +101,11 @@ public class ScrewdriverItem extends Item {
                 } else {
                     // New device link
                     DeviceType detectedType = DeviceType.DOOR;
-                    if (state.getBlock() instanceof RedstoneLampBlock) {
+                    if (dev.zerosevennine.facility.UniversalGeneratorHandler.isGeneratorBlock(state)) {
+                        detectedType = DeviceType.GENERATOR;
+                    } else if (dev.zerosevennine.facility.UniversalDoorHandler.isTeslaGateBlock(state)) {
+                        detectedType = DeviceType.TESLA;
+                    } else if (state.getBlock() instanceof RedstoneLampBlock) {
                         detectedType = DeviceType.LIGHT;
                     }
 

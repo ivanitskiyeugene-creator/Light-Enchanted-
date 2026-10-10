@@ -399,6 +399,7 @@ public class ClientCameraHandler {
             case ELEVATOR -> "[LMB] CALL / SEND";
             case SPEAKER -> "[V] INTERCOM BROADCAST";
             case LIGHT -> "[F] BLACKOUT LIGHTS (-40 AP)";
+            case GENERATOR -> "[STATUS] AUXILIARY GENERATOR";
         };
 
         float tw1 = font.width(typeLabel);
