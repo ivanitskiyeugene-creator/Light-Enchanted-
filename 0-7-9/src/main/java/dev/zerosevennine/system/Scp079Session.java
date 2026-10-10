@@ -149,6 +149,13 @@ public class Scp079Session {
         }
     }
 
+    private int overchargedGeneratorsCount = 0;
+
+    public void boostApRegenForGenerator() {
+        this.overchargedGeneratorsCount++;
+        recalcTierStats();
+    }
+
     private void recalcTierStats() {
         switch (tier) {
             case 1 -> { maxAp = 100.0f; apRegen = 3.2f; }
@@ -157,6 +164,9 @@ public class Scp079Session {
             case 4 -> { maxAp = 175.0f; apRegen = 5.6f; }
             case 5 -> { maxAp = 200.0f; apRegen = 6.8f; }
         }
+        // Each overcharged generator adds +1.2 AP/sec permanently to SCP-079
+        apRegen += (overchargedGeneratorsCount * 1.2f);
+    }
     }
 
     public void tick(ServerPlayer player) {

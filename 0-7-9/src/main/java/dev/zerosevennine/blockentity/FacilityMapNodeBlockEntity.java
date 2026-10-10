@@ -57,7 +57,7 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
             if (be.generatorBootTimer > 1200) {
                 be.isGeneratorBooting = false;
                 be.generatorBootTimer = 0;
-                FacilityNetworkManager.onGeneratorOvercharge(level);
+                FacilityNetworkManager.onGeneratorOvercharged(be.getRoomName(), pos, level);
             }
         }
     }

@@ -108,6 +108,26 @@ public class Scp079PlayerManager {
         }
     }
 
+    public static void terminate079(ServerPlayer player) {
+        Scp079Session session = SESSIONS.remove(player.getUUID());
+        if (session != null) {
+            CameraBlockEntity camBe = FacilityNetworkManager.getCamera(session.getCurrentCameraPos());
+            if (camBe != null) {
+                camBe.setOccupied(false, null);
+            }
+            player.setGameMode(GameType.SURVIVAL);
+            ModNetwork.sendExit079ToClient(player);
+            player.kill();
+        }
+    }
+
+    public static java.util.Collection<Scp079Session> getAllSessions() {
+        return SESSIONS.values();
+    }
+
+    public static Map<UUID, Scp079Session> getSessionsMap() {
+        return SESSIONS;
+    }
     public static void switchCamera(ServerPlayer player, BlockPos newCamPos) {
         Scp079Session session = SESSIONS.get(player.getUUID());
         if (session == null) return;

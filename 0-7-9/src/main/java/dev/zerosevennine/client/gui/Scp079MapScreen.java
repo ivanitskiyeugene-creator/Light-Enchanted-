@@ -293,7 +293,7 @@ public class Scp079MapScreen extends Screen {
         int midX = x + (w / 2);
         int midY = y + (h / 2);
 
-        // Pure Geometric Symbols (NO text names, NO "FREE" labels)
+        // Pure Geometric Symbols (NO text names, NO "FREE" labels, NO generator icons)
         if (isCurrent) {
             // Active Camera Blinking Dot
             graphics.fill(midX - 4, midY - 4, midX + 4, midY + 4, 0xFF00E5FF);
@@ -306,12 +306,6 @@ public class Scp079MapScreen extends Screen {
         } else {
             // Standard Camera Point
             graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, frameCol);
-        }
-
-        if (isGeneratorBooting) {
-            graphics.drawString(font, "⚠️", x + w - 14, y + 2, 0xFFFF3300, false);
-        } else if (hasGenerator) {
-            graphics.drawString(font, "⚡", x + w - 10, y + 2, 0xFFF39C12, false);
         }
 
         if (isFocused) {

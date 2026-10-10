@@ -171,8 +171,7 @@ public class CameraBlockEntity extends BlockEntity {
                 if (genState.exists) {
                     if (genState.isEngaging && !lastKnownGenBooting) {
                         lastKnownGenBooting = true;
-                        String msg = "⚠️ [GENERATOR ALERT] ENGAGING IN " + cameraName + (genState.remainingSeconds > 0 ? " (" + genState.remainingSeconds + "s)" : "");
-                        dev.zerosevennine.system.Scp079PlayerManager.broadcastSystemAlert(msg, 0xF39C12);
+                        FacilityNetworkManager.onGeneratorBooting(cameraName, d.pos);
                         FacilityNetworkManager.RoomNode r = FacilityNetworkManager.getRooms().get(worldPosition);
                         if (r != null) {
                             r.hasGenerator = true;
@@ -181,8 +180,7 @@ public class CameraBlockEntity extends BlockEntity {
                     } else if (genState.isEngaged && !lastKnownGenEngaged) {
                         lastKnownGenEngaged = true;
                         lastKnownGenBooting = false;
-                        String msg = "⚠️ [GENERATOR ONLINE] FACILITY POWER LEVEL INCREASED IN " + cameraName;
-                        dev.zerosevennine.system.Scp079PlayerManager.broadcastSystemAlert(msg, 0xE74C3C);
+                        FacilityNetworkManager.onGeneratorOvercharged(cameraName, d.pos, level);
                         FacilityNetworkManager.RoomNode r = FacilityNetworkManager.getRooms().get(worldPosition);
                         if (r != null) {
                             r.hasGenerator = true;

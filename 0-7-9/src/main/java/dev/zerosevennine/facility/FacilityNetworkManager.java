@@ -123,14 +123,39 @@ public class FacilityNetworkManager {
         return bestPos;
     }
 
+    private static final Set<BlockPos> OVERCHARGED_GENERATORS = new HashSet<>();
+
     public static void broadcastGeneratorWarning(FacilityMapNodeBlockEntity node) {
-        String msg = "GENERATOR BOOTING UP: " + node.getRoomName() + " (" + node.getZone().getCode() + ")";
+        onGeneratorBooting(node.getRoomName(), node.getBlockPos());
+    }
+
+    public static void onGeneratorBooting(String roomName, BlockPos pos) {
+        String msg = "Generator booting up: " + roomName;
         Scp079PlayerManager.broadcastSystemAlert(msg, 0xF39C12);
     }
 
-    public static void onGeneratorOvercharge(Level level) {
-        String msg = "CRITICAL: GENERATOR OVERCHARGE COMPLETED! FACILITY LOCKDOWN ENGAGED";
-        Scp079PlayerManager.broadcastSystemAlert(msg, 0xE74C3C);
+    public static void onGeneratorOvercharged(String roomName, BlockPos pos, Level level) {
+        OVERCHARGED_GENERATORS.add(pos.immutable());
+        String msg = "Generator overcharged: " + roomName;
+        Scp079PlayerManager.broadcastSystemAlert(msg, 0x2ECC71);
+
+        for (Scp079Session session : Scp079PlayerManager.getAllSessions()) {
+            session.boostApRegenForGenerator();
+        }
+
+        // In SCP:SL, there are 2 generators in Heavy Containment.
+        // When 2 generators are overcharged, SCP-079 is recontained (terminated).
+        if (OVERCHARGED_GENERATORS.size() >= 2) {
+            if (level != null && level.getServer() != null) {
+                for (UUID uuid : new ArrayList<>(Scp079PlayerManager.getSessionsMap().keySet())) {
+                    net.minecraft.server.level.ServerPlayer p = level.getServer().getPlayerList().getPlayer(uuid);
+                    if (p != null) {
+                        Scp079PlayerManager.terminate079(p);
+                    }
+                }
+            }
+        }
+    }
     }
 
     public static void applyClientMapSync(List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.NodeData> nodes,
