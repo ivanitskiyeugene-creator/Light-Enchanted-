@@ -313,7 +313,6 @@ public class Scp079MapScreen extends Screen {
         } else if (hasGenerator) {
             graphics.drawString(font, "⚡", x + w - 10, y + 2, 0xFFF39C12, false);
         }
-        }
 
         if (isFocused) {
             // Glowing Focus Diamond Brackets
