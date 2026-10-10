@@ -64,11 +64,7 @@ public class C2SInteractDevicePacket {
                     float cost = Scp079Config.COMMON != null ?
                             Scp079Config.COMMON.doorToggleApCost.get().floatValue() : 5.0f;
                     if (session.spendAp(cost)) {
-<<<<<<< HEAD
-                        boolean ok = camBe.toggleDoor(msg.targetPos);
-=======
                         boolean ok = camBe.toggleDoor(msg.targetPos, player);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                         if (ok) {
                             session.addExp(10, player);
                             session.addLog("Door toggled", 0x2ECC71, player.level().getGameTime());
@@ -81,18 +77,11 @@ public class C2SInteractDevicePacket {
                     float cost = Scp079Config.COMMON != null ?
                             Scp079Config.COMMON.doorLockApCost.get().floatValue() : 15.0f;
                     if (session.spendAp(cost)) {
-<<<<<<< HEAD
-                        boolean ok = camBe.lockDoor(msg.targetPos, true);
-                        if (ok) {
-                            session.addExp(25, player);
-                            session.addLog("Door locked", 0xE74C3C, player.level().getGameTime());
-                            player.level().playSound(null, msg.targetPos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 0.6f);
-=======
                         boolean ok = camBe.lockDoor(msg.targetPos, player, true);
                         if (ok) {
                             session.addExp(25, player);
                             session.addLog("Door locked", 0xE74C3C, player.level().getGameTime());
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
+                            player.level().playSound(null, msg.targetPos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 0.6f);
                         } else {
                             session.spendAp(-cost); // Refund
                         }
@@ -102,11 +91,7 @@ public class C2SInteractDevicePacket {
                     float cost = Scp079Config.COMMON != null ?
                             Scp079Config.COMMON.teslaOverchargeApCost.get().floatValue() : 35.0f;
                     if (session.spendAp(cost)) {
-<<<<<<< HEAD
-                        camBe.triggerTesla(msg.targetPos);
-=======
                         camBe.triggerTesla(msg.targetPos, player);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                         session.addExp(50, player);
                         session.addLog("Tesla overcharged", 0x3498DB, player.level().getGameTime());
                         player.level().playSound(null, msg.targetPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 1.0f, 1.8f);
@@ -126,11 +111,7 @@ public class C2SInteractDevicePacket {
                     float cost = Scp079Config.COMMON != null ?
                             Scp079Config.COMMON.lockdownApCost.get().floatValue() : 80.0f;
                     if (session.getTier() >= 3 && session.spendAp(cost)) {
-<<<<<<< HEAD
-                        camBe.triggerLockdown(240);
-=======
                         camBe.triggerLockdown(240, player);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                         session.addExp(100, player);
                         session.addLog("Room lockdown initiated", 0xE74C3C, player.level().getGameTime());
                         player.level().playSound(null, camBe.getBlockPos(), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.2f, 0.5f);

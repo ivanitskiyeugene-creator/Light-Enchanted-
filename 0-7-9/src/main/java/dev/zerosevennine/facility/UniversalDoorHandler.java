@@ -98,12 +98,8 @@ public class UniversalDoorHandler {
         notifyNeighbors(level, pos);
         return true;
     }
-<<<<<<< HEAD
-    public static boolean openDoor(Level level, BlockPos pos, Player player) {
-=======
 
     public static boolean toggleDoor(Level level, BlockPos pos, Player player) {
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         if (level == null || pos == null) return false;
         BlockState state = level.getBlockState(pos);
 
@@ -114,15 +110,6 @@ public class UniversalDoorHandler {
             BlockState lowerState = level.getBlockState(lowerPos);
             BlockState upperState = level.getBlockState(upperPos);
 
-<<<<<<< HEAD
-            if (lowerState.getBlock() instanceof DoorBlock) {
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true).setValue(DoorBlock.POWERED, true), 3);
-            }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, true).setValue(DoorBlock.POWERED, true), 3);
-            }
-            level.playSound(null, pos, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-=======
             boolean wasOpen = lowerState.hasProperty(DoorBlock.OPEN) && lowerState.getValue(DoorBlock.OPEN);
             boolean newState = !wasOpen;
 
@@ -133,7 +120,6 @@ public class UniversalDoorHandler {
                 level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, newState), 3);
             }
             level.playSound(null, pos, newState ? SoundEvents.IRON_DOOR_OPEN : SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             notifyNeighbors(level, lowerPos);
             notifyNeighbors(level, upperPos);
             return true;
@@ -141,30 +127,20 @@ public class UniversalDoorHandler {
 
         // 2. Vanilla TrapDoor
         if (state.getBlock() instanceof TrapDoorBlock) {
-<<<<<<< HEAD
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, true).setValue(TrapDoorBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-=======
             boolean wasOpen = state.getValue(TrapDoorBlock.OPEN);
             boolean newState = !wasOpen;
             level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, newState), 3);
             level.playSound(null, pos, newState ? SoundEvents.IRON_TRAPDOOR_OPEN : SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             notifyNeighbors(level, pos);
             return true;
         }
 
         // 3. FenceGate
         if (state.getBlock() instanceof FenceGateBlock) {
-<<<<<<< HEAD
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, true).setValue(FenceGateBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-=======
             boolean wasOpen = state.getValue(FenceGateBlock.OPEN);
             boolean newState = !wasOpen;
             level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, newState), 3);
             level.playSound(null, pos, newState ? SoundEvents.FENCE_GATE_OPEN : SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             notifyNeighbors(level, pos);
             return true;
         }
@@ -176,44 +152,21 @@ public class UniversalDoorHandler {
             return true;
         }
         if (state.getBlock() instanceof LeverBlock) {
-<<<<<<< HEAD
-            level.setBlock(pos, state.setValue(LeverBlock.POWERED, true), 3);
-            level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, 0.6f);
-=======
             boolean wasPowered = state.getValue(LeverBlock.POWERED);
             level.setBlock(pos, state.setValue(LeverBlock.POWERED, !wasPowered), 3);
             level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, wasPowered ? 0.5f : 0.6f);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             notifyNeighbors(level, pos);
             return true;
         }
 
-<<<<<<< HEAD
-        // 5. SCP:FR and Modded Custom DoorBlock / Multi-Block Entities
-        boolean handled = triggerModdedDoor(level, pos, player, true);
-=======
         // 5. SCP: The Facility / Custom Mod Doors / Multi-Block Entities
         boolean handled = triggerModdedDoorToggle(level, pos, player);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         if (handled) {
             notifyNeighbors(level, pos);
             return true;
         }
 
-<<<<<<< HEAD
-        // 6. Universal BlockState Property Manipulation
-        BlockState modified = setBooleanProperty(state, "open", true);
-        modified = setBooleanProperty(modified, "powered", true);
-        if (modified != state) {
-            level.setBlock(pos, modified, 3);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // 7. Universal Simulated Right-Click (BlockState.use)
-=======
         // 6. Universal Simulated Right-Click (BlockState.use)
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         if (player != null) {
             BlockHitResult bhr = new BlockHitResult(new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
             InteractionResult res = state.use(level, player, InteractionHand.MAIN_HAND, bhr);
@@ -223,8 +176,6 @@ public class UniversalDoorHandler {
             }
         }
 
-<<<<<<< HEAD
-=======
         // 7. Universal BlockState Property Manipulation
         BlockState toggled = toggleBooleanProperty(state, "open");
         if (toggled != state) {
@@ -278,7 +229,6 @@ public class UniversalDoorHandler {
         if (modified != state) {
             level.setBlock(pos, modified, 3);
         }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         notifyNeighbors(level, pos);
         return true;
     }
@@ -294,17 +244,10 @@ public class UniversalDoorHandler {
             BlockState upperState = level.getBlockState(upperPos);
 
             if (lowerState.getBlock() instanceof DoorBlock) {
-<<<<<<< HEAD
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, false).setValue(DoorBlock.POWERED, false), 3);
-            }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, false).setValue(DoorBlock.POWERED, false), 3);
-=======
                 level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, false), 3);
             }
             if (upperState.getBlock() instanceof DoorBlock) {
                 level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, false), 3);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             }
             level.playSound(null, pos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
             notifyNeighbors(level, lowerPos);
@@ -313,65 +256,28 @@ public class UniversalDoorHandler {
         }
 
         if (state.getBlock() instanceof TrapDoorBlock) {
-<<<<<<< HEAD
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, false).setValue(TrapDoorBlock.POWERED, false), 3);
-=======
             level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, false), 3);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
             notifyNeighbors(level, pos);
             return true;
         }
 
         if (state.getBlock() instanceof FenceGateBlock) {
-<<<<<<< HEAD
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, false).setValue(FenceGateBlock.POWERED, false), 3);
-=======
             level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, false), 3);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             level.playSound(null, pos, SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
             notifyNeighbors(level, pos);
             return true;
         }
 
-<<<<<<< HEAD
-        if (state.getBlock() instanceof LeverBlock) {
-            level.setBlock(pos, state.setValue(LeverBlock.POWERED, false), 3);
-            level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, 0.5f);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // SCP:FR and Modded Custom DoorBlock
-        boolean handled = triggerModdedDoor(level, pos, player, false);
-        if (handled) {
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        BlockState modified = setBooleanProperty(state, "open", false);
-        modified = setBooleanProperty(modified, "powered", false);
-        if (modified != state) {
-            level.setBlock(pos, modified, 3);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-=======
         triggerModdedDoorState(level, pos, player, false);
         BlockState modified = setBooleanProperty(state, "open", false);
         if (modified != state) {
             level.setBlock(pos, modified, 3);
         }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         notifyNeighbors(level, pos);
         return true;
     }
 
-<<<<<<< HEAD
-    private static boolean triggerModdedDoor(Level level, BlockPos pos, Player player, boolean open) {
-        // Search center and surrounding multi-block parts (for 2x2, 3x3 doors)
-=======
     private static boolean triggerModdedDoorToggle(Level level, BlockPos pos, Player player) {
         for (int dy = -1; dy <= 2; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
@@ -394,7 +300,6 @@ public class UniversalDoorHandler {
     }
 
     private static boolean triggerModdedDoorState(Level level, BlockPos pos, Player player, boolean open) {
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         for (int dy = -1; dy <= 2; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
@@ -405,13 +310,6 @@ public class UniversalDoorHandler {
                         if (invokeMethod(be, "setOpen", boolean.class, open)) return true;
                         if (invokeMethod(be, "setOpened", boolean.class, open)) return true;
                         if (invokeMethod(be, "setPowered", boolean.class, open)) return true;
-<<<<<<< HEAD
-                        if (invokeMethod(be, "toggle")) return true;
-                        if (invokeMethod(be, "toggleDoor")) return true;
-                        if (invokeMethod(be, "trigger")) return true;
-                        if (invokeMethod(be, "interact", Player.class, player)) return true;
-=======
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                     }
                 }
             }
@@ -460,8 +358,6 @@ public class UniversalDoorHandler {
         return state;
     }
 
-<<<<<<< HEAD
-=======
     private static BlockState toggleBooleanProperty(BlockState state, String propertyNamePrefix) {
         for (Property<?> prop : state.getProperties()) {
             if (prop instanceof BooleanProperty bp) {
@@ -476,7 +372,6 @@ public class UniversalDoorHandler {
         return state;
     }
 
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
     public static void notifyNeighbors(Level level, BlockPos pos) {
         if (level == null || pos == null) return;
         BlockState state = level.getBlockState(pos);

@@ -9,10 +9,7 @@ import dev.zerosevennine.client.gui.Scp079CameraOverlay;
 import dev.zerosevennine.client.gui.Scp079MapScreen;
 import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
-<<<<<<< HEAD
-=======
 import dev.zerosevennine.facility.UniversalDoorHandler;
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
 import dev.zerosevennine.network.C2SInteractDevicePacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.C2SUpdateCameraOrientationPacket;
@@ -160,15 +157,11 @@ public class ClientCameraHandler {
         if (hit.getType() == HitResult.Type.BLOCK) {
             BlockPos hitPos = hit.getBlockPos();
             if (!hitPos.equals(activeCameraPos)) {
-<<<<<<< HEAD
-=======
-                // If hit block is a door/device or linked device, resolve accordingly
                 if (cam != null && cam.hasDevice(hitPos)) {
                     CameraBlockEntity.LinkedDevice dev = cam.getDevice(hitPos);
                     double dist = eyePos.distanceTo(new Vec3(hitPos.getX() + 0.5, hitPos.getY() + 0.5, hitPos.getZ() + 0.5));
                     return new AimTarget(AimTarget.Type.DEVICE_MARKER, hitPos, dev, null, dist);
                 }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                 double dist = eyePos.distanceTo(new Vec3(hitPos.getX() + 0.5, hitPos.getY() + 0.5, hitPos.getZ() + 0.5));
                 return new AimTarget(AimTarget.Type.WORLD_BLOCK, hitPos, null, null, dist);
             }
@@ -312,20 +305,12 @@ public class ClientCameraHandler {
 
         AimTarget currentAim = findAimTarget(mc);
 
-<<<<<<< HEAD
-        // Disable depth testing so holographic UI markers render 100% on top of all blocks and walls
-=======
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         RenderSystem.disableDepthTest();
         RenderSystem.depthMask(false);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-<<<<<<< HEAD
-        // 1. Real 3D In-World Device Hologram Markers (up to 60m)
-=======
         // 1. 3D In-World Device Hologram Markers
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         for (CameraBlockEntity.LinkedDevice dev : cam.getLinkedDevices()) {
             BlockPos p = dev.pos;
             double targetX = p.getX() + 0.5;
@@ -352,11 +337,7 @@ public class ClientCameraHandler {
             poseStack.popPose();
         }
 
-<<<<<<< HEAD
-        // 2. Real 3D In-World Neighbor Camera Doorway Jump Markers (up to 60m)
-=======
         // 2. 3D In-World Neighbor Camera Doorway Jump Markers
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
             BlockPos nPos = neighbor.getValue();
             double targetX = nPos.getX() + 0.5;
@@ -385,10 +366,6 @@ public class ClientCameraHandler {
 
         bufferSource.endBatch();
 
-<<<<<<< HEAD
-        // Restore depth testing for subsequent render stages
-=======
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         RenderSystem.depthMask(true);
         RenderSystem.enableDepthTest();
     }
@@ -396,41 +373,12 @@ public class ClientCameraHandler {
     private static void render3DDeviceMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
                                              CameraBlockEntity.LinkedDevice dev, double dist, boolean isHovered) {
         Matrix4f mat = poseStack.last().pose();
-<<<<<<< HEAD
-        int bracketCol = isHovered ? 0xFFFFFFFF : (dev.isLocked ? 0xFFFF3333 : 0xFF00E5FF);
-        int textCol = isHovered ? 0xFFFFFFFF : 0xFFE0F7FA;
-
-        int bw = isHovered ? 24 : 20;
-        int bh = isHovered ? 24 : 20;
-
-        // Draw 3D holographic brackets
-        fillQuad(bufferSource, mat, -bw, -bh, -bw + 8, -bh + 2, bracketCol);
-        fillQuad(bufferSource, mat, -bw, -bh, -bw + 2, -bh + 8, bracketCol);
-
-        fillQuad(bufferSource, mat, bw - 8, -bh, bw, -bh + 2, bracketCol);
-        fillQuad(bufferSource, mat, bw - 2, -bh, bw, -bh + 8, bracketCol);
-
-        fillQuad(bufferSource, mat, -bw, bh - 2, -bw + 8, bh, bracketCol);
-        fillQuad(bufferSource, mat, -bw, bh - 8, -bw + 2, bh, bracketCol);
-
-        fillQuad(bufferSource, mat, bw - 8, bh - 2, bw, bh, bracketCol);
-        fillQuad(bufferSource, mat, bw - 2, bh - 8, bw, bh, bracketCol);
-
-        // Center dot
-        fillQuad(bufferSource, mat, -2, -2, 2, 2, bracketCol);
-
-        String statusSuffix = dev.isLocked ? " [LOCKED]" : "";
-        String typeLabel = dev.type.getLabel().toUpperCase() + statusSuffix + " // " + ((int) dist) + "m";
-        String actionPrompt = switch (dev.type) {
-            case DOOR -> dev.isLocked ? "[LMB: UNLOCK (-5 AP)]  [RMB: UNLOCK]" : "[LMB] TOGGLE (-5 AP)  [RMB] LOCK (-15 AP)";
-=======
         int bracketCol = isHovered ? 0xFFFFFFFF : (dev.isLocked ? 0xFFFF3333 : 0xAA00E5FF);
         int textCol = isHovered ? 0xFFFFFFFF : 0xFFE0F7FA;
 
         int bw = isHovered ? 18 : 10;
         int bh = isHovered ? 18 : 10;
 
-        // Draw 3D holographic brackets
         fillQuad(bufferSource, mat, -bw, -bh, -bw + 5, -bh + 2, bracketCol);
         fillQuad(bufferSource, mat, -bw, -bh, -bw + 2, -bh + 5, bracketCol);
 
@@ -443,10 +391,8 @@ public class ClientCameraHandler {
         fillQuad(bufferSource, mat, bw - 5, bh - 2, bw, bh, bracketCol);
         fillQuad(bufferSource, mat, bw - 2, bh - 5, bw, bh, bracketCol);
 
-        // Center dot
         fillQuad(bufferSource, mat, -1, -1, 1, 1, bracketCol);
 
-        // If locked and not hovered, show a small "[LOCKED]" badge
         if (dev.isLocked && !isHovered) {
             String lockLabel = "[LOCKED]";
             float lw = font.width(lockLabel);
@@ -454,17 +400,14 @@ public class ClientCameraHandler {
             return;
         }
 
-        // If NOT hovered, do NOT render any extra text boxes or prompts! Keep view completely clean!
         if (!isHovered) {
             return;
         }
 
-        // ONLY when hovered: show full device info and action prompts!
         String statusSuffix = dev.isLocked ? " [LOCKED]" : "";
         String typeLabel = dev.type.getLabel().toUpperCase() + statusSuffix + " // " + ((int) dist) + "m";
         String actionPrompt = switch (dev.type) {
             case DOOR -> dev.isLocked ? "[LMB / RMB: UNLOCK]" : "[LMB] TOGGLE (-5 AP)  [RMB] LOCK (-15 AP)";
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
             case TESLA -> "[LMB] OVERCHARGE (-35 AP)";
             case ELEVATOR -> "[LMB] CALL / SEND";
             case SPEAKER -> "[V] INTERCOM BROADCAST";
@@ -476,31 +419,18 @@ public class ClientCameraHandler {
         float tw2 = font.width(actionPrompt);
         float maxW = Math.max(tw1, tw2) + 8;
 
-<<<<<<< HEAD
-        int bgCol = isHovered ? 0xDD0D1B2A : 0xCC061018;
-        fillQuad(bufferSource, mat, -maxW / 2, bh + 5, maxW / 2, bh + 27, bgCol);
-        fillQuad(bufferSource, mat, -maxW / 2, bh + 5, maxW / 2, bh + 6, bracketCol);
-
-        font.drawInBatch(typeLabel, -tw1 / 2, bh + 7, textCol, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-        font.drawInBatch(actionPrompt, -tw2 / 2, bh + 17, isHovered ? 0xFF00E5FF : 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-=======
         int bgCol = 0xEE0D1B2A;
         fillQuad(bufferSource, mat, -maxW / 2, bh + 4, maxW / 2, bh + 26, bgCol);
         fillQuad(bufferSource, mat, -maxW / 2, bh + 4, maxW / 2, bh + 5, bracketCol);
 
         font.drawInBatch(typeLabel, -tw1 / 2, bh + 6, textCol, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
         font.drawInBatch(actionPrompt, -tw2 / 2, bh + 16, 0xFF00E5FF, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
     }
 
     private static void render3DNeighborMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
                                                Direction dir, double dist, boolean isHovered) {
         Matrix4f mat = poseStack.last().pose();
-<<<<<<< HEAD
-        int col = isHovered ? 0xFFFFFFFF : 0xFF00E5FF;
-=======
         int col = isHovered ? 0xFFFFFFFF : 0xAA00E5FF;
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         String dirKey = switch (dir) {
             case NORTH -> "[W]";
             case SOUTH -> "[S]";
@@ -509,20 +439,6 @@ public class ClientCameraHandler {
             default -> "[JUMP]";
         };
 
-<<<<<<< HEAD
-        int bgCol = isHovered ? 0xDD0D1B2A : 0xCC061018;
-        fillQuad(bufferSource, mat, -14, -14, 14, 14, bgCol);
-        fillQuad(bufferSource, mat, -14, -14, 14, -12, col);
-        fillQuad(bufferSource, mat, -14, 12, 14, 14, col);
-
-        float kw = font.width(dirKey);
-        font.drawInBatch(dirKey, -kw / 2, -4, 0xFFE0F7FA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-
-        String label = "[LMB] JUMP CAMERA (2 AP)";
-        float lw = font.width(label);
-        fillQuad(bufferSource, mat, -lw / 2 - 4, 18, lw / 2 + 4, 30, bgCol);
-        font.drawInBatch(label, -lw / 2, 20, isHovered ? 0xFF00E5FF : 0xAA80DEEA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-=======
         int bgCol = isHovered ? 0xDD0D1B2A : 0x88061018;
         fillQuad(bufferSource, mat, -10, -10, 10, 10, bgCol);
         fillQuad(bufferSource, mat, -10, -10, 10, -9, col);
@@ -531,7 +447,6 @@ public class ClientCameraHandler {
         float kw = font.width(dirKey);
         font.drawInBatch(dirKey, -kw / 2, -3, 0xFFE0F7FA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
 
-        // ONLY when hovered: show jump action prompt
         if (isHovered) {
             String label = "[LMB] JUMP CAMERA (2 AP)";
             float lw = font.width(label);
@@ -539,7 +454,6 @@ public class ClientCameraHandler {
             fillQuad(bufferSource, mat, -lw / 2 - 4, 14, lw / 2 + 4, 15, col);
             font.drawInBatch(label, -lw / 2, 16, 0xFF00E5FF, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
         }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
     }
 
     private static void fillQuad(MultiBufferSource bufferSource, Matrix4f mat, float x1, float y1, float x2, float y2, int color) {
@@ -584,8 +498,6 @@ public class ClientCameraHandler {
         }
     }
 
-<<<<<<< HEAD
-=======
     @SubscribeEvent
     public static void onKeyMappingTriggered(InputEvent.InteractionKeyMappingTriggered event) {
         if (!in079Mode) return;
@@ -603,7 +515,6 @@ public class ClientCameraHandler {
         }
     }
 
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
     private static void handlePrimaryInteraction(Minecraft mc) {
         AimTarget target = findAimTarget(mc);
         if (target == null) return;
@@ -621,13 +532,9 @@ public class ClientCameraHandler {
                 ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.SPEAKER));
             }
         } else if (target.type == AimTarget.Type.WORLD_BLOCK) {
-<<<<<<< HEAD
-            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.TOGGLE_DOOR));
-=======
             if (mc.level != null && UniversalDoorHandler.isDoorLikeBlock(mc.level.getBlockState(target.pos))) {
                 ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.TOGGLE_DOOR));
             }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         }
     }
 
@@ -636,13 +543,9 @@ public class ClientCameraHandler {
         if (target == null) return;
 
         if (target.type == AimTarget.Type.DEVICE_MARKER || target.type == AimTarget.Type.WORLD_BLOCK) {
-<<<<<<< HEAD
-            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
-=======
             if (mc.level != null && (target.type == AimTarget.Type.DEVICE_MARKER || UniversalDoorHandler.isDoorLikeBlock(mc.level.getBlockState(target.pos)))) {
                 ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
             }
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
         }
     }
 
@@ -689,11 +592,7 @@ public class ClientCameraHandler {
             // Space: Door Lock on aimed target
             if (event.getKey() == GLFW.GLFW_KEY_SPACE) {
                 AimTarget target = findAimTarget(mc);
-<<<<<<< HEAD
-                if (target != null) {
-=======
                 if (target != null && mc.level != null && (target.type == AimTarget.Type.DEVICE_MARKER || UniversalDoorHandler.isDoorLikeBlock(mc.level.getBlockState(target.pos)))) {
->>>>>>> 9568ffc (fix(0-7-9): disable auto-discovery, clean HUD markers to hover-only, lock cursor in TAB map, and fix door toggle/lock interactions)
                     ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(target.pos, C2SInteractDevicePacket.Action.LOCK_DOOR));
                 }
             }
