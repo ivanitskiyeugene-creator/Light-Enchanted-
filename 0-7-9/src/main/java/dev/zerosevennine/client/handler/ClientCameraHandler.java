@@ -215,7 +215,7 @@ public class ClientCameraHandler {
 
     @SubscribeEvent
     public static void onRenderOverlayPost(RenderGuiOverlayEvent.Post event) {
-        if (in079Mode && event.getOverlay() == VanillaGuiOverlay.ALL.type()) {
+        if (in079Mode && event.getOverlay() == VanillaGuiOverlay.CHAT_PANEL.type()) {
             Scp079CameraOverlay.render(event.getGuiGraphics(), event.getPartialTick());
         }
     }

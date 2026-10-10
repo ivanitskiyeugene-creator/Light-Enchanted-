@@ -54,7 +54,7 @@ public abstract class AbstractCameraBlock extends BaseEntityBlock {
         Direction clickedFace = context.getClickedFace();
         // Camera faces opposite of clicked wall so it looks into the room
         Direction facing = clickedFace.getAxis() == Direction.Axis.Y ? clickedFace : clickedFace;
-        return this.defaultState().setValue(FACING, facing);
+        return this.defaultBlockState().setValue(FACING, facing);
     }
 
     @Override
