@@ -23,8 +23,27 @@ import java.util.Map;
 public class Scp079MapScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
 
+    private float animProgress = 0.0f;
+    private boolean isClosing = false;
+
+    private double panX = 0.0;
+    private double panY = 0.0;
+    private double lastMouseX = -1.0;
+    private double lastMouseY = -1.0;
+
+    private BlockPos focusedRoomPos = null;
+
     public Scp079MapScreen() {
         super(Component.literal("Facility Surveillance Schematic"));
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        animProgress = 0.0f;
+        isClosing = false;
+        lastMouseX = -1.0;
+        lastMouseY = -1.0;
     }
 
     @Override
@@ -33,79 +52,184 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
+    public void onClose() {
+        if (!isClosing) {
+            isClosing = true;
+            return;
+        }
+        super.onClose();
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_TAB || keyCode == GLFW.GLFW_KEY_ESCAPE) {
             this.onClose();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_SPACE && ClientCameraHandler.tier >= 4) {
-            // Toggle Breach Scanner (Halves AP regen while active)
-            ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(ClientCameraHandler.activeCameraPos, C2SInteractDevicePacket.Action.BREACH_SCANNER));
-            return true;
+        if (keyCode == GLFW.GLFW_KEY_SPACE) {
+            if (focusedRoomPos != null) {
+                // Jump to room currently centered under reticle
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
+                this.onClose();
+                return true;
+            } else if (ClientCameraHandler.tier >= 4) {
+                // Toggle Breach Scanner
+                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(ClientCameraHandler.activeCameraPos, C2SInteractDevicePacket.Action.BREACH_SCANNER));
+                return true;
+            }
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Dark translucent surveillance background
-        graphics.fill(0, 0, width, height, 0xEE070D14);
+    public void mouseMoved(double mouseX, double mouseY) {
+        if (lastMouseX >= 0 && lastMouseY >= 0) {
+            double dx = mouseX - lastMouseX;
+            double dy = mouseY - lastMouseY;
+            panX += dx;
+            panY += dy;
+        }
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+        super.mouseMoved(mouseX, mouseY);
+    }
 
-        // CRT Scanline effect
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        panX += dragX;
+        panY += dragY;
+        return true;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && focusedRoomPos != null) {
+            ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
+            this.onClose();
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Update CRT TV turn-on / turn-off animation
+        if (!isClosing) {
+            animProgress = Math.min(1.0f, animProgress + 0.14f);
+        } else {
+            animProgress = Math.max(0.0f, animProgress - 0.14f);
+            if (animProgress <= 0.0f) {
+                super.onClose();
+                return;
+            }
+        }
+
+        int cx = width / 2;
+        int cy = height / 2;
+
+        // Dark background fill
+        graphics.fill(0, 0, width, height, 0xFF040A10);
+
+        // Old CRT TV Turn-on / Turn-off laser line & vertical expansion
+        if (animProgress < 0.20f) {
+            // Horizontal bright beam line
+            graphics.fill(0, cy - 2, width, cy + 2, 0xEE00E5FF);
+            graphics.fill(cx - 60, cy - 3, cx + 60, cy + 3, 0xFFE0F7FA);
+            graphics.fill(cx - 20, cy - 4, cx + 20, cy + 4, 0xFFFFFFFF);
+            return;
+        }
+
+        float vRatio = (animProgress - 0.20f) / 0.80f;
+        int clipH = (int) (height * vRatio);
+        int topY = cy - (clipH / 2);
+        int bottomY = cy + (clipH / 2);
+
+        // Top & bottom black masks during expansion
+        if (topY > 0) graphics.fill(0, 0, width, topY, 0xFF040A10);
+        if (bottomY < height) graphics.fill(0, bottomY, width, height, 0xFF040A10);
+
+        // Phosphor expansion line flash
+        graphics.fill(0, topY, width, topY + 2, 0xFF00E5FF);
+        graphics.fill(0, bottomY - 2, width, bottomY, 0xFF00E5FF);
+
+        // Scanlines overlay
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.8f, 1.0f, 0.08f);
-        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
+        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.12f);
+        graphics.blit(SCANLINES, 0, topY, 0, 0, width, clipH, width, height);
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
 
         Font font = this.font;
 
-        // Determine current active zone based on player's current camera
         CameraBlockEntity currentCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
         FacilityZone currentZone = currentCam != null ? currentCam.getZone() : FacilityZone.HCZ;
 
-        // Top Header: Full width single zone banner
-        graphics.fill(20, 15, width - 20, 48, 0x99101E2E);
-        graphics.fill(20, 15, width - 20, 17, 0xFF00E5FF);
-        graphics.drawString(font, "SITE-02 TACTICAL SCHEMATIC // " + currentZone.getDisplayName().toUpperCase() + " [" + currentZone.getCode() + "]", 30, 24, 0x00E5FF, true);
+        // Top Header (Monochrome)
+        graphics.fill(20, topY + 12, width - 20, topY + 38, 0xCC061018);
+        graphics.fill(20, topY + 12, width - 20, topY + 14, 0xFF00E5FF);
+        graphics.drawString(font, "SITE-02 TACTICAL SCHEMATIC // " + currentZone.getCode() + " // TIER " + ClientCameraHandler.tier, 30, topY + 20, 0xFFE0F7FA, true);
 
-        // Subheader status
-        String apStatus = String.format("AP: %.0f / %.0f (Regen: +%.1f/s)", ClientCameraHandler.ap, ClientCameraHandler.maxAp, ClientCameraHandler.apRegen);
-        graphics.drawString(font, apStatus, width - 220, 24, 0xBDC3C7, false);
+        String apStatus = String.format("AP: %.0f/%.0f (+%.1f/s)", ClientCameraHandler.ap, ClientCameraHandler.maxAp, ClientCameraHandler.apRegen);
+        graphics.drawString(font, apStatus, width - font.width(apStatus) - 30, topY + 20, 0xAA80DEEA, false);
 
-        // Full Screen Schematic Grid Area for Current Zone
-        renderActiveZoneGrid(graphics, font, currentZone, mouseX, mouseY);
+        // Render Vector Schematic Grid with Center Reticle & Panning
+        renderVectorMap(graphics, font, currentZone, cx, cy, topY, bottomY);
 
-        // Bottom Bar: Breach Scanner Status & Instructions
-        renderBottomStatusBar(graphics, font);
+        // Fixed Reticle Locked at Screen Center
+        renderCenterFixedReticle(graphics, font, cx, cy);
+
+        // Bottom Bar (Monochrome)
+        renderBottomStatusBar(graphics, font, bottomY);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void renderActiveZoneGrid(GuiGraphics graphics, Font font, FacilityZone currentZone, int mouseX, int mouseY) {
-        int gx = 25;
-        int gy = 55;
-        int gw = width - 50;
-        int gh = height - 100;
+    private void renderCenterFixedReticle(GuiGraphics graphics, Font font, int cx, int cy) {
+        int reticleCol = 0xFF00E5FF;
 
-        graphics.fill(gx, gy, gx + gw, gy + gh, 0x66080E16);
+        // Reticle brackets around screen center
+        graphics.fill(cx - 18, cy - 18, cx - 12, cy - 17, reticleCol);
+        graphics.fill(cx - 18, cy - 18, cx - 17, cy - 12, reticleCol);
 
-        // Vector grid background
-        for (int x = gx; x < gx + gw; x += 40) {
-            graphics.fill(x, gy, x + 1, gy + gh, 0x1500E5FF);
+        graphics.fill(cx + 12, cy - 18, cx + 18, cy - 17, reticleCol);
+        graphics.fill(cx + 17, cy - 18, cx + 18, cy - 12, reticleCol);
+
+        graphics.fill(cx - 18, cy + 17, cx - 12, cy + 18, reticleCol);
+        graphics.fill(cx - 18, cy + 12, cx - 17, cy + 18, reticleCol);
+
+        graphics.fill(cx + 12, cy + 17, cx + 18, cy + 18, reticleCol);
+        graphics.fill(cx + 17, cy + 12, cx + 18, cy + 18, reticleCol);
+
+        // Center dot
+        graphics.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xFFE0F7FA);
+
+        // Target prompt below center reticle
+        if (focusedRoomPos != null) {
+            String prompt = "[LMB / SPACE] SWITCH CAMERA";
+            graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 24, 0xFFE0F7FA, true);
         }
-        for (int y = gy; y < gy + gh; y += 40) {
-            graphics.fill(gx, y, gx + gw, y + 1, 0x1500E5FF);
-        }
+    }
 
-        int centerX = gx + gw / 2;
-        int centerY = gy + gh / 2;
+    private void renderVectorMap(GuiGraphics graphics, Font font, FacilityZone currentZone, int cx, int cy, int topY, int bottomY) {
+        // Background coordinate grid lines
+        int gridSpacing = 48;
+        int gridOffsetX = ((int) panX) % gridSpacing;
+        int gridOffsetY = ((int) panY) % gridSpacing;
+
+        for (int x = gridOffsetX; x < width; x += gridSpacing) {
+            graphics.fill(x, topY + 42, x + 1, bottomY - 38, 0x1800E5FF);
+        }
+        for (int y = topY + 42 + gridOffsetY; y < bottomY - 38; y += gridSpacing) {
+            graphics.fill(20, y, width - 20, y + 1, 0x1800E5FF);
+        }
 
         Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRooms();
+        focusedRoomPos = null;
+        double closestDistSq = 32.0 * 32.0;
 
-        // If no custom rooms registered yet, show authentic default zone layout
+        // If no custom rooms placed yet, render standard Site-02 zone layout cells
         if (rooms.isEmpty()) {
-            renderSampleZoneLayout(graphics, font, currentZone, centerX, centerY, mouseX, mouseY);
+            renderDefaultGeometricZone(graphics, font, currentZone, cx, cy);
             return;
         }
 
@@ -113,156 +237,128 @@ public class Scp079MapScreen extends Screen {
             BlockPos roomPos = entry.getKey();
             FacilityNetworkManager.RoomNode room = entry.getValue();
 
-            // Strictly render only rooms belonging to current active zone
             if (room.zone != currentZone) continue;
 
-            int nodeX = centerX + (room.gridX * 75) - 32;
-            int nodeY = centerY + (room.gridY * 55) - 22;
-            int nodeW = 64;
-            int nodeH = 44;
+            int nodeW = 46;
+            int nodeH = 34;
+            int nodeX = cx + (int) panX + (room.gridX * 64) - (nodeW / 2);
+            int nodeY = cy + (int) panY + (room.gridY * 48) - (nodeH / 2);
 
-            boolean isHovered = mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH;
+            int cellCenterX = nodeX + (nodeW / 2);
+            int cellCenterY = nodeY + (nodeH / 2);
+
+            double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
+            boolean isFocused = distSq <= closestDistSq;
+            if (isFocused) {
+                closestDistSq = distSq;
+                focusedRoomPos = roomPos;
+            }
+
             boolean isCurrent = roomPos.equals(ClientCameraHandler.activeCameraPos);
-            boolean isElevatorOrCheckpoint = (room.roomType == FacilityMapNodeBlockEntity.RoomType.ELEVATOR ||
-                                              room.roomType == FacilityMapNodeBlockEntity.RoomType.CHECKPOINT);
+            boolean isTransition = (room.roomType == FacilityMapNodeBlockEntity.RoomType.ELEVATOR ||
+                                    room.roomType == FacilityMapNodeBlockEntity.RoomType.CHECKPOINT);
 
-            // Entire map is clearly visible in blue/cyan from start
-            int bgCol = isCurrent ? 0xFF27AE60 : (isHovered ? 0xFF2980B9 : 0xDD1B2631);
-            int borderCol = isCurrent ? 0xFF2ECC71 : (isHovered ? 0xFF00E5FF : 0xFF34495E);
+            renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, room.hasGenerator);
+        }
+    }
 
-            if (isElevatorOrCheckpoint && !isCurrent) {
-                bgCol = isHovered ? 0xFFD35400 : 0xDD7E5109;
-                borderCol = isHovered ? 0xFFF39C12 : 0xFFE67E22;
-            }
+    private void renderDefaultGeometricZone(GuiGraphics graphics, Font font, FacilityZone zone, int cx, int cy) {
+        int rows = 3;
+        int cols = 4;
+        double closestDistSq = 32.0 * 32.0;
 
-            graphics.fill(nodeX, nodeY, nodeX + nodeW, nodeY + nodeH, bgCol);
-            graphics.fill(nodeX, nodeY, nodeX + nodeW, nodeY + 2, borderCol);
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                int nodeW = 46;
+                int nodeH = 34;
+                int nodeX = cx + (int) panX + ((c - 1) * 64) - (nodeW / 2);
+                int nodeY = cy + (int) panY + ((r - 1) * 48) - (nodeH / 2);
 
-            // Room Name
-            String shortName = room.roomName.length() > 9 ? room.roomName.substring(0, 9) : room.roomName;
-            graphics.drawString(font, shortName, nodeX + 4, nodeY + 6, 0xFFFFFF, false);
+                int cellCenterX = nodeX + (nodeW / 2);
+                int cellCenterY = nodeY + (nodeH / 2);
 
-            if (isCurrent) {
-                graphics.drawString(font, "● ACTIVE", nodeX + 4, nodeY + 22, 0x2ECC71, false);
-            } else if (isElevatorOrCheckpoint) {
-                String dest = room.targetZone != null ? room.targetZone.getCode() : "TRANS";
-                graphics.drawString(font, "➔ " + dest + " [10 AP]", nodeX + 4, nodeY + 22, 0xF39C12, false);
-            } else {
-                graphics.drawString(font, "FREE", nodeX + 4, nodeY + 22, 0x00E5FF, false);
-            }
+                double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
+                boolean isFocused = distSq <= closestDistSq;
+                if (isFocused) {
+                    closestDistSq = distSq;
+                    focusedRoomPos = ClientCameraHandler.activeCameraPos;
+                }
 
-            if (room.hasGenerator) {
-                int genCol = room.isGeneratorBooting ? 0xE74C3C : 0xF39C12;
-                graphics.drawString(font, "⚡ GEN", nodeX + 4, nodeY + 32, genCol, false);
+                boolean isCurrent = (r == 0 && c == 1);
+                boolean isTransition = (r == 0 && c == 0) || (r == 2 && c == 3);
+                boolean hasGen = (r == 1 && c == 2);
+
+                renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, hasGen);
             }
         }
     }
 
-    private void renderSampleZoneLayout(GuiGraphics graphics, Font font, FacilityZone zone, int cx, int cy, int mouseX, int mouseY) {
-        // Authentic layouts tailored to each zone
-        String[][] layout;
-        if (zone == FacilityZone.HCZ) {
-            layout = new String[][]{
-                    {"ELEV A (➔LCZ)", "HEAVY HALL", "AIRLOCK", "SCP-096"},
-                    {"TESLA GATE", "INTERCOM", "ALPHA WARHEAD", "SCP-914"},
-                    {"CHECKPOINT (➔EZ)", "SCP-049", "SCP-106", "ELEV B (➔LCZ)"}
-            };
-        } else if (zone == FacilityZone.LCZ) {
-            layout = new String[][]{
-                    {"ELEV A (➔HCZ)", "LCZ HALLWAY", "GR-18", "PC-15"},
-                    {"SCP-914", "AIRLOCK", "SCP-330", "SCP-173"},
-                    {"ELEV B (➔HCZ)", "LCZ CHECKPOINT", "WC-00", "ARMORY"}
-            };
-        } else if (zone == FacilityZone.EZ) {
-            layout = new String[][]{
-                    {"CHECKPOINT (➔HCZ)", "OFFICES", "INTERCOM", "GATE A (➔SURF)"},
-                    {"SERVER ROOM", "OFFICE HALL", "COLLIDER", "GATE B (➔SURF)"},
-                    {"EVAC SHELTER", "EZ CHECKPOINT", "LOADING BAY", "SECURITY"}
-            };
+    private void renderGeometricCell(GuiGraphics graphics, Font font, int x, int y, int w, int h,
+                                     boolean isCurrent, boolean isTransition, boolean isFocused, boolean hasGenerator) {
+        // Monochrome wireframe room cell
+        int bgCol = isCurrent ? 0x8800E5FF : 0xDD061018;
+        int frameCol = isFocused ? 0xFFFFFFFF : (isCurrent ? 0xFFE0F7FA : 0xAA00E5FF);
+
+        graphics.fill(x, y, x + w, y + h, bgCol);
+
+        // Vector outline
+        graphics.fill(x, y, x + w, y + 1, frameCol);
+        graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
+        graphics.fill(x, y, x + 1, y + h, frameCol);
+        graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
+
+        int midX = x + (w / 2);
+        int midY = y + (h / 2);
+
+        // Pure Geometric Symbols (NO text names, NO "FREE" labels)
+        if (isCurrent) {
+            // Active Camera Indicator Symbol
+            graphics.fill(midX - 4, midY - 4, midX + 4, midY + 4, 0xFFE0F7FA);
+            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF040A10);
+        } else if (isTransition) {
+            // Elevator / Airlock Checkpoint Transition Geometric Symbol
+            graphics.fill(midX - 8, midY - 6, midX - 6, midY + 6, frameCol);
+            graphics.fill(midX + 6, midY - 6, midX + 8, midY + 6, frameCol);
+            graphics.fill(midX - 4, midY - 1, midX + 4, midY + 1, frameCol);
         } else {
-            layout = new String[][]{
-                    {"GATE A EXIT", "SURFACE ROAD", "HELIPAD", "WARHEAD ROOM"},
-                    {"GATE B EXIT", "TUNNEL", "MTF SPAWN", "CHAOS SPAWN"}
-            };
+            // Standard Corridor / Room Geometric Connector
+            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, frameCol);
         }
 
-        int rows = layout.length;
-        int cols = layout[0].length;
+        if (hasGenerator) {
+            // Generator Power Bolt Indicator
+            graphics.drawString(font, "⚡", x + w - 10, y + 2, 0xFFE0F7FA, false);
+        }
 
-        for (int row = 0; row < rows; row++) {
-            for (int col = 0; col < cols; col++) {
-                int nodeX = cx + ((col - (cols / 2)) * 82) - 38;
-                int nodeY = cy + ((row - (rows / 2)) * 60) - 24;
-                int nodeW = 76;
-                int nodeH = 48;
+        if (isFocused) {
+            // Glowing Focus Diamond Brackets
+            graphics.fill(x - 4, y - 4, x, y - 3, 0xFFFFFFFF);
+            graphics.fill(x - 4, y - 4, x - 3, y, 0xFFFFFFFF);
 
-                String name = layout[row][col];
-                boolean isTransition = name.contains("➔");
-                boolean isCurrent = (row == 0 && col == 1);
-                boolean isHovered = mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH;
+            graphics.fill(x + w, y - 4, x + w + 4, y - 3, 0xFFFFFFFF);
+            graphics.fill(x + w + 3, y - 4, x + w + 4, y, 0xFFFFFFFF);
 
-                int bgCol = isCurrent ? 0xFF27AE60 : (isHovered ? 0xFF2980B9 : 0xDD1B2631);
-                int borderCol = isCurrent ? 0xFF2ECC71 : (isHovered ? 0xFF00E5FF : 0xFF34495E);
+            graphics.fill(x - 4, y + h + 3, x, y + h + 4, 0xFFFFFFFF);
+            graphics.fill(x - 4, y + h, x - 3, y + h + 4, 0xFFFFFFFF);
 
-                if (isTransition && !isCurrent) {
-                    bgCol = isHovered ? 0xFFD35400 : 0xDD7E5109;
-                    borderCol = isHovered ? 0xFFF39C12 : 0xFFE67E22;
-                }
-
-                graphics.fill(nodeX, nodeY, nodeX + nodeW, nodeY + nodeH, bgCol);
-                graphics.fill(nodeX, nodeY, nodeX + nodeW, nodeY + 2, borderCol);
-
-                graphics.drawString(font, name.length() > 11 ? name.substring(0, 11) : name, nodeX + 4, nodeY + 6, 0xFFFFFF, false);
-
-                if (isCurrent) {
-                    graphics.drawString(font, "● ACTIVE", nodeX + 4, nodeY + 22, 0x2ECC71, false);
-                } else if (isTransition) {
-                    graphics.drawString(font, "10 AP (JUMP)", nodeX + 4, nodeY + 22, 0xF39C12, false);
-                } else {
-                    graphics.drawString(font, "FREE", nodeX + 4, nodeY + 22, 0x00E5FF, false);
-                }
-
-                if (name.contains("TESLA") || name.contains("WARHEAD")) {
-                    graphics.drawString(font, "⚡ POWER", nodeX + 4, nodeY + 34, 0xF39C12, false);
-                }
-            }
+            graphics.fill(x + w, y + h + 3, x + w + 4, y + h + 4, 0xFFFFFFFF);
+            graphics.fill(x + w + 3, y + h, x + w + 4, y + h + 4, 0xFFFFFFFF);
         }
     }
 
-    private void renderBottomStatusBar(GuiGraphics graphics, Font font) {
-        int by = height - 40;
-        graphics.fill(25, by, width - 25, by + 30, 0x99101E2E);
-        graphics.fill(25, by, width - 25, by + 2, 0xFF00E5FF);
+    private void renderBottomStatusBar(GuiGraphics graphics, Font font, int bottomY) {
+        int by = bottomY - 32;
+        graphics.fill(20, by, width - 20, by + 26, 0xCC061018);
+        graphics.fill(20, by, width - 20, by + 2, 0xFF00E5FF);
 
-        // Breach Scanner Indicator
+        // Breach Scanner Status (Monochrome)
         boolean scannerOn = ClientCameraHandler.breachScannerActive;
-        int scannerCol = scannerOn ? 0xFF2ECC71 : (ClientCameraHandler.tier >= 4 ? 0xFFF39C12 : 0xFF7F8C8D);
-        String scannerTxt = scannerOn ? "BREACH SCANNER: [ACTIVE (-50% AP REGEN)]" :
-                (ClientCameraHandler.tier >= 4 ? "BREACH SCANNER: [STANDBY] - PRESS [SPACE] TO TOGGLE" : "BREACH SCANNER: [LOCKED - REQUIRES TIER 4]");
+        String scannerTxt = scannerOn ? "BREACH SCANNER: [ONLINE (-50% AP REGEN)]" :
+                (ClientCameraHandler.tier >= 4 ? "BREACH SCANNER: [STANDBY] - [SPACE]" : "BREACH SCANNER: [TIER 4 LOCKED]");
 
-        graphics.drawString(font, scannerTxt, 35, by + 10, scannerCol, true);
+        graphics.drawString(font, scannerTxt, 30, by + 8, 0xFFE0F7FA, true);
 
-        String helpTxt = "CLICK ROOM: FREE  |  CLICK ELEVATOR/CHECKPOINT: 10 AP  |  [TAB] RETURN";
-        graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 35, by + 10, 0xBDC3C7, false);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            CameraBlockEntity currentCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
-            FacilityZone currentZone = currentCam != null ? currentCam.getZone() : FacilityZone.HCZ;
-
-            // Check if clicking any room in the network
-            for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : FacilityNetworkManager.getRooms().entrySet()) {
-                FacilityNetworkManager.RoomNode node = entry.getValue();
-
-                if (node.zone == currentZone) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(entry.getKey()));
-                    this.onClose();
-                    return true;
-                }
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
+        String helpTxt = "MOUSE: PAN MAP  |  [LMB / SPACE]: JUMP TO RETICLE ROOM  |  [TAB / ESC]: EXIT";
+        graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 30, by + 8, 0xAA80DEEA, false);
     }
 }

@@ -1,10 +1,7 @@
 package dev.zerosevennine.client.handler;
 
-import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.gui.Scp079CameraOverlay;
 import dev.zerosevennine.client.gui.Scp079MapScreen;
-import dev.zerosevennine.facility.DeviceType;
-import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.network.C2SInteractDevicePacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.C2SUpdateCameraOrientationPacket;
@@ -18,6 +15,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ComputeFovModifierEvent;
 import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -43,7 +41,7 @@ public class ClientCameraHandler {
     public static List<Scp079Session.LogEntry> logs = new ArrayList<>();
 
     public static boolean isZoomed = false;
-    public static float zoomFovFactor = 1.0f;
+    public static float zoomFovFactor = 0.82f;
 
     private static float initialYaw = 0.0f;
     private static float initialPitch = 0.0f;
@@ -65,6 +63,23 @@ public class ClientCameraHandler {
 
         if (active && !wasIn079) {
             hasInitialAngles = false;
+            isZoomed = false;
+            zoomFovFactor = 0.82f;
+        }
+    }
+
+    @SubscribeEvent
+    public static void onMovementInput(MovementInputUpdateEvent event) {
+        if (in079Mode) {
+            // Completely block physical player movement on WASD and jumping
+            event.getInput().forwardImpulse = 0.0f;
+            event.getInput().leftImpulse = 0.0f;
+            event.getInput().up = false;
+            event.getInput().down = false;
+            event.getInput().left = false;
+            event.getInput().right = false;
+            event.getInput().jumping = false;
+            event.getInput().shiftKeyDown = false;
         }
     }
 
@@ -80,9 +95,9 @@ public class ClientCameraHandler {
                 hasInitialAngles = true;
             }
 
-            // Target smooth FOV
-            float targetFov = isZoomed ? 0.35f : 1.0f;
-            zoomFovFactor += (targetFov - zoomFovFactor) * 0.3f;
+            // Target smooth FOV (Narrower security camera FOV 0.82x base, 0.30x zoom)
+            float targetFov = isZoomed ? 0.30f : 0.82f;
+            zoomFovFactor += (targetFov - zoomFovFactor) * 0.25f;
 
             // Send look angles to server to swivel physical camera model
             ModNetwork.CHANNEL.sendToServer(new C2SUpdateCameraOrientationPacket(mc.player.getYRot(), mc.player.getXRot()));

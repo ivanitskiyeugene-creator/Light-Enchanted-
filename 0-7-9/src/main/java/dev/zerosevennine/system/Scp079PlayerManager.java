@@ -1,6 +1,5 @@
 package dev.zerosevennine.system;
 
-import dev.zerosevennine.block.AbstractCameraBlock;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.init.ModBlocks;
@@ -86,6 +85,7 @@ public class Scp079PlayerManager {
 
         camBe.setOccupied(true, player.getUUID());
         player.setGameMode(GameType.SPECTATOR);
+        player.setDeltaMovement(0, 0, 0);
         player.teleportTo(startingCameraPos.getX() + 0.5, startingCameraPos.getY() + 0.5, startingCameraPos.getZ() + 0.5);
 
         ModNetwork.send079StateToClient(player, session);
@@ -117,6 +117,7 @@ public class Scp079PlayerManager {
         if (newCam != null) {
             newCam.setOccupied(true, player.getUUID());
             session.setCurrentCameraPos(newCamPos);
+            player.setDeltaMovement(0, 0, 0);
             player.teleportTo(newCamPos.getX() + 0.5, newCamPos.getY() + 0.5, newCamPos.getZ() + 0.5);
             ModNetwork.send079StateToClient(player, session);
         }
@@ -135,6 +136,10 @@ public class Scp079PlayerManager {
         for (Map.Entry<UUID, Scp079Session> entry : SESSIONS.entrySet()) {
             ServerPlayer player = event.getServer().getPlayerList().getPlayer(entry.getKey());
             if (player != null) {
+                BlockPos cp = entry.getValue().getCurrentCameraPos();
+                player.setDeltaMovement(0, 0, 0);
+                player.fallDistance = 0;
+                player.teleportTo(cp.getX() + 0.5, cp.getY() + 0.5, cp.getZ() + 0.5);
                 entry.getValue().tick(player);
             }
         }
