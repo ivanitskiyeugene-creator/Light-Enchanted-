@@ -167,7 +167,6 @@ public class Scp079Session {
         // Each overcharged generator adds +1.2 AP/sec permanently to SCP-079
         apRegen += (overchargedGeneratorsCount * 1.2f);
     }
-    }
 
     public void tick(ServerPlayer player) {
         // Regenerate AP (20 ticks per second, -50% if breach scanner is active)
