@@ -2,6 +2,7 @@ package dev.zerosevennine.facility;
 
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
+import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.system.Scp079PlayerManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.core.BlockPos;
@@ -144,9 +145,10 @@ public class FacilityNetworkManager {
             session.boostApRegenForGenerator();
         }
 
-        // In SCP:SL, there are 2 generators in Heavy Containment.
-        // When 2 generators are overcharged, SCP-079 is recontained (terminated).
-        if (OVERCHARGED_GENERATORS.size() >= 2) {
+        // Configurable generator recontainment limit (standard default: 3)
+        int reqGens = Scp079Config.COMMON != null ?
+                Scp079Config.COMMON.generatorsRequiredForRecontainment.get() : 3;
+        if (OVERCHARGED_GENERATORS.size() >= reqGens) {
             if (level != null && level.getServer() != null) {
                 for (UUID uuid : new ArrayList<>(Scp079PlayerManager.getSessionsMap().keySet())) {
                     net.minecraft.server.level.ServerPlayer p = level.getServer().getPlayerList().getPlayer(uuid);

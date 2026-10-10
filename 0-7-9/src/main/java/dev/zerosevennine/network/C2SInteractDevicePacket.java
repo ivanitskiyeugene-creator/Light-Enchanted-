@@ -1,6 +1,7 @@
 package dev.zerosevennine.network;
 
 import dev.zerosevennine.blockentity.CameraBlockEntity;
+import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.system.Scp079PlayerManager;
@@ -60,59 +61,69 @@ public class C2SInteractDevicePacket {
 
             switch (msg.action) {
                 case TOGGLE_DOOR -> {
-                    if (session.spendAp(5.0f)) {
+                    float cost = Scp079Config.COMMON != null ?
+                            Scp079Config.COMMON.doorToggleApCost.get().floatValue() : 5.0f;
+                    if (session.spendAp(cost)) {
                         boolean ok = camBe.toggleDoor(msg.targetPos);
                         if (ok) {
                             session.addExp(10, player);
-                            session.addLog("DOOR TOGGLED (-5 AP)", 0x2ECC71, player.level().getGameTime());
+                            session.addLog("Door toggled", 0x2ECC71, player.level().getGameTime());
                         } else {
-                            session.spendAp(-5.0f); // Refund
+                            session.spendAp(-cost); // Refund
                         }
                     }
                 }
                 case LOCK_DOOR -> {
-                    if (session.spendAp(15.0f)) {
+                    float cost = Scp079Config.COMMON != null ?
+                            Scp079Config.COMMON.doorLockApCost.get().floatValue() : 15.0f;
+                    if (session.spendAp(cost)) {
                         boolean ok = camBe.lockDoor(msg.targetPos, true);
                         if (ok) {
                             session.addExp(25, player);
-                            session.addLog("DOOR LOCKDOWN ENGAGED (-15 AP)", 0xE74C3C, player.level().getGameTime());
+                            session.addLog("Door locked", 0xE74C3C, player.level().getGameTime());
                             player.level().playSound(null, msg.targetPos, SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 0.6f);
                         } else {
-                            session.spendAp(-15.0f); // Refund
+                            session.spendAp(-cost); // Refund
                         }
                     }
                 }
                 case TRIGGER_TESLA -> {
-                    if (session.spendAp(35.0f)) {
+                    float cost = Scp079Config.COMMON != null ?
+                            Scp079Config.COMMON.teslaOverchargeApCost.get().floatValue() : 35.0f;
+                    if (session.spendAp(cost)) {
                         camBe.triggerTesla(msg.targetPos);
                         session.addExp(50, player);
-                        session.addLog("TESLA OVERCHARGED (-35 AP)", 0x3498DB, player.level().getGameTime());
+                        session.addLog("Tesla overcharged", 0x3498DB, player.level().getGameTime());
                         player.level().playSound(null, msg.targetPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 1.0f, 1.8f);
                     }
                 }
                 case BLACKOUT -> {
-                    if (session.getTier() >= 2 && session.spendAp(40.0f)) {
+                    float cost = Scp079Config.COMMON != null ?
+                            Scp079Config.COMMON.blackoutApCost.get().floatValue() : 40.0f;
+                    if (session.getTier() >= 2 && session.spendAp(cost)) {
                         camBe.triggerBlackout(200);
                         session.addExp(35, player);
-                        session.addLog("FACILITY BLACKOUT (-40 AP)", 0xF39C12, player.level().getGameTime());
+                        session.addLog("Blackout initiated", 0xF39C12, player.level().getGameTime());
                         player.level().playSound(null, camBe.getBlockPos(), SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.0f, 0.8f);
                     }
                 }
                 case LOCKDOWN -> {
-                    if (session.getTier() >= 3 && session.spendAp(80.0f)) {
+                    float cost = Scp079Config.COMMON != null ?
+                            Scp079Config.COMMON.lockdownApCost.get().floatValue() : 80.0f;
+                    if (session.getTier() >= 3 && session.spendAp(cost)) {
                         camBe.triggerLockdown(240);
                         session.addExp(100, player);
-                        session.addLog("ROOM FULL LOCKDOWN (-80 AP)", 0xE74C3C, player.level().getGameTime());
+                        session.addLog("Room lockdown initiated", 0xE74C3C, player.level().getGameTime());
                         player.level().playSound(null, camBe.getBlockPos(), SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.2f, 0.5f);
                     }
                 }
                 case PING -> {
-                    session.addLog("TACTICAL PING PLACED", 0xE67E22, player.level().getGameTime());
+                    session.addLog("Tactical ping placed", 0xE67E22, player.level().getGameTime());
                     player.level().playSound(null, msg.targetPos, SoundEvents.ARROW_HIT_PLAYER, SoundSource.PLAYERS, 1.0f, 1.5f);
                 }
                 case SPEAKER -> {
                     player.level().playSound(null, camBe.getBlockPos(), SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 1.0f, 2.0f);
-                    session.addLog("INTERCOM BROADCAST ACTIVE", 0x9B59B6, player.level().getGameTime());
+                    session.addLog("Intercom broadcast active", 0x9B59B6, player.level().getGameTime());
                 }
                 case BREACH_SCANNER -> {
                     session.toggleBreachScanner(player);

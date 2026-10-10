@@ -1,6 +1,7 @@
 package dev.zerosevennine;
 
 import dev.zerosevennine.command.Scp079Commands;
+import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.init.ModBlockEntities;
 import dev.zerosevennine.init.ModBlocks;
 import dev.zerosevennine.init.ModCreativeTabs;
@@ -10,7 +11,9 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
@@ -25,6 +28,8 @@ public class ZeroSevenNine {
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_TABS.register(modEventBus);
+
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Scp079Config.COMMON_SPEC);
 
         modEventBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.register(this);
