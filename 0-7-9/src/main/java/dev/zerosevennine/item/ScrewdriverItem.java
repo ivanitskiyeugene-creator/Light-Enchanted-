@@ -5,6 +5,7 @@ import dev.zerosevennine.block.FacilityMapNodeBlock;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.facility.DeviceType;
+import dev.zerosevennine.network.ModNetwork;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -12,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -23,7 +23,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.RedstoneLampBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -43,9 +42,11 @@ public class ScrewdriverItem extends Item {
 
         if (state.getBlock() instanceof AbstractCameraBlock) {
             if (player != null && player.isShiftKeyDown()) {
-                // Shift + RMB: Open Camera Config GUI
+                // Shift + RMB: Open Camera Config GUI with actual saved data
                 if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-                    dev.zerosevennine.network.ModNetwork.sendOpenCameraConfig(serverPlayer, pos);
+                    if (level.getBlockEntity(pos) instanceof CameraBlockEntity camBe) {
+                        ModNetwork.sendOpenCameraConfig(serverPlayer, pos, camBe.getCameraName(), camBe.getZone());
+                    }
                 }
                 return InteractionResult.sidedSuccess(level.isClientSide);
             } else {
@@ -63,9 +64,12 @@ public class ScrewdriverItem extends Item {
         }
 
         if (state.getBlock() instanceof FacilityMapNodeBlock) {
-            // Open Map Node Config GUI
+            // Open Map Node Config GUI with actual saved data
             if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-                dev.zerosevennine.network.ModNetwork.sendOpenMapNodeConfig(serverPlayer, pos);
+                if (level.getBlockEntity(pos) instanceof FacilityMapNodeBlockEntity nodeBe) {
+                    ModNetwork.sendOpenMapNodeConfig(serverPlayer, pos, nodeBe.getRoomName(), nodeBe.getZone(),
+                            nodeBe.getRoomType(), nodeBe.getTargetZone(), nodeBe.getGridX(), nodeBe.getGridY(), nodeBe.hasGenerator());
+                }
             }
             return InteractionResult.sidedSuccess(level.isClientSide);
         }

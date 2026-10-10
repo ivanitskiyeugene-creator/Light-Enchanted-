@@ -1,6 +1,8 @@
 package dev.zerosevennine.network;
 
 import dev.zerosevennine.ZeroSevenNine;
+import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
+import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -86,11 +88,14 @@ public class ModNetwork {
                 new S2CSync079StatePacket(false, BlockPos.ZERO, 1, 0, 100, 0, 100, 0, false, new ArrayList<>()));
     }
 
-    public static void sendOpenCameraConfig(ServerPlayer player, BlockPos camPos) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2COpenCameraConfigPacket(camPos));
+    public static void sendOpenCameraConfig(ServerPlayer player, BlockPos camPos, String roomName, FacilityZone zone) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2COpenCameraConfigPacket(camPos, roomName, zone));
     }
 
-    public static void sendOpenMapNodeConfig(ServerPlayer player, BlockPos nodePos) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2COpenMapNodeConfigPacket(nodePos));
+    public static void sendOpenMapNodeConfig(ServerPlayer player, BlockPos nodePos, String roomName, FacilityZone zone,
+                                            FacilityMapNodeBlockEntity.RoomType type, FacilityZone targetZone,
+                                            int gridX, int gridY, boolean hasGen) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                new S2COpenMapNodeConfigPacket(nodePos, roomName, zone, type, targetZone, gridX, gridY, hasGen));
     }
 }

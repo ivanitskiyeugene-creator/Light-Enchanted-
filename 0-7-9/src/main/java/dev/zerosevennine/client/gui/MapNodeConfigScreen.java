@@ -13,22 +13,34 @@ import net.minecraft.network.chat.Component;
 
 public class MapNodeConfigScreen extends Screen {
     private final BlockPos nodePos;
+    private final String initialRoomName;
+    private final int initialGridX;
+    private final int initialGridY;
     private EditBox roomNameInput;
     private EditBox gridXInput;
     private EditBox gridYInput;
-    private FacilityZone zone = FacilityZone.HCZ;
-    private FacilityMapNodeBlockEntity.RoomType roomType = FacilityMapNodeBlockEntity.RoomType.STANDARD;
-    private FacilityZone targetZone = null;
-    private boolean hasGenerator = false;
+    private FacilityZone zone;
+    private FacilityMapNodeBlockEntity.RoomType roomType;
+    private FacilityZone targetZone;
+    private boolean hasGenerator;
 
     private Button zoneButton;
     private Button roomTypeButton;
     private Button targetZoneButton;
     private Button generatorButton;
 
-    public MapNodeConfigScreen(BlockPos nodePos) {
+    public MapNodeConfigScreen(BlockPos nodePos, String roomName, FacilityZone zone,
+                               FacilityMapNodeBlockEntity.RoomType roomType, FacilityZone targetZone,
+                               int gridX, int gridY, boolean hasGenerator) {
         super(Component.literal("Tactical Map Node Config"));
         this.nodePos = nodePos;
+        this.initialRoomName = (roomName != null && !roomName.isEmpty()) ? roomName : "Heavy Hallway";
+        this.zone = zone != null ? zone : FacilityZone.HCZ;
+        this.roomType = roomType != null ? roomType : FacilityMapNodeBlockEntity.RoomType.STANDARD;
+        this.targetZone = targetZone;
+        this.initialGridX = gridX;
+        this.initialGridY = gridY;
+        this.hasGenerator = hasGenerator;
     }
 
     @Override
@@ -37,7 +49,7 @@ public class MapNodeConfigScreen extends Screen {
         int cy = height / 2;
 
         this.roomNameInput = new EditBox(this.font, cx - 110, cy - 80, 220, 20, Component.literal("Room Name"));
-        this.roomNameInput.setValue("Heavy Hallway");
+        this.roomNameInput.setValue(initialRoomName);
         this.addRenderableWidget(this.roomNameInput);
 
         this.zoneButton = this.addRenderableWidget(Button.builder(
@@ -72,11 +84,11 @@ public class MapNodeConfigScreen extends Screen {
         ).bounds(cx - 110, cy - 5, 220, 20).build());
 
         this.gridXInput = new EditBox(this.font, cx - 110, cy + 20, 105, 20, Component.literal("Grid X"));
-        this.gridXInput.setValue("0");
+        this.gridXInput.setValue(String.valueOf(initialGridX));
         this.addRenderableWidget(this.gridXInput);
 
         this.gridYInput = new EditBox(this.font, cx + 5, cy + 20, 105, 20, Component.literal("Grid Y"));
-        this.gridYInput.setValue("0");
+        this.gridYInput.setValue(String.valueOf(initialGridY));
         this.addRenderableWidget(this.gridYInput);
 
         this.generatorButton = this.addRenderableWidget(Button.builder(

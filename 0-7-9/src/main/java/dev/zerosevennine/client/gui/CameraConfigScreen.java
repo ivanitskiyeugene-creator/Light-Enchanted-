@@ -13,13 +13,16 @@ import net.minecraft.network.chat.Component;
 
 public class CameraConfigScreen extends Screen {
     private final BlockPos cameraPos;
+    private final String initialRoomName;
     private EditBox roomNameInput;
-    private FacilityZone zone = FacilityZone.HCZ;
+    private FacilityZone zone;
     private Button zoneButton;
 
-    public CameraConfigScreen(BlockPos cameraPos) {
+    public CameraConfigScreen(BlockPos cameraPos, String initialRoomName, FacilityZone initialZone) {
         super(Component.literal("Camera Configuration"));
         this.cameraPos = cameraPos;
+        this.initialRoomName = (initialRoomName != null && !initialRoomName.isEmpty()) ? initialRoomName : "Heavy Hallway 01";
+        this.zone = initialZone != null ? initialZone : FacilityZone.HCZ;
     }
 
     @Override
@@ -28,7 +31,7 @@ public class CameraConfigScreen extends Screen {
         int cy = height / 2;
 
         this.roomNameInput = new EditBox(this.font, cx - 100, cy - 40, 200, 20, Component.literal("Room Name"));
-        this.roomNameInput.setValue("Heavy Hallway 01");
+        this.roomNameInput.setValue(initialRoomName);
         this.addRenderableWidget(this.roomNameInput);
 
         this.zoneButton = this.addRenderableWidget(Button.builder(

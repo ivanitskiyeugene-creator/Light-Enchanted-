@@ -52,6 +52,8 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         poseStack.mulPose(Axis.YP.rotationDegrees(baseAngle));
 
         ResourceLocation texture = HCZ_TEX;
+        float rTint = 1.0f, gTint = 1.0f, bTint = 1.0f;
+
         if (be.getBlockState().getBlock() instanceof LczCameraBlock) {
             texture = LCZ_TEX;
         } else if (be.getBlockState().getBlock() instanceof EzCameraBlock) {
@@ -60,31 +62,60 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
 
         VertexConsumer builder = buffer.getBuffer(RenderType.entityCutout(texture));
 
-        // 1. Render Mount Bracket
-        renderBox(poseStack, builder, -0.2f, -0.2f, 0.35f, 0.2f, 0.2f, 0.5f, packedLight, packedOverlay, 0.3f, 0.3f, 0.3f, 1.0f);
+        // ==========================================
+        // 1. Static Wall Mount Assembly
+        // ==========================================
+        // Baseplate on Wall
+        renderBox(poseStack, builder, -0.28f, -0.28f, 0.42f, 0.28f, 0.28f, 0.50f, packedLight, packedOverlay, 0.35f, 0.38f, 0.42f, 1.0f);
+        // Corner Bolts
+        renderBox(poseStack, builder, -0.24f, 0.20f, 0.40f, -0.20f, 0.24f, 0.42f, packedLight, packedOverlay, 0.2f, 0.2f, 0.2f, 1.0f);
+        renderBox(poseStack, builder, 0.20f, 0.20f, 0.40f, 0.24f, 0.24f, 0.42f, packedLight, packedOverlay, 0.2f, 0.2f, 0.2f, 1.0f);
+        renderBox(poseStack, builder, -0.24f, -0.24f, 0.40f, -0.20f, -0.20f, 0.42f, packedLight, packedOverlay, 0.2f, 0.2f, 0.2f, 1.0f);
+        renderBox(poseStack, builder, 0.20f, -0.24f, 0.40f, 0.24f, -0.20f, 0.42f, packedLight, packedOverlay, 0.2f, 0.2f, 0.2f, 1.0f);
 
-        // 2. Swivel Camera Head (Interpolated yaw & pitch)
+        // Heavy Cantilever Support Arm
+        renderBox(poseStack, builder, -0.07f, -0.10f, 0.16f, 0.07f, 0.10f, 0.42f, packedLight, packedOverlay, 0.4f, 0.43f, 0.47f, 1.0f);
+        // Under-arm Cable Conduit
+        renderBox(poseStack, builder, -0.03f, -0.14f, 0.20f, 0.03f, -0.10f, 0.42f, packedLight, packedOverlay, 0.15f, 0.15f, 0.15f, 1.0f);
+
+        // Gimbal Swivel Pivot Joint
+        renderBox(poseStack, builder, -0.10f, -0.10f, 0.08f, 0.10f, 0.10f, 0.16f, packedLight, packedOverlay, 0.25f, 0.28f, 0.32f, 1.0f);
+
+        // ==========================================
+        // 2. Dynamic Swivel Camera Head (Yaw & Pitch)
+        // ==========================================
         float yaw = be.currentYaw;
         float pitch = be.currentPitch;
 
         poseStack.pushPose();
-        poseStack.translate(0.0, 0.0, 0.2);
+        poseStack.translate(0.0, 0.0, 0.10);
         poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
         poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
 
-        // Camera Body Housing
-        renderBox(poseStack, builder, -0.25f, -0.2f, -0.3f, 0.25f, 0.2f, 0.2f, packedLight, packedOverlay, 0.85f, 0.85f, 0.85f, 1.0f);
+        // Main Camera Body Housing
+        renderBox(poseStack, builder, -0.20f, -0.16f, -0.28f, 0.20f, 0.16f, 0.05f, packedLight, packedOverlay, rTint, gTint, bTint, 1.0f);
 
-        // Lens Cylinder
-        renderBox(poseStack, builder, -0.15f, -0.15f, -0.45f, 0.15f, 0.15f, -0.3f, packedLight, packedOverlay, 0.1f, 0.1f, 0.1f, 1.0f);
+        // Overhanging Sunshield / Protective Visor Hood
+        renderBox(poseStack, builder, -0.22f, 0.15f, -0.38f, 0.22f, 0.19f, 0.06f, packedLight, packedOverlay, 0.3f, 0.33f, 0.37f, 1.0f);
 
-        // LED Ring: Bright Cyan if occupied, Red if idle
+        // Side Armor Plates / Heat Vents
+        renderBox(poseStack, builder, -0.23f, -0.12f, -0.24f, -0.20f, 0.12f, 0.02f, packedLight, packedOverlay, 0.25f, 0.27f, 0.30f, 1.0f);
+        renderBox(poseStack, builder, 0.20f, -0.12f, -0.24f, 0.23f, 0.12f, 0.02f, packedLight, packedOverlay, 0.25f, 0.27f, 0.30f, 1.0f);
+
+        // Recessed Optical Lens Barrel Cylinder
+        renderBox(poseStack, builder, -0.13f, -0.13f, -0.36f, 0.13f, 0.13f, -0.28f, packedLight, packedOverlay, 0.12f, 0.14f, 0.16f, 1.0f);
+
+        // Antireflective Lens Glass Face
+        renderBox(poseStack, builder, -0.09f, -0.09f, -0.37f, 0.09f, 0.09f, -0.36f, packedLight, packedOverlay, 0.15f, 0.25f, 0.35f, 1.0f);
+
+        // Emissive LED Status Cluster: Red in Idle, Brilliant Cyan in Occupied (079)
         float ledR = be.isOccupied() ? 0.0f : 1.0f;
         float ledG = be.isOccupied() ? 0.9f : 0.1f;
         float ledB = be.isOccupied() ? 1.0f : 0.1f;
         int ledLight = LightTexture.FULL_BRIGHT;
 
-        renderBox(poseStack, builder, -0.05f, 0.12f, -0.32f, 0.05f, 0.17f, -0.3f, ledLight, packedOverlay, ledR, ledG, ledB, 1.0f);
+        // Front Status LED Bar
+        renderBox(poseStack, builder, -0.07f, 0.08f, -0.29f, 0.07f, 0.13f, -0.28f, ledLight, packedOverlay, ledR, ledG, ledB, 1.0f);
 
         poseStack.popPose();
         poseStack.popPose();

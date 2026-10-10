@@ -22,6 +22,8 @@ public class ModCreativeTabs {
                         output.accept(ModItems.EZ_CAMERA.get());
                         output.accept(ModItems.FACILITY_MAP_NODE.get());
                         output.accept(ModItems.SCREWDRIVER.get());
+                        output.accept(ModItems.ROOM_SELECTOR.get());
+                        output.accept(ModItems.MAP_TABLET.get());
                     })
                     .build());
 }

@@ -7,5 +7,12 @@
   "item.zero_seven_nine.screwdriver": "Отвертка настройки систем",
   "item.zero_seven_nine.screwdriver.desc1": "ПКМ по камере для выбора, затем ПКМ по двери/устройству для связки.",
   "item.zero_seven_nine.screwdriver.desc2": "Shift + ПКМ по камере для настройки названия и зоны.",
-  "item.zero_seven_nine.screwdriver.desc3": "ПКМ по узлу карты для настройки координат на схеме TAB."
+  "item.zero_seven_nine.screwdriver.desc3": "ПКМ по узлу карты для настройки координат на схеме TAB.",
+  "item.zero_seven_nine.room_selector": "Маркер границ комнаты",
+  "item.zero_seven_nine.room_selector.desc1": "ЛКМ для точки 1, ПКМ для точки 2.",
+  "item.zero_seven_nine.room_selector.desc2": "Shift + ПКМ по узлу карты/камере для привязки 3D-объема.",
+  "item.zero_seven_nine.room_selector.desc3": "Задает точные границы комнаты для отслеживания целей SCP-079.",
+  "item.zero_seven_nine.map_tablet": "Планшет тактической карты",
+  "item.zero_seven_nine.map_tablet.desc1": "ПКМ для открытия тактической схемы Комплекса Site-02.",
+  "item.zero_seven_nine.map_tablet.desc2": "Доступен людям, охране, ученым и администрации."
 }

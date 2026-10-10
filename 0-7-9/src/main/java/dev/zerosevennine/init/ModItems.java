@@ -1,6 +1,8 @@
 package dev.zerosevennine.init;
 
 import dev.zerosevennine.ZeroSevenNine;
+import dev.zerosevennine.item.MapTabletItem;
+import dev.zerosevennine.item.RoomSelectorItem;
 import dev.zerosevennine.item.ScrewdriverItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -26,4 +28,10 @@ public class ModItems {
 
     public static final RegistryObject<Item> SCREWDRIVER = ITEMS.register("screwdriver",
             () -> new ScrewdriverItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> ROOM_SELECTOR = ITEMS.register("room_selector",
+            () -> new RoomSelectorItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> MAP_TABLET = ITEMS.register("map_tablet",
+            () -> new MapTabletItem(new Item.Properties().stacksTo(1)));
 }
