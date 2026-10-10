@@ -190,8 +190,6 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         vertex(builder, mat, nmat, maxX, minY, minZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
         vertex(builder, mat, nmat, maxX, minY, maxZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
         vertex(builder, mat, nmat, minX, minY, maxZ, r, g, b, a, packedLight, packedOverlay, 0, -1, 0);
-
-        poseStack.popPose();
     }
 
     private void vertex(VertexConsumer builder, Matrix4f mat, Matrix3f nmat, float x, float y, float z,
