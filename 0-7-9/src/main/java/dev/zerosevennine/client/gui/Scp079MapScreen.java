@@ -530,23 +530,47 @@ public class Scp079MapScreen extends Screen {
 
         // Clean compact Room Title Text centered inside Room
         String name = room.roomName;
-        if (name != null && !name.isEmpty()) {
-            if (name.length() > 8) {
-                String line1 = name.substring(0, Math.min(7, name.length()));
-                String line2 = name.substring(Math.min(7, name.length()));
-                if (line2.length() > 7) line2 = line2.substring(0, 6) + ".";
+        if (name != null && !name.trim().isEmpty()) {
+            name = name.trim();
+            int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
 
+            String[] parts = name.split("\\s+");
+            String line1 = "";
+            String line2 = "";
+
+            if (parts.length == 1) {
+                if (name.length() > 8) {
+                    line1 = name.substring(0, 7);
+                    line2 = name.substring(7);
+                    if (line2.length() > 7) line2 = line2.substring(0, 6) + ".";
+                } else {
+                    line1 = name;
+                }
+            } else if (parts.length == 2) {
+                line1 = parts[0];
+                line2 = parts[1];
+                if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
+                if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
+            } else {
+                line1 = parts[0];
+                StringBuilder sb = new StringBuilder();
+                for (int i = 1; i < parts.length; i++) {
+                    if (sb.length() > 0) sb.append(" ");
+                    sb.append(parts[i]);
+                }
+                line2 = sb.toString();
+                if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
+                if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
+            }
+
+            if (!line2.isEmpty()) {
                 int tw1 = font.width(line1);
                 int tw2 = font.width(line2);
-                int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
                 graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, textCol, false);
                 graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, textCol, false);
             } else {
-                int tw = font.width(name);
-                int tx = midX - (tw / 2);
-                int ty = midY - 4;
-                int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
-                graphics.drawString(font, name, tx, ty, textCol, false);
+                int tw = font.width(line1);
+                graphics.drawString(font, line1, midX - (tw / 2), midY - 4, textCol, false);
             }
         }
 
