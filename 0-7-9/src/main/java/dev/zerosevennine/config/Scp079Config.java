@@ -13,6 +13,7 @@ public class Scp079Config {
         public final ForgeConfigSpec.DoubleValue teslaOverchargeApCost;
         public final ForgeConfigSpec.DoubleValue blackoutApCost;
         public final ForgeConfigSpec.DoubleValue lockdownApCost;
+        public final ForgeConfigSpec.BooleanValue disableScpBlink;
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.push("generators");
@@ -52,6 +53,14 @@ public class Scp079Config {
             lockdownApCost = builder
                     .comment("AP cost to trigger room full lockdown (Tier 3+).")
                     .defineInRange("lockdownApCost", 80.0, 0.0, 100.0);
+
+            builder.pop();
+
+            builder.push("compatibility");
+
+            disableScpBlink = builder
+                    .comment("Completely disable all blinking mechanics (overlays, timers, blackout blindness, sounds) from SCP mods (such as SCP: Modern, SCP: Lockdown, etc.) globally. Default: true.")
+                    .define("disableScpBlink", true);
 
             builder.pop();
         }
