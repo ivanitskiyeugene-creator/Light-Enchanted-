@@ -8,6 +8,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ButtonBlock;
@@ -27,6 +29,58 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.lang.reflect.Method;
 
 public class UniversalDoorHandler {
+
+    public static ItemStack getO5KeycardStack() {
+        ResourceLocation[] candidates = new ResourceLocation[]{
+            new ResourceLocation("scpfr", "o_5_keycard"),
+            new ResourceLocation("scpfr", "keycard_o5"),
+            new ResourceLocation("scpfr", "keycard_level_5"),
+            new ResourceLocation("scpfr", "o5_keycard"),
+            new ResourceLocation("scpfr", "omni_keycard"),
+            new ResourceLocation("scpfr", "keycard_omni"),
+            new ResourceLocation("scpthefacility", "o5_keycard"),
+            new ResourceLocation("scpthefacility", "keycard_o5"),
+            new ResourceLocation("scpthefacility", "omni_keycard"),
+            new ResourceLocation("thefacility", "o5_keycard")
+        };
+
+        for (ResourceLocation loc : candidates) {
+            if (ForgeRegistries.ITEMS.containsKey(loc)) {
+                Item item = ForgeRegistries.ITEMS.getValue(loc);
+                if (item != null) {
+                    return new ItemStack(item);
+                }
+            }
+        }
+
+        for (var entry : ForgeRegistries.ITEMS.getEntries()) {
+            String path = entry.getKey().location().getPath().toLowerCase();
+            String ns = entry.getKey().location().getNamespace().toLowerCase();
+            if ((ns.contains("scp") || ns.contains("facility")) &&
+                (path.contains("o_5") || path.contains("o5") || path.contains("omni") || path.contains("level_5") || path.contains("level5"))) {
+                return new ItemStack(entry.getValue());
+            }
+        }
+
+        return ItemStack.EMPTY;
+    }
+
+    public static boolean isReaderOrScannerBlock(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        var key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (key != null) {
+            String path = key.getPath().toLowerCase();
+            String ns = key.getNamespace().toLowerCase();
+            if (path.contains("reader") || path.contains("scanner") || path.contains("keycard") ||
+                path.contains("keypad") || path.contains("swipe") || path.contains("card_reader")) {
+                return true;
+            }
+            if (ns.contains("scpfr") && (path.contains("keycard_reader") || path.contains("reader"))) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static boolean isDoorLikeBlock(BlockState state) {
         if (state == null || state.isAir()) return false;
@@ -105,90 +159,138 @@ public class UniversalDoorHandler {
         if (level == null || pos == null) return false;
         BlockState state = level.getBlockState(pos);
 
-        // 1. Vanilla & Standard DoorBlock
-        if (state.getBlock() instanceof DoorBlock) {
-            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
-            BlockPos upperPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos.above() : pos;
-            BlockState lowerState = level.getBlockState(lowerPos);
-            BlockState upperState = level.getBlockState(upperPos);
+        ItemStack prevHand = (player != null) ? player.getItemInHand(InteractionHand.MAIN_HAND) : ItemStack.EMPTY;
+        ItemStack o5Card = getO5KeycardStack();
+        if (player != null && !o5Card.isEmpty()) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, o5Card);
+        }
 
-            boolean wasOpen = lowerState.hasProperty(DoorBlock.OPEN) && lowerState.getValue(DoorBlock.OPEN);
-            boolean newState = !wasOpen;
-
-            if (lowerState.getBlock() instanceof DoorBlock) {
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, newState), 3);
+        try {
+            boolean scannerTriggered = false;
+            for (int dy = -1; dy <= 2; dy++) {
+                for (int dx = -2; dx <= 2; dx++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        BlockPos p = pos.offset(dx, dy, dz);
+                        BlockState s = level.getBlockState(p);
+                        if (isReaderOrScannerBlock(s) || (dx == 0 && dy == 0 && dz == 0)) {
+                            if (player != null) {
+                                BlockHitResult bhr = new BlockHitResult(new Vec3(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5), Direction.UP, p, false);
+                                InteractionResult res = s.use(level, player, InteractionHand.MAIN_HAND, bhr);
+                                if (res.consumesAction()) {
+                                    scannerTriggered = true;
+                                    notifyNeighbors(level, p);
+                                }
+                            }
+                            BlockEntity be = level.getBlockEntity(p);
+                            if (be != null) {
+                                if (invokeMethod(be, "scanCard", Player.class, player)) scannerTriggered = true;
+                                if (invokeMethod(be, "onKeycardUsed", Player.class, player)) scannerTriggered = true;
+                                if (invokeMethod(be, "grantAccess", Player.class, player)) scannerTriggered = true;
+                                if (invokeMethod(be, "grantAccess")) scannerTriggered = true;
+                                if (invokeMethod(be, "processCard", ItemStack.class, o5Card)) scannerTriggered = true;
+                                if (invokeMethod(be, "validateKeycard", ItemStack.class, o5Card)) scannerTriggered = true;
+                                if (invokeMethod(be, "trigger")) scannerTriggered = true;
+                                if (invokeMethod(be, "activate")) scannerTriggered = true;
+                            }
+                        }
+                    }
+                }
             }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, newState), 3);
-            }
-            level.playSound(null, pos, newState ? SoundEvents.IRON_DOOR_OPEN : SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, lowerPos);
-            notifyNeighbors(level, upperPos);
-            return true;
-        }
 
-        // 2. Vanilla TrapDoor
-        if (state.getBlock() instanceof TrapDoorBlock) {
-            boolean wasOpen = state.getValue(TrapDoorBlock.OPEN);
-            boolean newState = !wasOpen;
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, newState), 3);
-            level.playSound(null, pos, newState ? SoundEvents.IRON_TRAPDOOR_OPEN : SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // 3. FenceGate
-        if (state.getBlock() instanceof FenceGateBlock) {
-            boolean wasOpen = state.getValue(FenceGateBlock.OPEN);
-            boolean newState = !wasOpen;
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, newState), 3);
-            level.playSound(null, pos, newState ? SoundEvents.FENCE_GATE_OPEN : SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // 4. Button / Lever
-        if (state.getBlock() instanceof ButtonBlock button) {
-            button.press(state, level, pos);
-            level.playSound(null, pos, SoundEvents.STONE_BUTTON_CLICK_ON, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-        if (state.getBlock() instanceof LeverBlock) {
-            boolean wasPowered = state.getValue(LeverBlock.POWERED);
-            level.setBlock(pos, state.setValue(LeverBlock.POWERED, !wasPowered), 3);
-            level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, wasPowered ? 0.5f : 0.6f);
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // 5. SCP: The Facility / Custom Mod Doors / Multi-Block Entities
-        boolean handled = triggerModdedDoorToggle(level, pos, player);
-        if (handled) {
-            notifyNeighbors(level, pos);
-            return true;
-        }
-
-        // 6. Universal Simulated Right-Click (BlockState.use)
-        if (player != null) {
-            BlockHitResult bhr = new BlockHitResult(new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
-            InteractionResult res = state.use(level, player, InteractionHand.MAIN_HAND, bhr);
-            if (res.consumesAction()) {
+            if (scannerTriggered) {
                 notifyNeighbors(level, pos);
                 return true;
             }
-        }
 
-        // 7. Universal BlockState Property Manipulation
-        BlockState toggled = toggleBooleanProperty(state, "open");
-        if (toggled != state) {
-            level.setBlock(pos, toggled, 3);
+            // 1. Vanilla & Standard DoorBlock
+            if (state.getBlock() instanceof DoorBlock) {
+                BlockPos lowerPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+                BlockPos upperPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos.above() : pos;
+                BlockState lowerState = level.getBlockState(lowerPos);
+                BlockState upperState = level.getBlockState(upperPos);
+
+                boolean wasOpen = lowerState.hasProperty(DoorBlock.OPEN) && lowerState.getValue(DoorBlock.OPEN);
+                boolean newState = !wasOpen;
+
+                if (lowerState.getBlock() instanceof DoorBlock) {
+                    level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, newState), 3);
+                }
+                if (upperState.getBlock() instanceof DoorBlock) {
+                    level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, newState), 3);
+                }
+                level.playSound(null, pos, newState ? SoundEvents.IRON_DOOR_OPEN : SoundEvents.IRON_DOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
+                notifyNeighbors(level, lowerPos);
+                notifyNeighbors(level, upperPos);
+                return true;
+            }
+
+            // 2. Vanilla TrapDoor
+            if (state.getBlock() instanceof TrapDoorBlock) {
+                boolean wasOpen = state.getValue(TrapDoorBlock.OPEN);
+                boolean newState = !wasOpen;
+                level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, newState), 3);
+                level.playSound(null, pos, newState ? SoundEvents.IRON_TRAPDOOR_OPEN : SoundEvents.IRON_TRAPDOOR_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
+                notifyNeighbors(level, pos);
+                return true;
+            }
+
+            // 3. FenceGate
+            if (state.getBlock() instanceof FenceGateBlock) {
+                boolean wasOpen = state.getValue(FenceGateBlock.OPEN);
+                boolean newState = !wasOpen;
+                level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, newState), 3);
+                level.playSound(null, pos, newState ? SoundEvents.FENCE_GATE_OPEN : SoundEvents.FENCE_GATE_CLOSE, SoundSource.BLOCKS, 1.0f, 1.0f);
+                notifyNeighbors(level, pos);
+                return true;
+            }
+
+            // 4. Button / Lever
+            if (state.getBlock() instanceof ButtonBlock button) {
+                button.press(state, level, pos);
+                level.playSound(null, pos, SoundEvents.STONE_BUTTON_CLICK_ON, SoundSource.BLOCKS, 1.0f, 1.0f);
+                notifyNeighbors(level, pos);
+                return true;
+            }
+            if (state.getBlock() instanceof LeverBlock) {
+                boolean wasPowered = state.getValue(LeverBlock.POWERED);
+                level.setBlock(pos, state.setValue(LeverBlock.POWERED, !wasPowered), 3);
+                level.playSound(null, pos, SoundEvents.LEVER_CLICK, SoundSource.BLOCKS, 1.0f, wasPowered ? 0.5f : 0.6f);
+                notifyNeighbors(level, pos);
+                return true;
+            }
+
+            // 5. SCP: The Facility / Custom Mod Doors / Multi-Block Entities
+            boolean handled = triggerModdedDoorToggle(level, pos, player);
+            if (handled) {
+                notifyNeighbors(level, pos);
+                return true;
+            }
+
+            // 6. Universal Simulated Right-Click (BlockState.use)
+            if (player != null) {
+                BlockHitResult bhr = new BlockHitResult(new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
+                InteractionResult res = state.use(level, player, InteractionHand.MAIN_HAND, bhr);
+                if (res.consumesAction()) {
+                    notifyNeighbors(level, pos);
+                    return true;
+                }
+            }
+
+            // 7. Universal BlockState Property Manipulation
+            BlockState toggled = toggleBooleanProperty(state, "open");
+            if (toggled != state) {
+                level.setBlock(pos, toggled, 3);
+                notifyNeighbors(level, pos);
+                return true;
+            }
+
             notifyNeighbors(level, pos);
             return true;
+        } finally {
+            if (player != null) {
+                player.setItemInHand(InteractionHand.MAIN_HAND, prevHand);
+            }
         }
-
-        notifyNeighbors(level, pos);
-        return true;
     }
 
     public static void setAreaLockState(Level level, BlockPos centerPos, boolean lock, Player player) {
