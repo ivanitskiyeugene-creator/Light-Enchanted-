@@ -66,7 +66,7 @@ public class SnowEventHandler {
                                entity instanceof net.minecraft.world.entity.animal.Cow ||
                                entity instanceof net.minecraft.world.entity.animal.Sheep ||
                                entity instanceof net.minecraft.world.entity.animal.Pig ||
-                               entity instanceof net.minecraft.world.entity.animal.Goat) {
+                               entity instanceof net.minecraft.world.entity.animal.goat.Goat) {
                         type = FootprintType.HOOVES;
                     } else {
                         // All players, humanoids, personnel (MTF, Guards, Scientists, D-Class) and humanoid entities leave authentic boots tread prints!
