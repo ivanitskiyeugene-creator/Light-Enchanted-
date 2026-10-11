@@ -118,7 +118,11 @@ public class Scp079MapScreen extends Screen {
 
         if (keyCode == GLFW.GLFW_KEY_SPACE) {
             if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoom.linkedCameras.get(0)));
+                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
+                if (focusedRoom.zone != viewingZone) {
+                    ClientCameraHandler.startZoneTransition(viewingZone, focusedRoom.zone, targetPos);
+                }
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
                 this.onClose();
                 return true;
             }
@@ -131,7 +135,11 @@ public class Scp079MapScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoom.linkedCameras.get(0)));
+                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
+                if (focusedRoom.zone != viewingZone) {
+                    ClientCameraHandler.startZoneTransition(viewingZone, focusedRoom.zone, targetPos);
+                }
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
                 this.onClose();
                 return true;
             }

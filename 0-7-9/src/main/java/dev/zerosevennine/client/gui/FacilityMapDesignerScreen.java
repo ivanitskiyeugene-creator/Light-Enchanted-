@@ -197,13 +197,10 @@ public class FacilityMapDesignerScreen extends Screen {
 
         // --- CAMERA LINKING TOOLS ---
         sy += 17;
-        int camBtnW = (panelW - 16) / 2;
-        addRenderableWidget(Button.builder(Component.literal("ВЫБОР КАМЕРЫ"), b -> cycleCamera())
-                .bounds(panelX + 6, sy, camBtnW, 15).build());
-        addRenderableWidget(Button.builder(Component.literal("+ ПРИВЯЗАТЬ"), b -> linkSelectedCamera())
-                .bounds(panelX + 8 + camBtnW, sy, camBtnW, 15).build());
+        addRenderableWidget(Button.builder(Component.literal("🔗 РЕЖИМ ПРИВЯЗКИ (В МИРЕ)"), b -> startInWorldLinkMode())
+                .bounds(panelX + 6, sy, panelW - 12, 16).build());
 
-        sy += 16;
+        sy += 17;
         addRenderableWidget(Button.builder(Component.literal("- ОТВЯЗАТЬ КАМЕРЫ"), b -> unlinkAllCameras())
                 .bounds(panelX + 6, sy, panelW - 12, 14).build());
 
@@ -213,14 +210,49 @@ public class FacilityMapDesignerScreen extends Screen {
                 .bounds(panelX + 6, sy, panelW - 12, 18).build());
 
         sy += 20;
-        addRenderableWidget(Button.builder(Component.literal("✗ УДАЛИТЬ"), b -> deleteSelectedRoom())
-                .bounds(panelX + 6, sy, (panelW - 16) / 2, 15).build());
-        addRenderableWidget(Button.builder(Component.literal("⚡ АВТО-WASD"), b -> autoLinkWasd())
-                .bounds(panelX + 8 + (panelW - 16) / 2, sy, (panelW - 16) / 2, 15).build());
+        addRenderableWidget(Button.builder(Component.literal("✗ УДАЛИТЬ КОМНАТУ"), b -> deleteSelectedRoom())
+                .bounds(panelX + 6, sy, panelW - 12, 15).build());
 
         sy += 17;
         addRenderableWidget(Button.builder(Component.literal("ОЧИСТИТЬ ВСЮ ЗОНУ"), b -> clearCurrentZone())
                 .bounds(panelX + 6, sy, panelW - 12, 14).build());
+    }
+
+    public void restoreState(FacilityZone zone, int gx, int gy, String name,
+                             RoomShape shape, int rot, boolean hasGen,
+                             List<int[]> polygon, List<BlockPos> cameras) {
+        this.currentZone = zone != null ? zone : FacilityZone.HCZ;
+        this.selectedGx = gx;
+        this.selectedGy = gy;
+        this.selectedShape = shape != null ? shape : RoomShape.SQUARE;
+        this.selectedRotation = rot;
+        this.selectedHasGen = hasGen;
+        if (this.nameEdit != null) {
+            this.nameEdit.setValue(name != null ? name : ("ROOM " + gx + ":" + gy));
+        }
+        this.activePolygon.clear();
+        if (polygon != null) {
+            for (int[] pt : polygon) {
+                this.activePolygon.add(new int[]{pt[0], pt[1]});
+            }
+        }
+        this.localLinkedCameras.clear();
+        if (cameras != null) {
+            for (BlockPos p : cameras) {
+                this.localLinkedCameras.add(p.immutable());
+            }
+        }
+    }
+
+    private void startInWorldLinkMode() {
+        dev.zerosevennine.client.handler.ClientCameraLinker.enterLinkMode(
+                currentZone, selectedGx, selectedGy, nameEdit.getValue(),
+                selectedShape, selectedRotation, selectedHasGen,
+                activePolygon, localLinkedCameras
+        );
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(null);
+        }
     }
 
     private void setZone(FacilityZone zone) {
@@ -734,13 +766,11 @@ public class FacilityMapDesignerScreen extends Screen {
         }
 
         // Camera Link info display
-        BlockPos selCam = getSelectedCamera();
-        String camTitle = (selCam != null) ?
-                ("ВЫБРАНА КАМЕРА: [" + selCam.getX() + ", " + selCam.getZ() + "]") : "НЕТ КАМЕР В ЗОНЕ";
-        graphics.drawString(font, camTitle, panelX + 6, canvasY + 236, 0xFF81D4FA, false);
-
         String linkCount = "ПРИВЯЗАНО КАМЕР: " + localLinkedCameras.size();
-        graphics.drawString(font, linkCount, panelX + 6, canvasY + 246, 0xFF00FF88, false);
+        graphics.drawString(font, linkCount, panelX + 6, canvasY + 236, 0xFF00FF88, false);
+
+        String wasdNotice = "WASD: АВТО-МАРШРУТЫ";
+        graphics.drawString(font, wasdNotice, panelX + 6, canvasY + 246, 0xFF81D4FA, false);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }

@@ -28,6 +28,7 @@ public class ZeroSevenNine {
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_TABS.register(modEventBus);
+        dev.zerosevennine.init.ModSounds.SOUND_EVENTS.register(modEventBus);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Scp079Config.COMMON_SPEC);
 

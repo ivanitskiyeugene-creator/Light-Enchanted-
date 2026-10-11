@@ -99,10 +99,11 @@ public class C2SSwitchCameraPacket {
 
                     if (session.spendAp(cost)) {
                         Scp079PlayerManager.switchCamera(player, targetPos);
-                        float pitch = isCrossZone ? 1.0f : 1.8f;
-                        player.level().playSound(null, targetPos, SoundEvents.UI_BUTTON_CLICK.get(), SoundSource.PLAYERS, 0.8f, pitch);
                         if (isCrossZone) {
+                            player.level().playSound(null, player.blockPosition(), dev.zerosevennine.init.ModSounds.ZONE_DIAL_TONE.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
                             session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-10 AP)", 0x00E5FF, player.level().getGameTime());
+                        } else {
+                            player.level().playSound(null, player.blockPosition(), dev.zerosevennine.init.ModSounds.CAMERA_SWITCH.get(), SoundSource.PLAYERS, 0.8f, 1.0f);
                         }
                     }
                 }

@@ -9,7 +9,9 @@ import dev.zerosevennine.client.gui.Scp079CameraOverlay;
 import dev.zerosevennine.client.gui.Scp079MapScreen;
 import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
+import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.facility.UniversalDoorHandler;
+import dev.zerosevennine.init.ModSounds;
 import dev.zerosevennine.network.C2SInteractDevicePacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.C2SUpdateCameraOrientationPacket;
@@ -23,6 +25,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -61,6 +64,14 @@ public class ClientCameraHandler {
     public static boolean isZoomed = false;
     public static float zoomFovFactor = 0.82f;
 
+    // Camera Switch Noise & Zone Transition Delay
+    public static int switchStaticTicks = 0;
+    public static int zoneTransitionTicks = 0;
+    public static final int MAX_ZONE_TRANSITION_TICKS = 35;
+    public static FacilityZone sourceZone = FacilityZone.HCZ;
+    public static FacilityZone targetZone = FacilityZone.HCZ;
+    public static String transitionTargetRoom = "CONNECTED FEED";
+
     private static float initialYaw = 0.0f;
     private static float initialPitch = 15.0f;
     private static boolean hasInitialAngles = false;
@@ -81,6 +92,24 @@ public class ClientCameraHandler {
             this.device = device;
             this.neighborDir = neighborDir;
             this.distance = distance;
+        }
+    }
+
+    public static void startZoneTransition(FacilityZone from, FacilityZone to, BlockPos targetPos) {
+        sourceZone = from != null ? from : FacilityZone.HCZ;
+        targetZone = to != null ? to : FacilityZone.HCZ;
+        zoneTransitionTicks = MAX_ZONE_TRANSITION_TICKS;
+
+        FacilityNetworkManager.RoomNode room = FacilityNetworkManager.findRoomForCamera(targetPos);
+        if (room != null && room.roomName != null && !room.roomName.isEmpty()) {
+            transitionTargetRoom = room.roomName;
+        } else {
+            transitionTargetRoom = targetZone.name() + " SECTOR";
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.level != null) {
+            mc.level.playSound(mc.player, mc.player.blockPosition(), ModSounds.ZONE_DIAL_TONE.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
         }
     }
 
@@ -118,8 +147,10 @@ public class ClientCameraHandler {
                 }
             }
 
-            for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
+            Map<Direction, BlockPos> dynamicNeighbors = FacilityNetworkManager.getDynamicWasdMap(activeCameraPos);
+            for (Map.Entry<Direction, BlockPos> neighbor : dynamicNeighbors.entrySet()) {
                 BlockPos nPos = neighbor.getValue();
+                if (nPos == null) continue;
                 Vec3 target = new Vec3(nPos.getX() + 0.5, nPos.getY() + 1.2, nPos.getZ() + 0.5);
                 Vec3 toTarget = target.subtract(eyePos);
                 double dist = toTarget.length();
@@ -173,6 +204,12 @@ public class ClientCameraHandler {
         boolean wasIn079 = in079Mode;
         boolean cameraChanged = !cameraPos.equals(activeCameraPos);
 
+        FacilityZone oldZone = null;
+        if (activeCameraPos != null) {
+            CameraBlockEntity oldCam = FacilityNetworkManager.getCamera(activeCameraPos);
+            oldZone = oldCam != null ? oldCam.getZone() : null;
+        }
+
         in079Mode = active;
         activeCameraPos = cameraPos;
         tier = t;
@@ -186,6 +223,21 @@ public class ClientCameraHandler {
 
         if (active && (!hasInitialAngles || cameraChanged || !wasIn079)) {
             updateInitialCameraAngles();
+
+            if (wasIn079 && cameraChanged) {
+                CameraBlockEntity newCam = FacilityNetworkManager.getCamera(cameraPos);
+                FacilityZone newZone = newCam != null ? newCam.getZone() : null;
+
+                if (oldZone != null && newZone != null && oldZone != newZone) {
+                    startZoneTransition(oldZone, newZone, cameraPos);
+                } else {
+                    switchStaticTicks = 6;
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.player != null && mc.level != null) {
+                        mc.level.playSound(mc.player, mc.player.blockPosition(), ModSounds.CAMERA_SWITCH.get(), SoundSource.PLAYERS, 0.9f, 1.0f);
+                    }
+                }
+            }
         }
     }
 
@@ -237,6 +289,21 @@ public class ClientCameraHandler {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+
+        // Transition timers
+        if (zoneTransitionTicks > 0) {
+            zoneTransitionTicks--;
+            if (zoneTransitionTicks == 0) {
+                switchStaticTicks = 6;
+                if (mc.player != null && mc.level != null) {
+                    mc.level.playSound(mc.player, mc.player.blockPosition(), ModSounds.CAMERA_SWITCH.get(), SoundSource.PLAYERS, 0.9f, 1.0f);
+                }
+            }
+        }
+
+        if (switchStaticTicks > 0) {
+            switchStaticTicks--;
+        }
 
         float yaw = mc.player.getYRot();
         float pitch = mc.player.getXRot();
@@ -310,8 +377,10 @@ public class ClientCameraHandler {
             poseStack.popPose();
         }
 
-        for (Map.Entry<Direction, BlockPos> neighbor : cam.getWasdNeighbors().entrySet()) {
+        Map<Direction, BlockPos> dynamicNeighbors = FacilityNetworkManager.getDynamicWasdMap(activeCameraPos);
+        for (Map.Entry<Direction, BlockPos> neighbor : dynamicNeighbors.entrySet()) {
             BlockPos nPos = neighbor.getValue();
+            if (nPos == null) continue;
             double dx = (nPos.getX() + 0.5) - camPos.x;
             double dy = (nPos.getY() + 1.2) - camPos.y;
             double dz = (nPos.getZ() + 0.5) - camPos.z;
@@ -331,8 +400,6 @@ public class ClientCameraHandler {
 
             poseStack.popPose();
         }
-
-        bufferSource.endBatch(RenderType.gui());
     }
 
     private static void render3DDeviceMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
@@ -340,43 +407,35 @@ public class ClientCameraHandler {
         Matrix4f mat = poseStack.last().pose();
 
         int bracketCol = isHovered ? 0xFFFFFFFF : 0xCCE0F7FA;
-        int textCol = 0xFFE0F7FA;
-
-        if (dev.isLocked) {
-            bracketCol = isHovered ? 0xFFFFFFFF : 0xCCE0F7FA;
-            textCol = 0xFFE0F7FA;
-        }
+        int textCol = isHovered ? 0xFFFFFFFF : 0xFFE0F7FA;
 
         int bw = 8;
         int bh = 8;
 
-        fillQuad(bufferSource, mat, -bw, -bh, -bw + 2, -bh + 4, bracketCol);
-        fillQuad(bufferSource, mat, -bw, -bh, -bw + 4, -bh + 2, bracketCol);
+        // Subtle 4 Corner Brackets
+        fillQuad(bufferSource, mat, -bw, -bh, -bw + 3, -bh + 1, bracketCol);
+        fillQuad(bufferSource, mat, -bw, -bh, -bw + 1, -bh + 3, bracketCol);
 
-        fillQuad(bufferSource, mat, bw - 2, -bh, bw, -bh + 4, bracketCol);
-        fillQuad(bufferSource, mat, bw - 4, -bh, bw, -bh + 2, bracketCol);
+        fillQuad(bufferSource, mat, bw - 3, -bh, bw, -bh + 1, bracketCol);
+        fillQuad(bufferSource, mat, bw - 1, -bh, bw, -bh + 3, bracketCol);
 
-        fillQuad(bufferSource, mat, -bw, bh - 4, -bw + 2, bh, bracketCol);
-        fillQuad(bufferSource, mat, -bw, bh - 2, -bw + 4, bh, bracketCol);
+        fillQuad(bufferSource, mat, -bw, bh - 1, -bw + 3, bh, bracketCol);
+        fillQuad(bufferSource, mat, -bw, bh - 3, -bw + 1, bh, bracketCol);
 
-        fillQuad(bufferSource, mat, bw - 2, bh - 4, bw, bh, bracketCol);
-        fillQuad(bufferSource, mat, bw - 4, bh - 2, bw, bh, bracketCol);
-
-        fillQuad(bufferSource, mat, -1, -1, 1, 1, bracketCol);
+        fillQuad(bufferSource, mat, bw - 3, bh - 1, bw, bh, bracketCol);
+        fillQuad(bufferSource, mat, bw - 1, bh - 3, bw, bh, bracketCol);
 
         if (!isHovered) {
             return;
         }
 
-        String typeLabel = dev.type.name();
+        String typeLabel = dev.type.getDisplayName().toUpperCase();
         String actionPrompt = switch (dev.type) {
-            case DOOR -> dev.isLocked ? "[RMB / SPACE] UNLOCK (15 AP)" : "[LMB] TOGGLE (5 AP)  [RMB] LOCK (15 AP)";
-            case ELEVATOR -> "[LMB] CALL ELEVATOR (10 AP)";
-            case TESLA -> "[LMB] OVERCHARGE SHOCK (35 AP)";
-            case LIGHT -> "[F] BLACKOUT ROOM (40 AP)";
-            case GENERATOR -> "EMERGENCY GENERATOR [ACTIVE]";
-            case SPEAKER -> "[V] BROADCAST INTERCOM (FREE)";
-            default -> "[LMB] INTERACT (5 AP)";
+            case DOOR, ELEVATOR -> "[LMB] TOGGLE DOOR  |  [RMB/SPACE] LOCK";
+            case TESLA -> "[LMB] OVERCHARGE (35 AP)";
+            case LIGHT -> "[LMB] BLACKOUT (40 AP)";
+            case SPEAKER -> "[LMB] INTERCOM TRANSMIT";
+            case GENERATOR -> "[GENERATOR TELEMETRY]";
         };
 
         float tw1 = font.width(typeLabel);

@@ -13,6 +13,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
+import java.util.Random;
 
 public class Scp079CameraOverlay {
     private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
@@ -24,6 +25,8 @@ public class Scp079CameraOverlay {
     private static final int BG_COLOR = 0x88000000;
     private static final int BAR_FILL_COLOR = 0xCCE0F7FA;
 
+    private static final Random NOISE_RANDOM = new Random();
+
     public static void render(GuiGraphics graphics, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
@@ -32,23 +35,136 @@ public class Scp079CameraOverlay {
         int height = mc.getWindow().getGuiScaledHeight();
         Font font = mc.font;
 
-        // 1. CRT Scanlines & Subtle Corner Vignette
+        // 1. Inter-Zone Telephone Transition Screen
+        if (ClientCameraHandler.zoneTransitionTicks > 0) {
+            renderInterZoneTransition(graphics, font, width, height, mc);
+            return;
+        }
+
+        // 2. Camera Noise / Static Glitch Burst
+        if (ClientCameraHandler.switchStaticTicks > 0) {
+            renderStaticNoiseGlitch(graphics, font, width, height);
+        }
+
+        // 3. CRT Scanlines & Subtle Corner Vignette
         renderCrtOverlay(graphics, width, height, mc);
 
-        // 2. Technical Screen Corner Brackets [┌ ┐ └ ┘]
+        // 4. Technical Screen Corner Brackets [┌ ┐ └ ┘]
         renderScreenCornerBrackets(graphics, width, height);
 
-        // 3. Center Minimalist Reticle
+        // 5. Center Minimalist Reticle
         renderCenterReticle(graphics, width, height);
 
-        // 4. Top-Left Header: Room Name & WASD Camera Routing List
+        // 6. Top-Left Header: Room Name & WASD Dynamic Camera Routing List
         renderTopLeftRouting(graphics, font, mc);
 
-        // 5. Top-Right Action List: Map, Ping, Speaker, Blackout, Lockdown
+        // 7. Top-Right Action List: Map, Ping, Speaker, Blackout, Lockdown
         renderTopRightActions(graphics, font, width);
 
-        // 6. Bottom-Right Resource Panel: Access Tier, EXP Bar, Auxiliary Power Bar
+        // 8. Bottom-Right Resource Panel: Access Tier, EXP Bar, Auxiliary Power Bar
         renderBottomRightResources(graphics, font, width, height);
+    }
+
+    private static void renderInterZoneTransition(GuiGraphics graphics, Font font, int width, int height, Minecraft mc) {
+        // Deep Black Background
+        graphics.fill(0, 0, width, height, 0xFF020712);
+
+        // Scanlines
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.15f);
+        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Static Noise Dots
+        for (int i = 0; i < 180; i++) {
+            int nx = NOISE_RANDOM.nextInt(width);
+            int ny = NOISE_RANDOM.nextInt(height);
+            int nCol = (NOISE_RANDOM.nextBoolean()) ? 0x4400E5FF : 0x33E0F7FA;
+            graphics.fill(nx, ny, nx + 2, ny + 1, nCol);
+        }
+
+        renderScreenCornerBrackets(graphics, width, height);
+
+        // Centered Inter-Zone Box
+        int boxW = 320;
+        int boxH = 120;
+        int boxX = (width - boxW) / 2;
+        int boxY = (height - boxH) / 2;
+
+        graphics.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xEE010816);
+        graphics.fill(boxX, boxY, boxX + boxW, boxY + 1, 0xFF00E5FF);
+        graphics.fill(boxX, boxY + boxH - 1, boxX + boxW, boxY + boxH, 0xFF00E5FF);
+        graphics.fill(boxX, boxY, boxX + 1, boxY + boxH, 0xFF00E5FF);
+        graphics.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + boxH, 0xFF00E5FF);
+
+        String title = "[ ROUTING INTER-ZONE OPTICAL LINK ]";
+        graphics.drawString(font, title, boxX + (boxW - font.width(title)) / 2, boxY + 10, 0xFF00E5FF, true);
+
+        String srcTxt = "SOURCE ZONE : " + ClientCameraHandler.sourceZone.name();
+        graphics.drawString(font, srcTxt, boxX + 16, boxY + 28, 0xFFE0F7FA, false);
+
+        String dstTxt = "TARGET ZONE : " + ClientCameraHandler.targetZone.name();
+        graphics.drawString(font, dstTxt, boxX + 16, boxY + 40, 0xFFE0F7FA, false);
+
+        String destRoom = "DESTINATION : " + ClientCameraHandler.transitionTargetRoom.toUpperCase();
+        graphics.drawString(font, destRoom, boxX + 16, boxY + 52, 0xFF81D4FA, false);
+
+        int remaining = ClientCameraHandler.zoneTransitionTicks;
+        int total = ClientCameraHandler.MAX_ZONE_TRANSITION_TICKS;
+        float progress = 1.0f - ((float) remaining / (float) total);
+        int percent = (int) (progress * 100);
+
+        String dialTxt = "CARRIER FREQ: 350 / 440 Hz (DIALING... " + percent + "%)";
+        graphics.drawString(font, dialTxt, boxX + 16, boxY + 68, 0xFF00FF88, false);
+
+        // Progress Bar
+        int pBarW = boxW - 32;
+        int pBarX = boxX + 16;
+        int pBarY = boxY + 80;
+        int fillW = (int) (pBarW * progress);
+
+        graphics.fill(pBarX, pBarY, pBarX + pBarW, pBarY + 8, 0xFF001528);
+        if (fillW > 0) {
+            graphics.fill(pBarX, pBarY, pBarX + fillW, pBarY + 8, 0xFF00E5FF);
+        }
+        graphics.fill(pBarX, pBarY, pBarX + pBarW, pBarY + 1, 0xFF00E5FF);
+        graphics.fill(pBarX, pBarY + 7, pBarX + pBarW, pBarY + 8, 0xFF00E5FF);
+        graphics.fill(pBarX, pBarY, pBarX + 1, pBarY + 8, 0xFF00E5FF);
+        graphics.fill(pBarX + pBarW - 1, pBarY, pBarX + pBarW, pBarY + 8, 0xFF00E5FF);
+
+        String statusTxt = "SYNCHRONIZING SURVEILLANCE FEED TELEMETRY...";
+        graphics.drawString(font, statusTxt, boxX + (boxW - font.width(statusTxt)) / 2, boxY + 98, 0xFF5580DE, false);
+    }
+
+    private static void renderStaticNoiseGlitch(GuiGraphics graphics, Font font, int width, int height) {
+        // High density random pixel static fuzz
+        for (int i = 0; i < 400; i++) {
+            int rx = NOISE_RANDOM.nextInt(width);
+            int ry = NOISE_RANDOM.nextInt(height);
+            int rw = 1 + NOISE_RANDOM.nextInt(6);
+            int rh = 1 + NOISE_RANDOM.nextInt(2);
+            int col = (NOISE_RANDOM.nextBoolean()) ? 0x88FFFFFF : 0x8800E5FF;
+            graphics.fill(rx, ry, rx + rw, ry + rh, col);
+        }
+
+        // Glitch scanline horizontal bars
+        for (int b = 0; b < 4; b++) {
+            int by = NOISE_RANDOM.nextInt(height);
+            int bh = 2 + NOISE_RANDOM.nextInt(4);
+            graphics.fill(0, by, width, by + bh, 0x4400E5FF);
+        }
+
+        // Signal Acquisition Prompt
+        String badge = "[ SIGNAL ACQUISITION // FEED SYNC... ]";
+        int bw = font.width(badge) + 12;
+        int bx = (width - bw) / 2;
+        int by = height / 2 + 30;
+
+        graphics.fill(bx, by, bx + bw, by + 14, 0xCC000000);
+        graphics.fill(bx, by, bx + bw, by + 1, 0xFF00E5FF);
+        graphics.fill(bx, by + 13, bx + bw, by + 14, 0xFF00E5FF);
+        graphics.drawString(font, badge, bx + 6, by + 3, 0xFFFFFFFF, true);
     }
 
     private static void renderCrtOverlay(GuiGraphics graphics, int width, int height, Minecraft mc) {
@@ -120,18 +236,13 @@ public class Scp079CameraOverlay {
         // Large Room Title
         graphics.drawString(font, roomName.toUpperCase(), lx, ly, TEXT_COLOR, true);
 
-        // WASD Neighbor routing list
-        Map<Direction, BlockPos> neighbors = cam != null ? cam.getWasdNeighbors() : Map.of();
+        // Dynamic WASD Neighbor routing list calculated automatically from facility graph
+        Map<Direction, BlockPos> neighbors = FacilityNetworkManager.getDynamicWasdMap(ClientCameraHandler.activeCameraPos);
 
         BlockPos northTarget = neighbors.get(Direction.NORTH);
         BlockPos southTarget = neighbors.get(Direction.SOUTH);
         BlockPos westTarget = neighbors.get(Direction.WEST);
         BlockPos eastTarget = neighbors.get(Direction.EAST);
-
-        if (northTarget == null) northTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.NORTH);
-        if (southTarget == null) southTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.SOUTH);
-        if (westTarget == null) westTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.WEST);
-        if (eastTarget == null) eastTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.EAST);
 
         renderWasdEntry(graphics, font, lx, ly + 16, "W", northTarget);
         renderWasdEntry(graphics, font, lx, ly + 28, "S", southTarget);

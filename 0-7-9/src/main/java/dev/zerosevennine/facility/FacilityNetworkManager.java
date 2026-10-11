@@ -187,16 +187,20 @@ public class FacilityNetworkManager {
         return null;
     }
 
-    public static BlockPos findNextCamera(BlockPos currentPos, Direction direction) {
-        if (currentPos == null) return null;
+    public static Map<Direction, BlockPos> getDynamicWasdMap(BlockPos currentPos) {
+        Map<Direction, BlockPos> map = new EnumMap<>(Direction.class);
+        if (currentPos == null) return map;
 
-        CameraBlockEntity current = CAMERAS.get(currentPos);
-        if (current != null) {
-            BlockPos manualTarget = current.getWasdNeighbors().get(direction);
-            if (manualTarget != null && (CAMERAS.containsKey(manualTarget) || manualTarget != null)) {
-                return manualTarget;
-            }
-        }
+        map.put(Direction.NORTH, findNextCamera(currentPos, Direction.NORTH));
+        map.put(Direction.SOUTH, findNextCamera(currentPos, Direction.SOUTH));
+        map.put(Direction.WEST, findNextCamera(currentPos, Direction.WEST));
+        map.put(Direction.EAST, findNextCamera(currentPos, Direction.EAST));
+
+        return map;
+    }
+
+    public static BlockPos findNextCamera(BlockPos currentPos, Direction direction) {
+        if (currentPos == null || direction == null) return null;
 
         RoomNode currentRoom = findRoomForCamera(currentPos);
         if (currentRoom != null) {
@@ -207,15 +211,72 @@ public class FacilityNetworkManager {
                 case SOUTH -> dy = 1;
                 case WEST -> dx = -1;
                 case EAST -> dx = 1;
+                default -> {}
             }
 
-            RoomNode neighborRoom = getRoomAt(currentRoom.zone, currentRoom.gridX + dx, currentRoom.gridY + dy);
-            if (neighborRoom != null && !neighborRoom.linkedCameras.isEmpty()) {
-                return neighborRoom.linkedCameras.get(0);
+            // 1. Scan neighbor cells in grid direction up to 3 steps away
+            for (int step = 1; step <= 3; step++) {
+                RoomNode neighborRoom = getRoomAt(currentRoom.zone, currentRoom.gridX + dx * step, currentRoom.gridY + dy * step);
+                if (neighborRoom != null && !neighborRoom.linkedCameras.isEmpty()) {
+                    return neighborRoom.linkedCameras.get(0);
+                }
+            }
+
+            // 2. If current room has multiple cameras, cycle to next camera in room
+            if (currentRoom.linkedCameras.size() > 1) {
+                int idx = currentRoom.linkedCameras.indexOf(currentPos);
+                if (idx >= 0) {
+                    if (direction == Direction.NORTH || direction == Direction.EAST) {
+                        int nextIdx = (idx + 1) % currentRoom.linkedCameras.size();
+                        if (nextIdx != idx) return currentRoom.linkedCameras.get(nextIdx);
+                    } else if (direction == Direction.SOUTH || direction == Direction.WEST) {
+                        int prevIdx = (idx - 1 + currentRoom.linkedCameras.size()) % currentRoom.linkedCameras.size();
+                        if (prevIdx != idx) return currentRoom.linkedCameras.get(prevIdx);
+                    }
+                }
             }
         }
 
-        return null;
+        // 3. Fallback: check manual links if set
+        CameraBlockEntity current = CAMERAS.get(currentPos);
+        if (current != null) {
+            BlockPos manualTarget = current.getWasdNeighbors().get(direction);
+            if (manualTarget != null && (CAMERAS.containsKey(manualTarget) || manualTarget != null)) {
+                return manualTarget;
+            }
+        }
+
+        // 4. Fallback: world spatial scan among known cameras in that cardinal direction
+        FacilityZone zone = current != null ? current.getZone() : (currentRoom != null ? currentRoom.zone : null);
+        BlockPos bestPos = null;
+        double bestDist = Double.MAX_VALUE;
+
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : CAMERAS.entrySet()) {
+            BlockPos pos = entry.getKey();
+            if (pos.equals(currentPos)) continue;
+            if (zone != null && entry.getValue().getZone() != zone) continue;
+
+            int offX = pos.getX() - currentPos.getX();
+            int offZ = pos.getZ() - currentPos.getZ();
+
+            boolean matchesDir = switch (direction) {
+                case NORTH -> (offZ < -3 && Math.abs(offX) <= Math.abs(offZ));
+                case SOUTH -> (offZ > 3 && Math.abs(offX) <= Math.abs(offZ));
+                case WEST -> (offX < -3 && Math.abs(offZ) <= Math.abs(offX));
+                case EAST -> (offX > 3 && Math.abs(offZ) <= Math.abs(offX));
+                default -> false;
+            };
+
+            if (matchesDir) {
+                double d = currentPos.distSqr(pos);
+                if (d < bestDist && d <= 64 * 64) {
+                    bestDist = d;
+                    bestPos = pos;
+                }
+            }
+        }
+
+        return bestPos;
     }
 
     public static void autoLinkWasd(ServerLevel level) {

@@ -1,0 +1,23 @@
+{
+  "camera_switch": {
+    "category": "player",
+    "subtitle": "subtitles.zero_seven_nine.camera_switch",
+    "sounds": [
+      "zero_seven_nine:camera_switch"
+    ]
+  },
+  "zone_dial_tone": {
+    "category": "player",
+    "subtitle": "subtitles.zero_seven_nine.zone_dial_tone",
+    "sounds": [
+      "zero_seven_nine:zone_dial_tone"
+    ]
+  },
+  "camera_link": {
+    "category": "player",
+    "subtitle": "subtitles.zero_seven_nine.camera_link",
+    "sounds": [
+      "zero_seven_nine:camera_link"
+    ]
+  }
+}
