@@ -42,7 +42,7 @@ public class UniversalDoorHandler {
     @SubscribeEvent
     public static void onLivingTick(LivingEvent.LivingTickEvent event) {
         if (!event.getEntity().level().isClientSide && event.getEntity() instanceof ArmorStand stand) {
-            if (stand.getTags().contains("scp079_tesla_dummy") && stand.tickCount > 20) {
+            if (stand.getTags().contains("scp079_tesla_dummy") && stand.tickCount > 4) {
                 stand.discard();
             }
         }
@@ -147,6 +147,8 @@ public class UniversalDoorHandler {
         if (level instanceof ServerLevel serverLevel) {
             ArmorStand dummy = new ArmorStand(serverLevel, centerPos.getX() + 0.5, centerPos.getY() + 0.1, centerPos.getZ() + 0.5);
             dummy.setInvisible(true);
+            dummy.setMarker(true);
+            dummy.setSmall(true);
             dummy.setNoGravity(true);
             dummy.setInvulnerable(true);
             dummy.setSilent(true);

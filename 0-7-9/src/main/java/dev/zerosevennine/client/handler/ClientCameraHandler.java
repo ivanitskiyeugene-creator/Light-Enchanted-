@@ -644,6 +644,15 @@ public class ClientCameraHandler {
     }
 
     @SubscribeEvent
+    public static void onRenderLiving(net.minecraftforge.client.event.RenderLivingEvent.Pre<?, ?> event) {
+        if (event.getEntity() instanceof net.minecraft.world.entity.decoration.ArmorStand stand) {
+            if (stand.getTags().contains("scp079_tesla_dummy") || stand.isMarker()) {
+                event.setCanceled(true);
+            }
+        }
+    }
+
+    @SubscribeEvent
     public static void onRenderOverlayPost(RenderGuiOverlayEvent.Post event) {
         if (in079Mode && event.getOverlay() == VanillaGuiOverlay.CHAT_PANEL.type()) {
             Scp079CameraOverlay.render(event.getGuiGraphics(), event.getPartialTick());
