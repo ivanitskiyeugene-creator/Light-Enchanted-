@@ -2,15 +2,12 @@ package dev.zerosevennine.facility;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -27,15 +24,26 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.lang.reflect.Method;
-import java.util.List;
 
+@Mod.EventBusSubscriber(modid = "zero_seven_nine", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class UniversalDoorHandler {
+
+    @SubscribeEvent
+    public static void onLivingTick(LivingEvent.LivingTickEvent event) {
+        if (!event.getEntity().level().isClientSide && event.getEntity() instanceof ArmorStand stand) {
+            if (stand.getTags().contains("scp079_tesla_dummy") && stand.tickCount > 20) {
+                stand.discard();
+            }
+        }
+    }
 
     public static ItemStack getO5KeycardStack() {
         ResourceLocation[] candidates = new ResourceLocation[]{
@@ -158,7 +166,7 @@ public class UniversalDoorHandler {
         }
 
         if (level instanceof ServerLevel serverLevel) {
-            // Emulate player presence using invisible ArmorStand to trigger SCP: The Facility / SCPFR detection hitbox
+            // Emulate player presence using invisible ArmorStand so Tesla Gate naturally detects entity and executes its own native sequence
             ArmorStand dummy = new ArmorStand(serverLevel, centerPos.getX() + 0.5, centerPos.getY() + 0.1, centerPos.getZ() + 0.5);
             dummy.setInvisible(true);
             dummy.setNoGravity(true);
@@ -166,43 +174,6 @@ public class UniversalDoorHandler {
             dummy.setSilent(true);
             dummy.addTag("scp079_tesla_dummy");
             serverLevel.addFreshEntity(dummy);
-
-            // Also invoke direct BlockEntity methods if available
-            for (int dy = -2; dy <= 2; dy++) {
-                for (int dx = -2; dx <= 2; dx++) {
-                    for (int dz = -2; dz <= 2; dz++) {
-                        BlockPos p = centerPos.offset(dx, dy, dz);
-                        BlockEntity be = serverLevel.getBlockEntity(p);
-                        if (be != null) {
-                            invokeMethod(be, "trigger");
-                            invokeMethod(be, "overcharge");
-                            invokeMethod(be, "discharge");
-                            invokeMethod(be, "activate");
-                            invokeMethod(be, "shock");
-                            invokeMethod(be, "onEntityInside", Entity.class, dummy);
-                            invokeMethod(be, "onEntityCollision", Entity.class, dummy);
-                        }
-                        BlockState bs = serverLevel.getBlockState(p);
-                        BlockState toggled = setBooleanProperty(bs, "active", true);
-                        if (toggled != bs) serverLevel.setBlock(p, toggled, 3);
-                    }
-                }
-            }
-
-            // Audio & Particle effects
-            serverLevel.playSound(null, centerPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 1.2f, 1.4f);
-            serverLevel.playSound(null, centerPos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.5f, 0.5f);
-            serverLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK, centerPos.getX() + 0.5, centerPos.getY() + 1.2, centerPos.getZ() + 0.5, 45, 1.2, 1.2, 1.2, 0.2);
-            serverLevel.sendParticles(ParticleTypes.FLASH, centerPos.getX() + 0.5, centerPos.getY() + 1.2, centerPos.getZ() + 0.5, 3, 0.5, 0.5, 0.5, 0.0);
-
-            // Area shock damage to living entities inside Tesla Gate
-            AABB shockBox = new AABB(centerPos).inflate(3.5, 2.5, 3.5);
-            List<LivingEntity> targets = serverLevel.getEntitiesOfClass(LivingEntity.class, shockBox, e -> e != player && e != dummy && !e.isSpectator());
-            for (LivingEntity target : targets) {
-                target.hurt(serverLevel.damageSources().lightningBolt(), 100.0f);
-            }
-
-            dummy.discard();
         }
     }
 

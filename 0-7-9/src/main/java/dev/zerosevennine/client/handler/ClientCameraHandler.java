@@ -344,12 +344,12 @@ public class ClientCameraHandler {
                                              CameraBlockEntity.LinkedDevice dev, double dist, boolean isHovered) {
         Matrix4f mat = poseStack.last().pose();
 
-        int bracketCol = isHovered ? 0xFFFFFFFF : 0xAA00E5FF;
-        int textCol = isHovered ? 0xFFE0F7FA : 0xCC80DEEA;
+        int bracketCol = isHovered ? 0xFFFFFFFF : 0xCCE0F7FA;
+        int textCol = 0xFFE0F7FA;
 
         if (dev.isLocked) {
-            bracketCol = isHovered ? 0xFFFF3333 : 0xCCFF2222;
-            textCol = 0xFFFF5555;
+            bracketCol = isHovered ? 0xFFFFFFFF : 0xCCE0F7FA;
+            textCol = 0xFFE0F7FA;
         }
 
         int bw = 8;
@@ -388,18 +388,18 @@ public class ClientCameraHandler {
         float tw2 = font.width(actionPrompt);
         float maxW = Math.max(tw1, tw2) + 8;
 
-        int bgCol = 0xEE061018;
+        int bgCol = 0xAA000000;
         fillQuad(bufferSource, mat, -maxW / 2, bh + 4, maxW / 2, bh + 26, bgCol);
         fillQuad(bufferSource, mat, -maxW / 2, bh + 4, maxW / 2, bh + 5, bracketCol);
 
         font.drawInBatch(typeLabel, -tw1 / 2, bh + 6, textCol, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
-        font.drawInBatch(actionPrompt, -tw2 / 2, bh + 16, 0xFF00E5FF, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+        font.drawInBatch(actionPrompt, -tw2 / 2, bh + 16, 0xFFE0F7FA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
     }
 
     private static void render3DNeighborMarker(PoseStack poseStack, MultiBufferSource bufferSource, Font font,
                                                Direction dir, double dist, boolean isHovered) {
         Matrix4f mat = poseStack.last().pose();
-        int col = isHovered ? 0xFFFFFFFF : 0xAA00E5FF;
+        int col = isHovered ? 0xFFFFFFFF : 0xCCE0F7FA;
         String dirKey = switch (dir) {
             case NORTH -> "[W]";
             case SOUTH -> "[S]";
@@ -408,7 +408,7 @@ public class ClientCameraHandler {
             default -> "[JUMP]";
         };
 
-        int bgCol = isHovered ? 0xDD0D1B2A : 0x88061018;
+        int bgCol = 0xAA000000;
         fillQuad(bufferSource, mat, -10, -10, 10, 10, bgCol);
         fillQuad(bufferSource, mat, -10, -10, 10, -9, col);
         fillQuad(bufferSource, mat, -10, 9, 10, 10, col);
@@ -419,9 +419,9 @@ public class ClientCameraHandler {
         if (isHovered) {
             String label = "[LMB] JUMP CAMERA (2 AP)";
             float lw = font.width(label);
-            fillQuad(bufferSource, mat, -lw / 2 - 4, 14, lw / 2 + 4, 25, 0xEE0D1B2A);
+            fillQuad(bufferSource, mat, -lw / 2 - 4, 14, lw / 2 + 4, 25, 0xAA000000);
             fillQuad(bufferSource, mat, -lw / 2 - 4, 14, lw / 2 + 4, 15, col);
-            font.drawInBatch(label, -lw / 2, 16, 0xFF00E5FF, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
+            font.drawInBatch(label, -lw / 2, 16, 0xFFE0F7FA, false, mat, bufferSource, Font.DisplayMode.SEE_THROUGH, 0, LightTexture.FULL_BRIGHT);
         }
     }
 
