@@ -2,12 +2,14 @@ package dev.zerosevennine.facility;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -149,6 +151,7 @@ public class UniversalDoorHandler {
         if (state.getBlock() instanceof ButtonBlock button) {
             button.press(state, level, pos);
             level.playSound(null, pos, SoundEvents.STONE_BUTTON_CLICK_ON, SoundSource.BLOCKS, 1.0f, 1.0f);
+            notifyNeighbors(level, pos);
             return true;
         }
         if (state.getBlock() instanceof LeverBlock) {
@@ -188,49 +191,89 @@ public class UniversalDoorHandler {
         return true;
     }
 
-    public static boolean openDoor(Level level, BlockPos pos, Player player) {
-        if (level == null || pos == null) return false;
+    public static void setAreaLockState(Level level, BlockPos centerPos, boolean lock, Player player) {
+        if (level == null || centerPos == null) return;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos p = centerPos.offset(dx, dy, dz);
+                    swapButtonLockState(level, p, lock);
+                }
+            }
+        }
+
+        if (lock) {
+            closeDoor(level, centerPos, player);
+        }
+        notifyNeighbors(level, centerPos);
+    }
+
+    private static void swapButtonLockState(Level level, BlockPos pos, boolean lock) {
         BlockState state = level.getBlockState(pos);
+        if (state.isAir()) return;
 
-        if (state.getBlock() instanceof DoorBlock) {
-            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
-            BlockPos upperPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos.above() : pos;
-            BlockState lowerState = level.getBlockState(lowerPos);
-            BlockState upperState = level.getBlockState(upperPos);
-
-            if (lowerState.getBlock() instanceof DoorBlock) {
-                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true), 3);
-            }
-            if (upperState.getBlock() instanceof DoorBlock) {
-                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, true), 3);
-            }
-            level.playSound(null, pos, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, lowerPos);
-            notifyNeighbors(level, upperPos);
-            return true;
-        }
-
-        if (state.getBlock() instanceof TrapDoorBlock) {
-            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, true), 3);
-            level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+        BlockState withLockedProp = setBooleanProperty(state, "locked", lock);
+        if (withLockedProp != state) {
+            level.setBlock(pos, withLockedProp, 3);
             notifyNeighbors(level, pos);
-            return true;
+            return;
         }
 
-        if (state.getBlock() instanceof FenceGateBlock) {
-            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, true), 3);
-            level.playSound(null, pos, SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
-            notifyNeighbors(level, pos);
-            return true;
+        ResourceLocation key = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (key == null) return;
+
+        String ns = key.getNamespace();
+        String path = key.getPath();
+
+        ResourceLocation targetKey = null;
+        if (lock) {
+            if (!path.contains("locked")) {
+                ResourceLocation try1 = new ResourceLocation(ns, path + "_locked");
+                if (ForgeRegistries.BLOCKS.containsKey(try1)) {
+                    targetKey = try1;
+                } else {
+                    ResourceLocation try2 = new ResourceLocation(ns, "locked_" + path);
+                    if (ForgeRegistries.BLOCKS.containsKey(try2)) {
+                        targetKey = try2;
+                    }
+                }
+            }
+        } else {
+            if (path.endsWith("_locked")) {
+                String base = path.substring(0, path.length() - "_locked".length());
+                ResourceLocation try1 = new ResourceLocation(ns, base);
+                if (ForgeRegistries.BLOCKS.containsKey(try1)) {
+                    targetKey = try1;
+                }
+            } else if (path.startsWith("locked_")) {
+                String base = path.substring("locked_".length());
+                ResourceLocation try1 = new ResourceLocation(ns, base);
+                if (ForgeRegistries.BLOCKS.containsKey(try1)) {
+                    targetKey = try1;
+                }
+            }
         }
 
-        triggerModdedDoorState(level, pos, player, true);
-        BlockState modified = setBooleanProperty(state, "open", true);
-        if (modified != state) {
-            level.setBlock(pos, modified, 3);
+        if (targetKey != null) {
+            Block newBlock = ForgeRegistries.BLOCKS.getValue(targetKey);
+            if (newBlock != null) {
+                BlockState newState = newBlock.defaultBlockState();
+                for (Property<?> prop : state.getProperties()) {
+                    newState = copyProperty(state, newState, prop);
+                }
+                level.setBlock(pos, newState, 3);
+                notifyNeighbors(level, pos);
+            }
         }
-        notifyNeighbors(level, pos);
-        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> BlockState copyProperty(BlockState from, BlockState to, Property<T> prop) {
+        if (to.hasProperty(prop)) {
+            return to.setValue(prop, from.getValue(prop));
+        }
+        return to;
     }
 
     public static boolean closeDoor(Level level, BlockPos pos, Player player) {

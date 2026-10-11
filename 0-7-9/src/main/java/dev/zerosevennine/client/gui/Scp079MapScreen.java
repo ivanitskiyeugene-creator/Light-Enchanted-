@@ -1,54 +1,113 @@
 package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import dev.zerosevennine.ZeroSevenNine;
-import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
+import com.mojang.blaze3d.vertex.*;
+import dev.zerosevennine.ai.Scp079PlayerData;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
-import dev.zerosevennine.facility.FacilityNetworkManager;
-import dev.zerosevennine.network.C2SInteractDevicePacket;
-import dev.zerosevennine.network.C2SRequestMapSyncPacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.ModNetwork;
-import net.minecraft.client.gui.Font;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import org.lwjgl.glfw.GLFW;
+import org.joml.Matrix4f;
 
-import java.util.Map;
+import java.util.*;
 
 public class Scp079MapScreen extends Screen {
-    private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
 
-    private float animProgress = 0.0f;
-    private boolean isClosing = false;
+    private double panX = 0;
+    private double panY = 0;
+    private double zoom = 1.0;
+    private final List<MapNode> nodes = new ArrayList<>();
+    private int openTicks = 0;
 
-    private double panX = 0.0;
-    private double panY = 0.0;
-    private double lastMouseX = -1.0;
-    private double lastMouseY = -1.0;
+    public static class MapNode {
+        public BlockPos pos;
+        public String roomName;
+        public String zone;
+        public boolean isCurrent;
+        public boolean isVisited;
+        public boolean isOvercharged;
+        public boolean isBooting;
+        public boolean hasScp;
+        public int gridX;
+        public int gridY;
 
-    private BlockPos focusedRoomPos = null;
+        public MapNode(BlockPos pos, String roomName, String zone, boolean isCurrent, boolean isVisited,
+                       boolean isOvercharged, boolean isBooting, boolean hasScp, int gridX, int gridY) {
+            this.pos = pos;
+            this.roomName = roomName;
+            this.zone = zone;
+            this.isCurrent = isCurrent;
+            this.isVisited = isVisited;
+            this.isOvercharged = isOvercharged;
+            this.isBooting = isBooting;
+            this.hasScp = hasScp;
+            this.gridX = gridX;
+            this.gridY = gridY;
+        }
+    }
 
     public Scp079MapScreen() {
-        super(Component.literal("Facility Surveillance Schematic"));
+        super(Component.literal("Tactical Facility Map"));
     }
 
     @Override
     protected void init() {
         super.init();
-        animProgress = 0.0f;
-        isClosing = false;
-        lastMouseX = -1.0;
-        lastMouseY = -1.0;
-
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.grabMouse();
+        this.openTicks = 0;
+        buildMockFacilityNodes();
+        if (minecraft != null) {
+            minecraft.mouseHandler.grabMouse();
         }
+    }
 
-        ModNetwork.CHANNEL.sendToServer(new C2SRequestMapSyncPacket());
+    @Override
+    public void tick() {
+        super.tick();
+        this.openTicks++;
+    }
+
+    private void buildMockFacilityNodes() {
+        nodes.clear();
+        BlockPos currentCamPos = ClientCameraHandler.getCurrentCameraPos();
+
+        int[][] layout = {
+            {0, 1, 0, 1, 0},
+            {1, 1, 1, 1, 1},
+            {0, 1, 1, 1, 0},
+            {1, 1, 0, 1, 1},
+            {0, 1, 1, 1, 0}
+        };
+
+        String[] sampleRooms = {
+            "HCZ-01 Air", "Tesla Hall", "049 Chamber", "Gen Hall Alpha",
+            "914 Airlock", "Server Farm", "Alpha Warhead", "Micro-HID Storage",
+            "Heavy Intercom", "Gate A Chk", "Gate B Chk", "LCZ Elevator A",
+            "LCZ Elevator B", "Decontam Airlock", "EZ Checkpoint"
+        };
+
+        int roomIdx = 0;
+        for (int gy = 0; gy < layout.length; gy++) {
+            for (int gx = 0; gx < layout[gy].length; gx++) {
+                if (layout[gy][gx] == 1) {
+                    boolean isCurr = (gx == 2 && gy == 2);
+                    boolean isGenBooting = (gx == 1 && gy == 3);
+                    boolean isGenOvercharged = (gx == 3 && gy == 1);
+                    boolean hasScp = (gx == 1 && gy == 1);
+                    String name = sampleRooms[roomIdx % sampleRooms.length];
+                    roomIdx++;
+
+                    BlockPos p = (currentCamPos != null && isCurr) ? currentCamPos :
+                        new BlockPos((gx - 2) * 20, 60, (gy - 2) * 20);
+
+                    nodes.add(new MapNode(p, name, "HCZ", isCurr, true, isGenOvercharged, isGenBooting, hasScp, gx - 2, gy - 2));
+                }
+            }
+        }
     }
 
     @Override
@@ -57,254 +116,200 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
-    public void onClose() {
-        if (!isClosing) {
-            isClosing = true;
-            return;
-        }
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.grabMouse();
-        }
-        super.onClose();
-    }
-
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_TAB || keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            this.onClose();
+        if (openTicks <= 3 && (keyCode == 258 || keyCode == 256)) {
             return true;
         }
 
-        if (keyCode == GLFW.GLFW_KEY_SPACE || keyCode == GLFW.GLFW_KEY_ENTER) {
-            if (focusedRoomPos != null) {
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
-                this.onClose();
-                return true;
-            } else if (ClientCameraHandler.tier >= 4 && keyCode == GLFW.GLFW_KEY_SPACE) {
-                ModNetwork.CHANNEL.sendToServer(new C2SInteractDevicePacket(ClientCameraHandler.activeCameraPos, C2SInteractDevicePacket.Action.BREACH_SCANNER));
-                return true;
-            }
+        if (keyCode == 258 || keyCode == 256) {
+            this.onClose();
+            return true;
+        }
+        if (keyCode == 32) {
+            triggerBreachScanner();
+            return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public void mouseMoved(double mouseX, double mouseY) {
-        if (lastMouseX >= 0 && lastMouseY >= 0) {
-            double dx = mouseX - lastMouseX;
-            double dy = mouseY - lastMouseY;
-            panX -= dx * 1.5;
-            panY -= dy * 1.5;
-        }
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX -= dragX * 1.5;
-        panY -= dragY * 1.5;
-        return true;
-    }
-
-    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            if (focusedRoomPos != null) {
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
-                this.onClose();
-                return true;
+        if (button == 0) {
+            double centerX = width / 2.0 + panX;
+            double centerY = height / 2.0 + panY;
+            double cellSize = 38.0 * zoom;
+
+            for (MapNode node : nodes) {
+                double cellCenterX = centerX + node.gridX * (cellSize + 10.0 * zoom);
+                double cellCenterY = centerY + node.gridY * (cellSize + 10.0 * zoom);
+                double half = cellSize / 2.0;
+
+                if (mouseX >= cellCenterX - half && mouseX <= cellCenterX + half &&
+                    mouseY >= cellCenterY - half && mouseY <= cellCenterY + half) {
+                    ModNetwork.sendToServer(new C2SSwitchCameraPacket(node.pos));
+                    this.onClose();
+                    return true;
+                }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (!isClosing) {
-            animProgress = Math.min(1.0f, animProgress + 0.16f);
-        } else {
-            animProgress = Math.max(0.0f, animProgress - 0.16f);
-            if (animProgress <= 0.0f) {
-                super.onClose();
-                return;
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        this.panX += dragX;
+        this.panY += dragY;
+        return true;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (delta > 0) {
+            zoom = Math.min(2.5, zoom + 0.15);
+        } else if (delta < 0) {
+            zoom = Math.max(0.4, zoom - 0.15);
+        }
+        return true;
+    }
+
+    private void triggerBreachScanner() {
+        Scp079PlayerData data = ClientCameraHandler.getClientData();
+        if (data != null && data.getTier() >= 4 && data.getAuxiliaryPower() >= 40.0f) {
+            Minecraft.getInstance().gui.getChat().addMessage(Component.literal("§b[079 BREACH SCANNER]§f Scanning facility sectors for living SCP lifeforms..."));
+        }
+    }
+
+    @Override
+    public void render(GuiGraphics gfx, int mouseX, int mouseY, float partialTicks) {
+        renderBackground(gfx);
+
+        gfx.fill(0, 0, width, height, 0xDD030B12);
+
+        renderGridLines(gfx);
+        renderFacilityGraph(gfx);
+        renderReticleAndOverlays(gfx);
+
+        super.render(gfx, mouseX, mouseY, partialTicks);
+    }
+
+    private void renderGridLines(GuiGraphics gfx) {
+        int gridColor = 0x1A00FFFF;
+        int step = (int) (24 * zoom);
+        if (step < 8) step = 8;
+
+        int offsetX = (int) (panX % step);
+        int offsetY = (int) (panY % step);
+
+        for (int x = offsetX; x < width; x += step) {
+            gfx.fill(x, 0, x + 1, height, gridColor);
+        }
+        for (int y = offsetY; y < height; y += step) {
+            gfx.fill(0, y, width, y + 1, gridColor);
+        }
+    }
+
+    private void renderFacilityGraph(GuiGraphics gfx) {
+        double centerX = width / 2.0 + panX;
+        double centerY = height / 2.0 + panY;
+        double cellSize = 38.0 * zoom;
+        double spacing = 10.0 * zoom;
+
+        for (int i = 0; i < nodes.size(); i++) {
+            MapNode a = nodes.get(i);
+            double ax = centerX + a.gridX * (cellSize + spacing);
+            double ay = centerY + a.gridY * (cellSize + spacing);
+
+            for (int j = i + 1; j < nodes.size(); j++) {
+                MapNode b = nodes.get(j);
+                if (Math.abs(a.gridX - b.gridX) + Math.abs(a.gridY - b.gridY) == 1) {
+                    double bx = centerX + b.gridX * (cellSize + spacing);
+                    double by = centerY + b.gridY * (cellSize + spacing);
+                    drawVectorLine(gfx, (float) ax, (float) ay, (float) bx, (float) by, 0x4400E5FF, 1.5f);
+                }
             }
         }
 
+        long time = System.currentTimeMillis();
+        boolean flashRed = (time / 400) % 2 == 0;
+
+        for (MapNode node : nodes) {
+            double nx = centerX + node.gridX * (cellSize + spacing);
+            double ny = centerY + node.gridY * (cellSize + spacing);
+            double half = cellSize / 2.0;
+
+            int fillColor;
+            int borderColor;
+
+            if (node.isCurrent) {
+                fillColor = 0x8800FF66;
+                borderColor = 0xFF00FF88;
+            } else if (node.isBooting) {
+                fillColor = flashRed ? 0xAAFF2200 : 0x44FF5500;
+                borderColor = 0xFFFF3300;
+            } else if (node.isOvercharged) {
+                fillColor = 0x660088FF;
+                borderColor = 0xFF00AAFF;
+            } else {
+                fillColor = 0x44002B44;
+                borderColor = 0xFF00E5FF;
+            }
+
+            gfx.fill((int) (nx - half), (int) (ny - half), (int) (nx + half), (int) (ny + half), fillColor);
+
+            gfx.fill((int) (nx - half), (int) (ny - half), (int) (nx + half), (int) (ny - half + 1), borderColor);
+            gfx.fill((int) (nx - half), (int) (ny + half - 1), (int) (nx + half), (int) (ny + half), borderColor);
+            gfx.fill((int) (nx - half), (int) (ny - half), (int) (nx - half + 1), (int) (ny + half), borderColor);
+            gfx.fill((int) (nx + half - 1), (int) (ny - half), (int) (nx + half), (int) (ny + half), borderColor);
+
+            if (node.hasScp) {
+                int scpColor = 0xFFFF0033;
+                gfx.fill((int) (nx - 3), (int) (ny - 3), (int) (nx + 3), (int) (ny + 3), scpColor);
+            }
+        }
+    }
+
+    private void renderReticleAndOverlays(GuiGraphics gfx) {
         int cx = width / 2;
         int cy = height / 2;
+        int reticleColor = 0xAA00E5FF;
 
-        graphics.fill(0, 0, width, height, 0xFF040A10);
+        gfx.fill(cx - 10, cy, cx - 3, cy + 1, reticleColor);
+        gfx.fill(cx + 3, cy, cx + 10, cy + 1, reticleColor);
+        gfx.fill(cx, cy - 10, cx + 1, cy - 3, reticleColor);
+        gfx.fill(cx, cy + 3, cx + 1, cy + 10, reticleColor);
 
-        if (animProgress < 0.20f) {
-            graphics.fill(0, cy - 2, width, cy + 2, 0xEE00E5FF);
-            graphics.fill(cx - 60, cy - 3, cx + 60, cy + 3, 0xFFE0F7FA);
-            graphics.fill(cx - 20, cy - 4, cx + 20, cy + 4, 0xFFFFFFFF);
-            return;
-        }
+        gfx.drawString(font, "§b[TACTICAL MAP]§7 - DRAG TO PAN | MMB/WHEEL TO ZOOM | [TAB] EXIT", 12, 12, 0xFFFFFFFF);
+    }
 
-        float vRatio = (animProgress - 0.20f) / 0.80f;
-        int clipH = (int) (height * vRatio);
-        int topY = cy - (clipH / 2);
-        int bottomY = cy + (clipH / 2);
-
+    private void drawVectorLine(GuiGraphics gfx, float x1, float y1, float x2, float y2, int color, float width) {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.10f);
-        graphics.blit(SCANLINES, 0, topY, 0, 0, width, clipH, width, height);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
-        Font font = this.font;
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder buffer = tesselator.getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
-        renderHeader(graphics, font, topY);
-        renderVectorMap(graphics, font, cx, cy, topY, bottomY);
-        renderCenterFixedReticle(graphics, font, cx, cy);
-        renderBottomStatusBar(graphics, font, bottomY);
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len == 0) return;
 
-        super.render(graphics, mouseX, mouseY, partialTick);
-    }
+        float nx = -dy / len * (width / 2.0f);
+        float ny = dx / len * (width / 2.0f);
 
-    private void renderHeader(GuiGraphics graphics, Font font, int topY) {
-        int hY = topY + 10;
-        int hH = 28;
+        int a = (color >> 24) & 0xFF;
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
 
-        graphics.fill(20, hY, width - 20, hY + hH, 0xCC061018);
-        graphics.fill(20, hY, width - 20, hY + 2, 0xFF00E5FF);
+        Matrix4f mat = gfx.pose().last().pose();
+        buffer.vertex(mat, x1 + nx, y1 + ny, 0).color(r, g, b, a).endVertex();
+        buffer.vertex(mat, x1 - nx, y1 - ny, 0).color(r, g, b, a).endVertex();
+        buffer.vertex(mat, x2 - nx, y2 - ny, 0).color(r, g, b, a).endVertex();
+        buffer.vertex(mat, x2 + nx, y2 + ny, 0).color(r, g, b, a).endVertex();
 
-        String title = "SITE-02 TACTICAL SCHEMATIC // TIER " + ClientCameraHandler.tier;
-        graphics.drawString(font, title, 30, hY + 10, 0xFFE0F7FA, true);
-
-        String apStatus = String.format("AP: %.0f/%.0f (+%.1f/s)", ClientCameraHandler.ap, ClientCameraHandler.maxAp, ClientCameraHandler.apRegen);
-        graphics.drawString(font, apStatus, width - font.width(apStatus) - 30, hY + 10, 0xAA80DEEA, false);
-    }
-
-    private void renderCenterFixedReticle(GuiGraphics graphics, Font font, int cx, int cy) {
-        int reticleCol = 0xFF00E5FF;
-
-        graphics.fill(cx - 18, cy - 18, cx - 12, cy - 17, reticleCol);
-        graphics.fill(cx - 18, cy - 18, cx - 17, cy - 12, reticleCol);
-
-        graphics.fill(cx + 12, cy - 18, cx + 18, cy - 17, reticleCol);
-        graphics.fill(cx + 17, cy - 18, cx + 18, cy - 12, reticleCol);
-
-        graphics.fill(cx - 18, cy + 17, cx - 12, cy + 18, reticleCol);
-        graphics.fill(cx - 18, cy + 12, cx - 17, cy + 18, reticleCol);
-
-        graphics.fill(cx + 12, cy + 17, cx + 18, cy + 18, reticleCol);
-        graphics.fill(cx + 17, cy + 12, cx + 18, cy + 18, reticleCol);
-
-        graphics.fill(cx - 1, cy - 1, cx + 1, cy + 1, 0xFFE0F7FA);
-
-        if (focusedRoomPos != null) {
-            String prompt = "[LMB / SPACE] SWITCH CAMERA";
-            graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 24, 0xFFE0F7FA, true);
-        }
-    }
-
-    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY) {
-        int gridSpacing = 48;
-        int gridOffsetX = ((int) panX) % gridSpacing;
-        int gridOffsetY = ((int) panY) % gridSpacing;
-
-        for (int x = gridOffsetX; x < width; x += gridSpacing) {
-            graphics.fill(x, topY + 42, x + 1, bottomY - 38, 0x1800E5FF);
-        }
-        for (int y = topY + 42 + gridOffsetY; y < bottomY - 38; y += gridSpacing) {
-            graphics.fill(20, y, width - 20, y + 1, 0x1800E5FF);
-        }
-
-        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRooms();
-        focusedRoomPos = null;
-        double closestDistSq = 40.0 * 40.0;
-
-        for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
-            BlockPos roomPos = entry.getKey();
-            FacilityNetworkManager.RoomNode room = entry.getValue();
-
-            int nodeW = 50;
-            int nodeH = 36;
-            int nodeX = cx + (int) panX + (room.gridX * 68) - (nodeW / 2);
-            int nodeY = cy + (int) panY + (room.gridY * 50) - (nodeH / 2);
-
-            int cellCenterX = nodeX + (nodeW / 2);
-            int cellCenterY = nodeY + (nodeH / 2);
-
-            double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
-            if (distSq <= closestDistSq) {
-                closestDistSq = distSq;
-                focusedRoomPos = roomPos;
-            }
-
-            boolean isCurrent = roomPos.equals(ClientCameraHandler.activeCameraPos);
-            boolean isTransition = (room.roomType == FacilityMapNodeBlockEntity.RoomType.ELEVATOR ||
-                                    room.roomType == FacilityMapNodeBlockEntity.RoomType.CHECKPOINT);
-            boolean isFocused = roomPos.equals(focusedRoomPos);
-
-            renderGeometricCell(graphics, font, nodeX, nodeY, nodeW, nodeH, isCurrent, isTransition, isFocused, room.hasGenerator, room.isGeneratorBooting);
-        }
-    }
-
-    private void renderGeometricCell(GuiGraphics graphics, Font font, int x, int y, int w, int h,
-                                     boolean isCurrent, boolean isTransition, boolean isFocused,
-                                     boolean hasGenerator, boolean isGeneratorBooting) {
-        int bgCol = isCurrent ? 0x8800E5FF : (isFocused ? 0xBB0D2636 : 0xDD061018);
-        int frameCol = isFocused ? 0xFFFFFFFF : (isCurrent ? 0xFFE0F7FA : 0xAA00E5FF);
-
-        if (isGeneratorBooting) {
-            long time = System.currentTimeMillis() / 250;
-            int alertCol = (time % 2 == 0) ? 0xFFFF3300 : 0xFFFFAA00;
-            bgCol = 0x88FF3300;
-            frameCol = alertCol;
-        }
-
-        graphics.fill(x, y, x + w, y + h, bgCol);
-
-        graphics.fill(x, y, x + w, y + 1, frameCol);
-        graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
-        graphics.fill(x, y, x + 1, y + h, frameCol);
-        graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
-
-        int midX = x + (w / 2);
-        int midY = y + (h / 2);
-
-        if (isCurrent) {
-            graphics.fill(midX - 4, midY - 4, midX + 4, midY + 4, 0xFF00E5FF);
-            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF040A10);
-        } else if (isTransition) {
-            graphics.fill(midX - 8, midY - 6, midX - 6, midY + 6, frameCol);
-            graphics.fill(midX + 6, midY - 6, midX + 8, midY + 6, frameCol);
-            graphics.fill(midX - 4, midY - 1, midX + 4, midY + 1, frameCol);
-        } else {
-            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, frameCol);
-        }
-
-        if (isFocused) {
-            graphics.fill(x - 4, y - 4, x, y - 3, 0xFFFFFFFF);
-            graphics.fill(x - 4, y - 4, x - 3, y, 0xFFFFFFFF);
-
-            graphics.fill(x + w, y - 4, x + w + 4, y - 3, 0xFFFFFFFF);
-            graphics.fill(x + w + 3, y - 4, x + w + 4, y, 0xFFFFFFFF);
-
-            graphics.fill(x - 4, y + h + 3, x, y + h + 4, 0xFFFFFFFF);
-            graphics.fill(x - 4, y + h, x - 3, y + h + 4, 0xFFFFFFFF);
-
-            graphics.fill(x + w, y + h + 3, x + w + 4, y + h + 4, 0xFFFFFFFF);
-            graphics.fill(x + w + 3, y + h, x + w + 4, y + h + 4, 0xFFFFFFFF);
-        }
-    }
-
-    private void renderBottomStatusBar(GuiGraphics graphics, Font font, int bottomY) {
-        int by = bottomY - 32;
-        graphics.fill(20, by, width - 20, by + 26, 0xCC061018);
-        graphics.fill(20, by, width - 20, by + 2, 0xFF00E5FF);
-
-        boolean scannerOn = ClientCameraHandler.breachScannerActive;
-        String scannerTxt = scannerOn ? "BREACH SCANNER: [ONLINE (-50% AP REGEN)]" :
-                (ClientCameraHandler.tier >= 4 ? "BREACH SCANNER: [STANDBY] - [SPACE]" : "BREACH SCANNER: [TIER 4 LOCKED]");
-
-        graphics.drawString(font, scannerTxt, 30, by + 8, 0xFFE0F7FA, true);
-
-        String helpTxt = "MOUSE MOVE: PAN MAP  |  [LMB / SPACE]: JUMP TO RETICLE ROOM  |  [TAB / ESC]: EXIT";
-        graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 30, by + 8, 0xAA80DEEA, false);
+        tesselator.end();
+        RenderSystem.disableBlend();
     }
 }
