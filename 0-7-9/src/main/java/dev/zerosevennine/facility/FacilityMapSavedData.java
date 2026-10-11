@@ -7,9 +7,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class FacilityMapSavedData extends SavedData {
     private static final String DATA_NAME = "zero_seven_nine_facility_map";
 
@@ -58,6 +55,14 @@ public class FacilityMapSavedData extends SavedData {
                     }
                 }
 
+                if (rTag.contains("poly", Tag.TAG_LIST)) {
+                    ListTag polyList = rTag.getList("poly", Tag.TAG_COMPOUND);
+                    for (int p = 0; p < polyList.size(); p++) {
+                        CompoundTag pt = polyList.getCompound(p);
+                        node.customPolygon.add(new int[]{pt.getInt("x"), pt.getInt("y")});
+                    }
+                }
+
                 FacilityNetworkManager.registerRoomNode(node);
             }
         }
@@ -89,6 +94,17 @@ public class FacilityMapSavedData extends SavedData {
                 camList.add(cTag);
             }
             rTag.put("cameras", camList);
+
+            if (!node.customPolygon.isEmpty()) {
+                ListTag polyList = new ListTag();
+                for (int[] pt : node.customPolygon) {
+                    CompoundTag ptTag = new CompoundTag();
+                    ptTag.putInt("x", pt[0]);
+                    ptTag.putInt("y", pt[1]);
+                    polyList.add(ptTag);
+                }
+                rTag.put("poly", polyList);
+            }
 
             list.add(rTag);
         }

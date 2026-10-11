@@ -371,7 +371,10 @@ public class Scp079MapScreen extends Screen {
         int midY = y + (h / 2);
         int armW = 16;
 
-        switch (shape) {
+        if (!room.customPolygon.isEmpty()) {
+            FacilityNetworkManager.fillPolygonWithScanlines(graphics, midX, midY, room.customPolygon, bgCol, scanlineCol, frameCol);
+        } else {
+            switch (shape) {
             case T_SHAPE -> {
                 if (rot == 0) { // Stem South
                     fillWithScanlines(graphics, x, y, x + w, y + armW, bgCol, scanlineCol);

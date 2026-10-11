@@ -98,10 +98,15 @@ public class ModNetwork {
     public static void sendFacilityMapToClient(ServerPlayer player) {
         List<S2CSyncFacilityMapPacket.NodeData> nodeDataList = new ArrayList<>();
         for (dev.zerosevennine.facility.FacilityNetworkManager.RoomNode node : dev.zerosevennine.facility.FacilityNetworkManager.getRooms().values()) {
-            nodeDataList.add(new S2CSyncFacilityMapPacket.NodeData(
+            S2CSyncFacilityMapPacket.NodeData nd = new S2CSyncFacilityMapPacket.NodeData(
                     node.pos, node.roomName, node.zone, node.roomType, node.roomShape, node.rotation, node.targetZone,
                     node.gridX, node.gridY, node.hasGenerator, node.isGeneratorBooting
-            ));
+            );
+            nd.linkedCameras.addAll(node.linkedCameras);
+            for (int[] pt : node.customPolygon) {
+                nd.customPolygon.add(new int[]{pt[0], pt[1]});
+            }
+            nodeDataList.add(nd);
         }
 
         List<S2CSyncFacilityMapPacket.CameraData> camDataList = new ArrayList<>();

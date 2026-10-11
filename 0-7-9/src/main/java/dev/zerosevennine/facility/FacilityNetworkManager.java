@@ -6,6 +6,7 @@ import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.network.ModNetwork;
 import dev.zerosevennine.system.Scp079PlayerManager;
 import dev.zerosevennine.system.Scp079Session;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -28,6 +29,7 @@ public class FacilityNetworkManager {
         public boolean hasGenerator;
         public boolean isGeneratorBooting;
         public final List<BlockPos> linkedCameras = new ArrayList<>();
+        public final List<int[]> customPolygon = new ArrayList<>();
 
         public RoomNode(BlockPos pos, String roomName, FacilityZone zone,
                         FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
@@ -47,6 +49,13 @@ public class FacilityNetworkManager {
 
         public String getKey() {
             return zone.name() + "_" + gridX + "_" + gridY;
+        }
+
+        public List<int[]> getEffectivePolygon() {
+            if (!customPolygon.isEmpty()) {
+                return customPolygon;
+            }
+            return generateDefaultVertices(roomShape, rotation);
         }
     }
 
@@ -68,6 +77,16 @@ public class FacilityNetworkManager {
 
     public static void removeRoom(FacilityZone zone, int gx, int gy) {
         ROOMS.remove(getRoomKey(zone, gx, gy));
+    }
+
+    public static void moveRoom(FacilityZone zone, int fromGx, int fromGy, int toGx, int toGy) {
+        RoomNode room = ROOMS.remove(getRoomKey(zone, fromGx, fromGy));
+        if (room != null) {
+            room.gridX = toGx;
+            room.gridY = toGy;
+            room.pos = new BlockPos(toGx * 16, 64, toGy * 16);
+            ROOMS.put(room.getKey(), room);
+        }
     }
 
     public static void clearZone(FacilityZone zone) {
@@ -179,51 +198,24 @@ public class FacilityNetworkManager {
             }
         }
 
-        // Grid-based automatic navigation lookup
         RoomNode currentRoom = findRoomForCamera(currentPos);
         if (currentRoom != null) {
-            int nx = currentRoom.gridX;
-            int ny = currentRoom.gridY;
+            int dx = 0;
+            int dy = 0;
             switch (direction) {
-                case NORTH -> ny -= 1;
-                case SOUTH -> ny += 1;
-                case WEST -> nx -= 1;
-                case EAST -> nx += 1;
-                default -> {}
+                case NORTH -> dy = -1;
+                case SOUTH -> dy = 1;
+                case WEST -> dx = -1;
+                case EAST -> dx = 1;
             }
-            RoomNode nextRoom = getRoomAt(currentRoom.zone, nx, ny);
-            if (nextRoom != null && !nextRoom.linkedCameras.isEmpty()) {
-                return nextRoom.linkedCameras.get(0);
-            }
-        }
 
-        // Automatic spatial fallback
-        double bestDist = Double.MAX_VALUE;
-        BlockPos bestPos = null;
-
-        for (BlockPos p : CAMERAS.keySet()) {
-            if (p.equals(currentPos)) continue;
-            double dx = p.getX() - currentPos.getX();
-            double dz = p.getZ() - currentPos.getZ();
-
-            boolean matches = switch (direction) {
-                case NORTH -> (dz < -2.0 && Math.abs(dx) < Math.abs(dz));
-                case SOUTH -> (dz > 2.0 && Math.abs(dx) < Math.abs(dz));
-                case WEST -> (dx < -2.0 && Math.abs(dz) < Math.abs(dx));
-                case EAST -> (dx > 2.0 && Math.abs(dz) < Math.abs(dx));
-                default -> false;
-            };
-
-            if (matches) {
-                double dist = p.distSqr(currentPos);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestPos = p;
-                }
+            RoomNode neighborRoom = getRoomAt(currentRoom.zone, currentRoom.gridX + dx, currentRoom.gridY + dy);
+            if (neighborRoom != null && !neighborRoom.linkedCameras.isEmpty()) {
+                return neighborRoom.linkedCameras.get(0);
             }
         }
 
-        return bestPos;
+        return null;
     }
 
     public static void autoLinkWasd(ServerLevel level) {
@@ -321,7 +313,191 @@ public class FacilityNetworkManager {
             node.hasGenerator = n.hasGenerator;
             node.isGeneratorBooting = n.isGeneratorBooting;
             node.linkedCameras.addAll(n.linkedCameras);
+            for (int[] pt : n.customPolygon) {
+                node.customPolygon.add(new int[]{pt[0], pt[1]});
+            }
             ROOMS.put(node.getKey(), node);
+        }
+    }
+
+    public static List<int[]> generateDefaultVertices(RoomShape shape, int rot) {
+        List<int[]> pts = new ArrayList<>();
+        if (shape == null) shape = RoomShape.SQUARE;
+        rot = Math.floorMod(rot, 4);
+
+        switch (shape) {
+            case STRAIGHT -> {
+                if (rot == 0 || rot == 2) { // Vertical
+                    pts.add(new int[]{-8, -18});
+                    pts.add(new int[]{8, -18});
+                    pts.add(new int[]{8, 18});
+                    pts.add(new int[]{-8, 18});
+                } else { // Horizontal
+                    pts.add(new int[]{-24, -8});
+                    pts.add(new int[]{24, -8});
+                    pts.add(new int[]{24, 8});
+                    pts.add(new int[]{-24, 8});
+                }
+            }
+            case CORNER -> {
+                if (rot == 0) { // Top-Right
+                    pts.add(new int[]{-24, -18});
+                    pts.add(new int[]{24, -18});
+                    pts.add(new int[]{24, 18});
+                    pts.add(new int[]{8, 18});
+                    pts.add(new int[]{8, -6});
+                    pts.add(new int[]{-24, -6});
+                } else if (rot == 1) { // Bottom-Right
+                    pts.add(new int[]{8, -18});
+                    pts.add(new int[]{24, -18});
+                    pts.add(new int[]{24, 18});
+                    pts.add(new int[]{-24, 18});
+                    pts.add(new int[]{-24, 6});
+                    pts.add(new int[]{8, 6});
+                } else if (rot == 2) { // Bottom-Left
+                    pts.add(new int[]{-24, -18});
+                    pts.add(new int[]{-8, -18});
+                    pts.add(new int[]{-8, 6});
+                    pts.add(new int[]{24, 6});
+                    pts.add(new int[]{24, 18});
+                    pts.add(new int[]{-24, 18});
+                } else { // Top-Left
+                    pts.add(new int[]{-24, -18});
+                    pts.add(new int[]{24, -18});
+                    pts.add(new int[]{24, -6});
+                    pts.add(new int[]{-8, -6});
+                    pts.add(new int[]{-8, 18});
+                    pts.add(new int[]{-24, 18});
+                }
+            }
+            case T_SHAPE -> {
+                if (rot == 0) { // Stem South
+                    pts.add(new int[]{-24, -18});
+                    pts.add(new int[]{24, -18});
+                    pts.add(new int[]{24, -6});
+                    pts.add(new int[]{8, -6});
+                    pts.add(new int[]{8, 18});
+                    pts.add(new int[]{-8, 18});
+                    pts.add(new int[]{-8, -6});
+                    pts.add(new int[]{-24, -6});
+                } else if (rot == 1) { // Stem West
+                    pts.add(new int[]{8, -18});
+                    pts.add(new int[]{24, -18});
+                    pts.add(new int[]{24, 18});
+                    pts.add(new int[]{8, 18});
+                    pts.add(new int[]{8, 6});
+                    pts.add(new int[]{-24, 6});
+                    pts.add(new int[]{-24, -6});
+                    pts.add(new int[]{8, -6});
+                } else if (rot == 2) { // Stem North
+                    pts.add(new int[]{-8, -18});
+                    pts.add(new int[]{8, -18});
+                    pts.add(new int[]{8, 6});
+                    pts.add(new int[]{24, 6});
+                    pts.add(new int[]{24, 18});
+                    pts.add(new int[]{-24, 18});
+                    pts.add(new int[]{-24, 6});
+                    pts.add(new int[]{-8, 6});
+                } else { // Stem East
+                    pts.add(new int[]{-24, -18});
+                    pts.add(new int[]{-8, -18});
+                    pts.add(new int[]{-8, -6});
+                    pts.add(new int[]{24, -6});
+                    pts.add(new int[]{24, 6});
+                    pts.add(new int[]{-8, 6});
+                    pts.add(new int[]{-8, 18});
+                    pts.add(new int[]{-24, 18});
+                }
+            }
+            case CROSS -> {
+                pts.add(new int[]{-8, -18});
+                pts.add(new int[]{8, -18});
+                pts.add(new int[]{8, -6});
+                pts.add(new int[]{24, -6});
+                pts.add(new int[]{24, 6});
+                pts.add(new int[]{8, 6});
+                pts.add(new int[]{8, 18});
+                pts.add(new int[]{-8, 18});
+                pts.add(new int[]{-8, 6});
+                pts.add(new int[]{-24, 6});
+                pts.add(new int[]{-24, -6});
+                pts.add(new int[]{-8, -6});
+            }
+            default -> { // SQUARE / BOX / END / AIRLOCK
+                pts.add(new int[]{-22, -15});
+                pts.add(new int[]{22, -15});
+                pts.add(new int[]{22, 15});
+                pts.add(new int[]{-22, 15});
+            }
+        }
+        return pts;
+    }
+
+    public static void fillPolygonWithScanlines(GuiGraphics graphics, int originX, int originY, List<int[]> pts, int bgCol, int scanlineCol, int frameCol) {
+        if (pts == null || pts.size() < 3) return;
+        int n = pts.size();
+
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (int[] pt : pts) {
+            int py = originY + pt[1];
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+        }
+
+        List<Double> xIntersections = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            xIntersections.clear();
+            for (int i = 0; i < n; i++) {
+                int[] p1 = pts.get(i);
+                int[] p2 = pts.get((i + 1) % n);
+                int y1 = originY + p1[1];
+                int y2 = originY + p2[1];
+                int x1 = originX + p1[0];
+                int x2 = originX + p2[0];
+
+                if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+                    double x = x1 + (double)(y - y1) / (y2 - y1) * (x2 - x1);
+                    xIntersections.add(x);
+                }
+            }
+            Collections.sort(xIntersections);
+            for (int i = 0; i < xIntersections.size() - 1; i += 2) {
+                int xStart = (int) Math.round(xIntersections.get(i));
+                int xEnd = (int) Math.round(xIntersections.get(i + 1));
+                if (xEnd > xStart) {
+                    int col = (y % 2 == 0) ? scanlineCol : bgCol;
+                    graphics.fill(xStart, y, xEnd, y + 1, col);
+                }
+            }
+        }
+
+        for (int i = 0; i < n; i++) {
+            int[] p1 = pts.get(i);
+            int[] p2 = pts.get((i + 1) % n);
+            drawBresenhamLine(graphics, originX + p1[0], originY + p1[1], originX + p2[0], originY + p2[1], frameCol);
+        }
+    }
+
+    public static void drawBresenhamLine(GuiGraphics graphics, int x0, int y0, int x1, int y1, int color) {
+        int dx = Math.abs(x1 - x0);
+        int dy = Math.abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+
+        while (true) {
+            graphics.fill(x0, y0, x0 + 1, y0 + 1, color);
+            if (x0 == x1 && y0 == y1) break;
+            int e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y0 += sy;
+            }
         }
     }
 }

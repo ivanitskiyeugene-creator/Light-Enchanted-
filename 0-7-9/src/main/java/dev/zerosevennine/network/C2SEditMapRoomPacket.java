@@ -19,7 +19,8 @@ public class C2SEditMapRoomPacket {
         CLEAR_ZONE,
         AUTO_LINK_WASD,
         LINK_CAMERA,
-        UNLINK_CAMERA
+        UNLINK_CAMERA,
+        MOVE_ROOM
     }
 
     private final Action action;
@@ -32,10 +33,20 @@ public class C2SEditMapRoomPacket {
     private final boolean hasGenerator;
     private final FacilityZone targetZone;
     private final BlockPos cameraPos;
+    private final int toGridX;
+    private final int toGridY;
+    private final List<int[]> customPolygon = new ArrayList<>();
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos) {
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, gridX, gridY, null);
+    }
+
+    public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
+                               String roomName, RoomShape roomShape, int rotation,
+                               boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
+                               int toGridX, int toGridY, List<int[]> polygon) {
         this.action = action;
         this.zone = zone != null ? zone : FacilityZone.HCZ;
         this.gridX = gridX;
@@ -46,6 +57,13 @@ public class C2SEditMapRoomPacket {
         this.hasGenerator = hasGenerator;
         this.targetZone = targetZone != null ? targetZone : this.zone;
         this.cameraPos = cameraPos != null ? cameraPos : BlockPos.ZERO;
+        this.toGridX = toGridX;
+        this.toGridY = toGridY;
+        if (polygon != null) {
+            for (int[] pt : polygon) {
+                this.customPolygon.add(new int[]{pt[0], pt[1]});
+            }
+        }
     }
 
     public static void encode(C2SEditMapRoomPacket msg, FriendlyByteBuf buf) {
@@ -59,6 +77,14 @@ public class C2SEditMapRoomPacket {
         buf.writeBoolean(msg.hasGenerator);
         buf.writeEnum(msg.targetZone);
         buf.writeBlockPos(msg.cameraPos);
+        buf.writeInt(msg.toGridX);
+        buf.writeInt(msg.toGridY);
+
+        buf.writeInt(msg.customPolygon.size());
+        for (int[] pt : msg.customPolygon) {
+            buf.writeInt(pt[0]);
+            buf.writeInt(pt[1]);
+        }
     }
 
     public static C2SEditMapRoomPacket decode(FriendlyByteBuf buf) {
@@ -72,7 +98,16 @@ public class C2SEditMapRoomPacket {
         boolean gen = buf.readBoolean();
         FacilityZone targetZone = buf.readEnum(FacilityZone.class);
         BlockPos camPos = buf.readBlockPos();
-        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, targetZone, camPos);
+        int toGx = buf.readInt();
+        int toGy = buf.readInt();
+
+        int polyCount = buf.readInt();
+        List<int[]> poly = new ArrayList<>();
+        for (int i = 0; i < polyCount; i++) {
+            poly.add(new int[]{buf.readInt(), buf.readInt()});
+        }
+
+        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, targetZone, camPos, toGx, toGy, poly);
     }
 
     public static void handle(C2SEditMapRoomPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -94,7 +129,17 @@ public class C2SEditMapRoomPacket {
                     if (!msg.cameraPos.equals(BlockPos.ZERO) && !node.linkedCameras.contains(msg.cameraPos)) {
                         node.linkedCameras.add(msg.cameraPos);
                     }
+                    if (!msg.customPolygon.isEmpty()) {
+                        node.customPolygon.clear();
+                        for (int[] pt : msg.customPolygon) {
+                            node.customPolygon.add(new int[]{pt[0], pt[1]});
+                        }
+                    }
                     FacilityNetworkManager.registerRoomNode(node);
+                    FacilityNetworkManager.markDirtyAndSync(player.serverLevel());
+                }
+                case MOVE_ROOM -> {
+                    FacilityNetworkManager.moveRoom(msg.zone, msg.gridX, msg.gridY, msg.toGridX, msg.toGridY);
                     FacilityNetworkManager.markDirtyAndSync(player.serverLevel());
                 }
                 case DELETE -> {

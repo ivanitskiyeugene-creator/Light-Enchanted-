@@ -19,7 +19,7 @@
   "item.zero_seven_nine.room_selector.reset": "Все точки границ комнаты сброшены.",
   "item.zero_seven_nine.room_selector.linked": "К комнате привязано %s точек периметра! Объем: %sx%sx%s блоков.",
   "item.zero_seven_nine.room_selector.points_count": "Выбрано точек: %s",
-  "item.zero_seven_nine.map_tablet": "Планшет тактической карты",
-  "item.zero_seven_nine.map_tablet.desc1": "ПКМ для открытия тактической схемы Комплекса Site-02.",
-  "item.zero_seven_nine.map_tablet.desc2": "Доступен людям, охране, ученым и администрации."
+  "item.zero_seven_nine.map_tablet": "Редактор карты 079",
+  "item.zero_seven_nine.map_tablet.desc1": "ПКМ для открытия полноценного визуального редактора карты Комплекса.",
+  "item.zero_seven_nine.map_tablet.desc2": "Свободная настройка полигонов по точкам, перемещение, вращение и привязка камер."
 }

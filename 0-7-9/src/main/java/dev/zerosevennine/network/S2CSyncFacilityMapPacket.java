@@ -26,6 +26,7 @@ public class S2CSyncFacilityMapPacket {
         public final boolean hasGenerator;
         public final boolean isGeneratorBooting;
         public final List<BlockPos> linkedCameras = new ArrayList<>();
+        public final List<int[]> customPolygon = new ArrayList<>();
 
         public NodeData(BlockPos pos, String name, FacilityZone zone,
                         FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
@@ -60,6 +61,12 @@ public class S2CSyncFacilityMapPacket {
             for (BlockPos cp : linkedCameras) {
                 buf.writeBlockPos(cp);
             }
+
+            buf.writeInt(customPolygon.size());
+            for (int[] pt : customPolygon) {
+                buf.writeInt(pt[0]);
+                buf.writeInt(pt[1]);
+            }
         }
 
         public static NodeData read(FriendlyByteBuf buf) {
@@ -80,6 +87,12 @@ public class S2CSyncFacilityMapPacket {
             for (int i = 0; i < camCount; i++) {
                 data.linkedCameras.add(buf.readBlockPos());
             }
+
+            int polyCount = buf.readInt();
+            for (int i = 0; i < polyCount; i++) {
+                data.customPolygon.add(new int[]{buf.readInt(), buf.readInt()});
+            }
+
             return data;
         }
     }
@@ -127,16 +140,18 @@ public class S2CSyncFacilityMapPacket {
 
     public static S2CSyncFacilityMapPacket decode(FriendlyByteBuf buf) {
         int nodeCount = buf.readInt();
-        List<NodeData> nodes = new ArrayList<>();
+        List<NodeData> nodes = new ArrayList<>(nodeCount);
         for (int i = 0; i < nodeCount; i++) {
             nodes.add(NodeData.read(buf));
         }
+
         int camCount = buf.readInt();
-        List<CameraData> cams = new ArrayList<>();
+        List<CameraData> cameras = new ArrayList<>(camCount);
         for (int i = 0; i < camCount; i++) {
-            cams.add(CameraData.read(buf));
+            cameras.add(CameraData.read(buf));
         }
-        return new S2CSyncFacilityMapPacket(nodes, cams);
+
+        return new S2CSyncFacilityMapPacket(nodes, cameras);
     }
 
     public static void handle(S2CSyncFacilityMapPacket msg, Supplier<NetworkEvent.Context> ctx) {

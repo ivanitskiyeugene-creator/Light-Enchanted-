@@ -19,7 +19,7 @@
   "item.zero_seven_nine.room_selector.reset": "Room boundary points cleared.",
   "item.zero_seven_nine.room_selector.linked": "Linked %s boundary points to room! Volume: %sx%sx%s blocks.",
   "item.zero_seven_nine.room_selector.points_count": "Active points: %s",
-  "item.zero_seven_nine.map_tablet": "Tactical Facility Tablet",
-  "item.zero_seven_nine.map_tablet.desc1": "Right-click to open Site-02 Tactical Surveillance Schematic.",
-  "item.zero_seven_nine.map_tablet.desc2": "Usable by humans, guards, scientists, and admins."
+  "item.zero_seven_nine.map_tablet": "079 Map Editor",
+  "item.zero_seven_nine.map_tablet.desc1": "Right-click to open 079 Map Editor & CAD Blueprint Designer.",
+  "item.zero_seven_nine.map_tablet.desc2": "Freeform vertex point editing, drag-and-drop rooms, rotation, and camera linking."
 }
