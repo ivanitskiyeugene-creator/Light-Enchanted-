@@ -83,7 +83,8 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
             hoodR = 0.80f; hoodG = 0.82f; hoodB = 0.86f;
         }
 
-        VertexConsumer builder = buffer.getBuffer(RenderType.entityCutout(texture));
+        // Use entityCutoutNoCull so no polygon faces are ever culled from any viewing angle
+        VertexConsumer builder = buffer.getBuffer(RenderType.entityCutoutNoCull(texture));
 
         // ==========================================
         // 1. Static Wall Mount Assembly
@@ -142,9 +143,9 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
 
         // Main Camera Body Housing
-        renderBox(poseStack, builder, -0.18f, -0.15f, -0.26f, 0.18f, 0.15f, 0.06f, packedLight, packedOverlay, rTint, gTint, bTint, 1.0f);
+        renderBox(poseStack, builder, -0.18f, -0.15f, -0.24f, 0.18f, 0.15f, 0.06f, packedLight, packedOverlay, rTint, gTint, bTint, 1.0f);
 
-        // Aerodynamic Protective Sunshield / Visor Hood
+        // Aerodynamic Protective Sunshield / Visor Hood (sloping overhang)
         renderBox(poseStack, builder, -0.20f, 0.14f, -0.38f, 0.20f, 0.18f, 0.08f, packedLight, packedOverlay, hoodR, hoodG, hoodB, 1.0f);
 
         // Dual Side Armor & Heat Dissipation Sinks
@@ -157,11 +158,11 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         // ==========================================
         // 3. Front Optical Lens Assembly & LED Ring
         // ==========================================
-        // Heavy 12-sided Tapered Lens Barrel Housing (from z = -0.26 to z = -0.365)
-        renderCylinder(poseStack, builder, 0.0f, 0.0f, -0.26f, -0.365f, 0.145f, 12, 0.16f, 0.18f, 0.20f, 1.0f, packedLight, packedOverlay);
+        // Heavy 12-sided Tapered Lens Barrel Housing (from z = -0.24 to z = -0.32)
+        renderCylinder(poseStack, builder, 0.0f, 0.0f, -0.24f, -0.32f, 0.150f, 12, 0.16f, 0.18f, 0.20f, 1.0f, packedLight, packedOverlay);
 
-        // Recessed Dark Antireflective Optical Glass Face (z = -0.362)
-        renderCircularDisk(poseStack, builder, 0.0f, 0.0f, -0.362f, 0.095f, 12, 0.04f, 0.06f, 0.09f, 1.0f, packedLight, packedOverlay);
+        // Recessed Dark Antireflective Optical Glass Face (z = -0.355)
+        renderCircularDisk(poseStack, builder, 0.0f, 0.0f, -0.355f, 0.095f, 12, 0.04f, 0.06f, 0.09f, 1.0f, packedLight, packedOverlay);
 
         // Determine Mode: CASSIE (Idle) vs SCP-079 (Active/Watching)
         boolean is079 = be.isOccupied();
@@ -197,16 +198,17 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         }
 
         // =========================================================
-        // 4. THE ICONIC CIRCULAR GLOWING LED RING (КРУГЛАЯ КАЙМА)
+        // 4. THE ICONIC VOLUMETRIC CIRCULAR GLOWING LED RING (3D КАЙМА)
         // =========================================================
-        // Continuous 16-Segment Radial Halo Ring around the lens barrel face (z = -0.368)
-        renderCircularLedRing(poseStack, builder, 0.0f, 0.0f, -0.368f, 0.095f, 0.138f, 16, ringR, ringG, ringB, 1.0f, ledLight, packedOverlay);
+        // Full 3D Volumetric 16-Segment Torus/Beveled Ring from z = -0.370 to z = -0.320
+        // (Includes Front Face, Outer Wall, Inner Wall, and Back Collar with zero culling)
+        renderVolumetricLedRing(poseStack, builder, 0.0f, 0.0f, -0.370f, -0.320f, 0.095f, 0.140f, 16, ringR, ringG, ringB, 1.0f, ledLight, packedOverlay);
 
-        // Outer Protective Metallic Bezel Rim
-        renderCircularLedRing(poseStack, builder, 0.0f, 0.0f, -0.367f, 0.138f, 0.146f, 16, 0.22f, 0.24f, 0.27f, 1.0f, packedLight, packedOverlay);
+        // Outer Metallic Bezel Retaining Rim Collar (z = -0.368 to -0.320, R = 0.140 to 0.148)
+        renderVolumetricLedRing(poseStack, builder, 0.0f, 0.0f, -0.368f, -0.320f, 0.140f, 0.148f, 16, 0.22f, 0.24f, 0.27f, 1.0f, packedLight, packedOverlay);
 
-        // Center Optical Iris / Aperture Pupil Disk (z = -0.364)
-        renderCircularDisk(poseStack, builder, 0.0f, 0.0f, -0.364f, 0.045f, 12, pupilR, pupilG, pupilB, 1.0f, ledLight, packedOverlay);
+        // Center Optical Iris / Aperture Pupil Disk (z = -0.358)
+        renderCircularDisk(poseStack, builder, 0.0f, 0.0f, -0.358f, 0.045f, 12, pupilR, pupilG, pupilB, 1.0f, ledLight, packedOverlay);
 
         // ==========================================
         // 5. Side Auxiliary Status Indicators
@@ -227,11 +229,11 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
         poseStack.popPose();
     }
 
-    private void renderCircularLedRing(PoseStack poseStack, VertexConsumer builder,
-                                       float centerX, float centerY, float z,
-                                       float innerR, float outerR, int segments,
-                                       float r, float g, float b, float a,
-                                       int packedLight, int packedOverlay) {
+    private void renderVolumetricLedRing(PoseStack poseStack, VertexConsumer builder,
+                                         float centerX, float centerY, float zFront, float zBack,
+                                         float innerR, float outerR, int segments,
+                                         float r, float g, float b, float a,
+                                         int packedLight, int packedOverlay) {
         Matrix4f mat = poseStack.last().pose();
         Matrix3f nmat = poseStack.last().normal();
 
@@ -254,10 +256,50 @@ public class CameraBlockEntityRenderer implements BlockEntityRenderer<CameraBloc
             float outX2 = centerX + outerR * cos2;
             float outY2 = centerY + outerR * sin2;
 
-            vertex(builder, mat, nmat, inX1, inY1, z, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
-            vertex(builder, mat, nmat, outX1, outY1, z, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
-            vertex(builder, mat, nmat, outX2, outY2, z, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
-            vertex(builder, mat, nmat, inX2, inY2, z, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
+            float midCos = (cos1 + cos2) * 0.5f;
+            float midSin = (sin1 + sin2) * 0.5f;
+
+            // 1. Front Ring Face (facing -Z)
+            vertex(builder, mat, nmat, inX1, inY1, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
+            vertex(builder, mat, nmat, outX1, outY1, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
+            vertex(builder, mat, nmat, outX2, outY2, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
+            vertex(builder, mat, nmat, inX2, inY2, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, -1);
+
+            // Double sided front face (facing +Z from inside)
+            vertex(builder, mat, nmat, inX2, inY2, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, outX2, outY2, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, outX1, outY1, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, inX1, inY1, zFront, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+
+            // 2. Outer Cylindrical Wall (facing radially outwards)
+            vertex(builder, mat, nmat, outX1, outY1, zBack, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, outX2, outY2, zBack, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, outX2, outY2, zFront, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, outX1, outY1, zFront, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+
+            // Double sided outer wall
+            vertex(builder, mat, nmat, outX1, outY1, zFront, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, outX2, outY2, zFront, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, outX2, outY2, zBack, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, outX1, outY1, zBack, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+
+            // 3. Inner Cylindrical Wall (facing radially inwards)
+            vertex(builder, mat, nmat, inX1, inY1, zFront, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, inX2, inY2, zFront, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, inX2, inY2, zBack, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+            vertex(builder, mat, nmat, inX1, inY1, zBack, r, g, b, a, packedLight, packedOverlay, -midCos, -midSin, 0);
+
+            // Double sided inner wall
+            vertex(builder, mat, nmat, inX1, inY1, zBack, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, inX2, inY2, zBack, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, inX2, inY2, zFront, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+            vertex(builder, mat, nmat, inX1, inY1, zFront, r, g, b, a, packedLight, packedOverlay, midCos, midSin, 0);
+
+            // 4. Back Collar Face (facing +Z)
+            vertex(builder, mat, nmat, inX2, inY2, zBack, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, outX2, outY2, zBack, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, outX1, outY1, zBack, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
+            vertex(builder, mat, nmat, inX1, inY1, zBack, r, g, b, a, packedLight, packedOverlay, 0, 0, 1);
         }
     }
 

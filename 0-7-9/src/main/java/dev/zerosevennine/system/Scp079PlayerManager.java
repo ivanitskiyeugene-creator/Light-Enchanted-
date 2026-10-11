@@ -87,6 +87,11 @@ public class Scp079PlayerManager {
         player.setGameMode(GameType.SPECTATOR);
         player.setDeltaMovement(0, 0, 0);
 
+        ItemStack o5Card = UniversalDoorHandler.getO5KeycardStack();
+        if (!o5Card.isEmpty()) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, o5Card);
+        }
+
         // Position player so their eye height matches exactly the camera center (Y + 0.5)
         double eyeOffset = player.getEyeHeight();
         player.teleportTo(startingCameraPos.getX() + 0.5, (startingCameraPos.getY() + 0.5) - eyeOffset, startingCameraPos.getZ() + 0.5);
