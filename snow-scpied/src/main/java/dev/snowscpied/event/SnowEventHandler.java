@@ -53,10 +53,24 @@ public class SnowEventHandler {
                 // Add footprint on top of snow surface
                 if (level.isClientSide) {
                     FootprintType type = FootprintType.BOOTS;
-                    if (entity instanceof Player player && player.getInventory().armor.get(0).isEmpty()) {
-                        type = FootprintType.BARE_FEET;
-                    } else if (!(entity instanceof Player)) {
+                    if (entity instanceof net.minecraft.world.entity.animal.Animal ||
+                        entity instanceof net.minecraft.world.entity.monster.Spider ||
+                        entity.getName().getString().toLowerCase().contains("scp") ||
+                        entity.getName().getString().toLowerCase().contains("wolf") ||
+                        entity.getName().getString().toLowerCase().contains("cat") ||
+                        entity.getName().getString().toLowerCase().contains("dog") ||
+                        entity.getName().getString().toLowerCase().contains("beast") ||
+                        entity.getName().getString().toLowerCase().contains("monster")) {
                         type = FootprintType.SCP_CLAWS;
+                    } else if (entity instanceof net.minecraft.world.entity.animal.horse.AbstractHorse ||
+                               entity instanceof net.minecraft.world.entity.animal.Cow ||
+                               entity instanceof net.minecraft.world.entity.animal.Sheep ||
+                               entity instanceof net.minecraft.world.entity.animal.Pig ||
+                               entity instanceof net.minecraft.world.entity.animal.Goat) {
+                        type = FootprintType.HOOVES;
+                    } else {
+                        // All players, humanoids, personnel (MTF, Guards, Scientists, D-Class) and humanoid entities leave authentic boots tread prints!
+                        type = FootprintType.BOOTS;
                     }
 
                     boolean isLeft = (entity.tickCount / 6) % 2 == 0;
