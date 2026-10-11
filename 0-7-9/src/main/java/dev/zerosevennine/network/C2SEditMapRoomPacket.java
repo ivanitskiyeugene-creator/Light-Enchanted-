@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 public class C2SEditMapRoomPacket {
     public enum Action {
         PLACE_OR_UPDATE,
+        SAVE_ROOM,
         DELETE,
         CLEAR_ZONE,
         AUTO_LINK_WASD,
@@ -36,17 +37,32 @@ public class C2SEditMapRoomPacket {
     private final int toGridX;
     private final int toGridY;
     private final List<int[]> customPolygon = new ArrayList<>();
+    private final List<BlockPos> linkedCameras = new ArrayList<>();
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos) {
-        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, gridX, gridY, null);
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, gridX, gridY, null, null);
     }
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
                                int toGridX, int toGridY, List<int[]> polygon) {
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, toGridX, toGridY, polygon, null);
+    }
+
+    public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
+                               String roomName, RoomShape roomShape, int rotation,
+                               FacilityZone targetZone, boolean hasGenerator,
+                               List<BlockPos> cameras, List<int[]> polygon) {
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, BlockPos.ZERO, gridX, gridY, polygon, cameras);
+    }
+
+    public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
+                               String roomName, RoomShape roomShape, int rotation,
+                               boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
+                               int toGridX, int toGridY, List<int[]> polygon, List<BlockPos> cameras) {
         this.action = action;
         this.zone = zone != null ? zone : FacilityZone.HCZ;
         this.gridX = gridX;
@@ -62,6 +78,11 @@ public class C2SEditMapRoomPacket {
         if (polygon != null) {
             for (int[] pt : polygon) {
                 this.customPolygon.add(new int[]{pt[0], pt[1]});
+            }
+        }
+        if (cameras != null) {
+            for (BlockPos cp : cameras) {
+                this.linkedCameras.add(cp.immutable());
             }
         }
     }
@@ -85,6 +106,11 @@ public class C2SEditMapRoomPacket {
             buf.writeInt(pt[0]);
             buf.writeInt(pt[1]);
         }
+
+        buf.writeInt(msg.linkedCameras.size());
+        for (BlockPos cp : msg.linkedCameras) {
+            buf.writeBlockPos(cp);
+        }
     }
 
     public static C2SEditMapRoomPacket decode(FriendlyByteBuf buf) {
@@ -107,7 +133,13 @@ public class C2SEditMapRoomPacket {
             poly.add(new int[]{buf.readInt(), buf.readInt()});
         }
 
-        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, targetZone, camPos, toGx, toGy, poly);
+        int camCount = buf.readInt();
+        List<BlockPos> cams = new ArrayList<>();
+        for (int i = 0; i < camCount; i++) {
+            cams.add(buf.readBlockPos());
+        }
+
+        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, targetZone, camPos, toGx, toGy, poly, cams);
     }
 
     public static void handle(C2SEditMapRoomPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -116,19 +148,28 @@ public class C2SEditMapRoomPacket {
             if (player == null || player.serverLevel() == null) return;
 
             switch (msg.action) {
-                case PLACE_OR_UPDATE -> {
+                case PLACE_OR_UPDATE, SAVE_ROOM -> {
                     FacilityNetworkManager.RoomNode existing = FacilityNetworkManager.getRoomAt(msg.zone, msg.gridX, msg.gridY);
-                    List<BlockPos> prevCams = existing != null ? new ArrayList<>(existing.linkedCameras) : new ArrayList<>();
+                    List<BlockPos> finalCams = new ArrayList<>();
+
+                    if (!msg.linkedCameras.isEmpty()) {
+                        finalCams.addAll(msg.linkedCameras);
+                    } else if (existing != null) {
+                        finalCams.addAll(existing.linkedCameras);
+                    }
+
+                    if (!msg.cameraPos.equals(BlockPos.ZERO) && !finalCams.contains(msg.cameraPos)) {
+                        finalCams.add(msg.cameraPos);
+                    }
+
                     BlockPos worldPos = existing != null ? existing.pos : new BlockPos(msg.gridX * 16, 64, msg.gridY * 16);
 
                     FacilityNetworkManager.RoomNode node = new FacilityNetworkManager.RoomNode(
                             worldPos, msg.roomName, msg.zone, null, msg.roomShape, msg.rotation, msg.targetZone, msg.gridX, msg.gridY
                     );
                     node.hasGenerator = msg.hasGenerator;
-                    node.linkedCameras.addAll(prevCams);
-                    if (!msg.cameraPos.equals(BlockPos.ZERO) && !node.linkedCameras.contains(msg.cameraPos)) {
-                        node.linkedCameras.add(msg.cameraPos);
-                    }
+                    node.linkedCameras.addAll(finalCams);
+
                     if (!msg.customPolygon.isEmpty()) {
                         node.customPolygon.clear();
                         for (int[] pt : msg.customPolygon) {

@@ -109,7 +109,6 @@ public class ClientCameraLinker {
                 targetGx,
                 targetGy,
                 roomName,
-                FacilityMapNodeBlockEntity.RoomType.STANDARD,
                 roomShape,
                 roomRotation,
                 targetZone,

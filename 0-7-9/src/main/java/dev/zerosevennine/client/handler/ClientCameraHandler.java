@@ -429,7 +429,7 @@ public class ClientCameraHandler {
             return;
         }
 
-        String typeLabel = dev.type.getDisplayName().toUpperCase();
+        String typeLabel = dev.type.getLabel().toUpperCase();
         String actionPrompt = switch (dev.type) {
             case DOOR, ELEVATOR -> "[LMB] TOGGLE DOOR  |  [RMB/SPACE] LOCK";
             case TESLA -> "[LMB] OVERCHARGE (35 AP)";
