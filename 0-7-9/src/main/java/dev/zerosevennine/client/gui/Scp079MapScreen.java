@@ -2,9 +2,11 @@ package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.ZeroSevenNine;
+import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
+import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.network.C2SInteractDevicePacket;
 import dev.zerosevennine.network.C2SRequestMapSyncPacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
@@ -13,18 +15,19 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class Scp079MapScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
 
     private float animProgress = 0.0f;
-    private boolean isClosing = false;
-    private int openTicks = 0;
+    private boolean tabKeyReleasedAfterOpen = false;
 
     private double panX = 0.0;
     private double panY = 0.0;
@@ -41,22 +44,11 @@ public class Scp079MapScreen extends Screen {
     protected void init() {
         super.init();
         animProgress = 0.0f;
-        isClosing = false;
-        openTicks = 0;
+        tabKeyReleasedAfterOpen = false;
         lastMouseX = -1.0;
         lastMouseY = -1.0;
 
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.grabMouse();
-        }
-
         ModNetwork.CHANNEL.sendToServer(new C2SRequestMapSyncPacket());
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        this.openTicks++;
     }
 
     @Override
@@ -66,23 +58,20 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public void onClose() {
-        if (!isClosing) {
-            isClosing = true;
-            return;
-        }
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.grabMouse();
-        }
         super.onClose();
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (openTicks <= 3 && (keyCode == GLFW.GLFW_KEY_TAB || keyCode == GLFW.GLFW_KEY_ESCAPE)) {
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            if (!tabKeyReleasedAfterOpen) {
+                return true;
+            }
+            this.onClose();
             return true;
         }
 
-        if (keyCode == GLFW.GLFW_KEY_TAB || keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             this.onClose();
             return true;
         }
@@ -101,27 +90,50 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
-    public void mouseMoved(double mouseX, double mouseY) {
-        if (lastMouseX >= 0 && lastMouseY >= 0) {
-            double dx = mouseX - lastMouseX;
-            double dy = mouseY - lastMouseY;
-            panX -= dx * 1.5;
-            panY -= dy * 1.5;
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            tabKeyReleasedAfterOpen = true;
+            return true;
         }
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
         lastMouseX = mouseX;
         lastMouseY = mouseY;
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX -= dragX * 1.5;
-        panY -= dragY * 1.5;
+        panX += dragX;
+        panY += dragY;
         return true;
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            int cx = width / 2;
+            int cy = height / 2;
+
+            Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = getEffectiveRooms();
+            for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
+                BlockPos roomPos = entry.getKey();
+                FacilityNetworkManager.RoomNode room = entry.getValue();
+
+                int nodeW = 54;
+                int nodeH = 38;
+                int nodeX = cx + (int) panX + (room.gridX * 72) - (nodeW / 2);
+                int nodeY = cy + (int) panY + (room.gridY * 54) - (nodeH / 2);
+
+                if (mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH) {
+                    ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(roomPos));
+                    this.onClose();
+                    return true;
+                }
+            }
+
             if (focusedRoomPos != null) {
                 ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
                 this.onClose();
@@ -131,45 +143,74 @@ public class Scp079MapScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (!isClosing) {
-            animProgress = Math.min(1.0f, animProgress + 0.16f);
-        } else {
-            animProgress = Math.max(0.0f, animProgress - 0.16f);
-            if (animProgress <= 0.0f) {
-                super.onClose();
-                return;
+    private Map<BlockPos, FacilityNetworkManager.RoomNode> getEffectiveRooms() {
+        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = new HashMap<>(FacilityNetworkManager.getRooms());
+
+        if (ClientCameraHandler.activeCameraPos != null && !ClientCameraHandler.activeCameraPos.equals(BlockPos.ZERO)) {
+            BlockPos currentPos = ClientCameraHandler.activeCameraPos;
+            if (!rooms.containsKey(currentPos)) {
+                String camName = "CAM-" + currentPos.getX() + ":" + currentPos.getZ();
+                FacilityZone zone = FacilityZone.HCZ;
+                if (minecraft != null && minecraft.level != null) {
+                    if (minecraft.level.getBlockEntity(currentPos) instanceof CameraBlockEntity cbe) {
+                        camName = cbe.getCameraName();
+                        zone = cbe.getZone();
+                    }
+                }
+                rooms.put(currentPos, new FacilityNetworkManager.RoomNode(
+                        currentPos, camName, zone, FacilityMapNodeBlockEntity.RoomType.STANDARD, zone, 0, 0
+                ));
+            }
+
+            if (minecraft != null && minecraft.level != null) {
+                if (minecraft.level.getBlockEntity(currentPos) instanceof CameraBlockEntity cbe) {
+                    for (Map.Entry<Direction, BlockPos> neighbor : cbe.getWasdNeighbors().entrySet()) {
+                        BlockPos nPos = neighbor.getValue();
+                        if (!rooms.containsKey(nPos)) {
+                            int gx = switch (neighbor.getKey()) {
+                                case EAST -> 1;
+                                case WEST -> -1;
+                                default -> 0;
+                            };
+                            int gy = switch (neighbor.getKey()) {
+                                case SOUTH -> 1;
+                                case NORTH -> -1;
+                                default -> 0;
+                            };
+                            rooms.put(nPos, new FacilityNetworkManager.RoomNode(
+                                    nPos, "Neighbor Room", cbe.getZone(), FacilityMapNodeBlockEntity.RoomType.STANDARD, cbe.getZone(), gx, gy
+                            ));
+                        }
+                    }
+                }
             }
         }
+
+        return rooms;
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        animProgress = Math.min(1.0f, animProgress + 0.25f);
 
         int cx = width / 2;
         int cy = height / 2;
 
         graphics.fill(0, 0, width, height, 0xFF040A10);
 
-        if (animProgress < 0.20f) {
-            graphics.fill(0, cy - 2, width, cy + 2, 0xEE00E5FF);
-            graphics.fill(cx - 60, cy - 3, cx + 60, cy + 3, 0xFFE0F7FA);
-            graphics.fill(cx - 20, cy - 4, cx + 20, cy + 4, 0xFFFFFFFF);
-            return;
-        }
-
-        float vRatio = (animProgress - 0.20f) / 0.80f;
-        int clipH = (int) (height * vRatio);
-        int topY = cy - (clipH / 2);
-        int bottomY = cy + (clipH / 2);
+        int topY = 0;
+        int bottomY = height;
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.10f);
-        graphics.blit(SCANLINES, 0, topY, 0, 0, width, clipH, width, height);
+        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.08f);
+        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
 
         Font font = this.font;
 
         renderHeader(graphics, font, topY);
-        renderVectorMap(graphics, font, cx, cy, topY, bottomY);
+        renderVectorMap(graphics, font, cx, cy, topY, bottomY, mouseX, mouseY);
         renderCenterFixedReticle(graphics, font, cx, cy);
         renderBottomStatusBar(graphics, font, bottomY);
 
@@ -177,7 +218,7 @@ public class Scp079MapScreen extends Screen {
     }
 
     private void renderHeader(GuiGraphics graphics, Font font, int topY) {
-        int hY = topY + 10;
+        int hY = topY + 12;
         int hH = 28;
 
         graphics.fill(20, hY, width - 20, hY + hH, 0xCC061018);
@@ -213,36 +254,38 @@ public class Scp079MapScreen extends Screen {
         }
     }
 
-    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY) {
+    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY, int mouseX, int mouseY) {
         int gridSpacing = 48;
         int gridOffsetX = ((int) panX) % gridSpacing;
         int gridOffsetY = ((int) panY) % gridSpacing;
 
         for (int x = gridOffsetX; x < width; x += gridSpacing) {
-            graphics.fill(x, topY + 42, x + 1, bottomY - 38, 0x1800E5FF);
+            graphics.fill(x, topY + 44, x + 1, bottomY - 42, 0x1800E5FF);
         }
-        for (int y = topY + 42 + gridOffsetY; y < bottomY - 38; y += gridSpacing) {
+        for (int y = topY + 44 + gridOffsetY; y < bottomY - 42; y += gridSpacing) {
             graphics.fill(20, y, width - 20, y + 1, 0x1800E5FF);
         }
 
-        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRooms();
+        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = getEffectiveRooms();
         focusedRoomPos = null;
-        double closestDistSq = 40.0 * 40.0;
+        double closestDistSq = 42.0 * 42.0;
 
         for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
             BlockPos roomPos = entry.getKey();
             FacilityNetworkManager.RoomNode room = entry.getValue();
 
-            int nodeW = 50;
-            int nodeH = 36;
-            int nodeX = cx + (int) panX + (room.gridX * 68) - (nodeW / 2);
-            int nodeY = cy + (int) panY + (room.gridY * 50) - (nodeH / 2);
+            int nodeW = 54;
+            int nodeH = 38;
+            int nodeX = cx + (int) panX + (room.gridX * 72) - (nodeW / 2);
+            int nodeY = cy + (int) panY + (room.gridY * 54) - (nodeH / 2);
 
             int cellCenterX = nodeX + (nodeW / 2);
             int cellCenterY = nodeY + (nodeH / 2);
 
             double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
-            if (distSq <= closestDistSq) {
+            boolean isHovered = (mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH);
+
+            if (isHovered || distSq <= closestDistSq) {
                 closestDistSq = distSq;
                 focusedRoomPos = roomPos;
             }
@@ -306,7 +349,7 @@ public class Scp079MapScreen extends Screen {
     }
 
     private void renderBottomStatusBar(GuiGraphics graphics, Font font, int bottomY) {
-        int by = bottomY - 32;
+        int by = bottomY - 34;
         graphics.fill(20, by, width - 20, by + 26, 0xCC061018);
         graphics.fill(20, by, width - 20, by + 2, 0xFF00E5FF);
 
@@ -316,7 +359,7 @@ public class Scp079MapScreen extends Screen {
 
         graphics.drawString(font, scannerTxt, 30, by + 8, 0xFFE0F7FA, true);
 
-        String helpTxt = "MOUSE MOVE: PAN MAP  |  [LMB / SPACE]: JUMP TO RETICLE ROOM  |  [TAB / ESC]: EXIT";
+        String helpTxt = "DRAG MOUSE: PAN  |  [LMB]: CLICK ROOM / JUMP  |  [TAB / ESC]: EXIT";
         graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 30, by + 8, 0xAA80DEEA, false);
     }
 }

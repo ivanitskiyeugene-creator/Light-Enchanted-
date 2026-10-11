@@ -34,7 +34,6 @@ import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -238,6 +237,11 @@ public class ClientCameraHandler {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+
+        if (mc.screen == null && mc.options.keyPlayerList.consumeClick()) {
+            mc.setScreen(new Scp079MapScreen());
+            return;
+        }
 
         float yaw = mc.player.getYRot();
         float pitch = mc.player.getXRot();
@@ -527,7 +531,7 @@ public class ClientCameraHandler {
         if (mc.screen != null) return;
 
         if (event.getAction() == GLFW.GLFW_PRESS) {
-            if (event.getKey() == GLFW.GLFW_KEY_TAB) {
+            if (event.getKey() == GLFW.GLFW_KEY_TAB || mc.options.keyPlayerList.matches(event.getKey(), event.getScanCode())) {
                 mc.setScreen(new Scp079MapScreen());
                 return;
             }
@@ -578,7 +582,8 @@ public class ClientCameraHandler {
                 event.getOverlay() == VanillaGuiOverlay.PLAYER_HEALTH.type() ||
                 event.getOverlay() == VanillaGuiOverlay.FOOD_LEVEL.type() ||
                 event.getOverlay() == VanillaGuiOverlay.EXPERIENCE_BAR.type() ||
-                event.getOverlay() == VanillaGuiOverlay.ARMOR_LEVEL.type()) {
+                event.getOverlay() == VanillaGuiOverlay.ARMOR_LEVEL.type() ||
+                event.getOverlay() == VanillaGuiOverlay.PLAYER_LIST.type()) {
                 event.setCanceled(true);
             }
         }
