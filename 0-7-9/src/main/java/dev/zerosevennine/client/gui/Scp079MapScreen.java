@@ -284,8 +284,7 @@ public class Scp079MapScreen extends Screen {
         int military = 0;
 
         if (minecraft != null && minecraft.level != null) {
-            List<Player> players = (List<Player>) minecraft.level.players();
-            for (Player p : players) {
+            for (Player p : minecraft.level.players()) {
                 if (!p.isSpectator()) {
                     totalLifeforms++;
                     targets++;
