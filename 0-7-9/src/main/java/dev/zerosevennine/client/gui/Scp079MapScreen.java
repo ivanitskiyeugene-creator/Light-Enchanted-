@@ -31,8 +31,8 @@ public class Scp079MapScreen extends Screen {
 
     private double panX = 0.0;
     private double panY = 0.0;
-    private double lastMouseX = -1.0;
-    private double lastMouseY = -1.0;
+    private double lastRawMouseX = -1.0;
+    private double lastRawMouseY = -1.0;
 
     private BlockPos focusedRoomPos = null;
 
@@ -45,8 +45,12 @@ public class Scp079MapScreen extends Screen {
         super.init();
         animProgress = 0.0f;
         tabKeyReleasedAfterOpen = false;
-        lastMouseX = -1.0;
-        lastMouseY = -1.0;
+        lastRawMouseX = -1.0;
+        lastRawMouseY = -1.0;
+
+        if (this.minecraft != null) {
+            this.minecraft.mouseHandler.grabMouse();
+        }
 
         ModNetwork.CHANNEL.sendToServer(new C2SRequestMapSyncPacket());
     }
@@ -58,6 +62,9 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.mouseHandler.grabMouse();
+        }
         super.onClose();
     }
 
@@ -99,41 +106,8 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
-    public void mouseMoved(double mouseX, double mouseY) {
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX += dragX;
-        panY += dragY;
-        return true;
-    }
-
-    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            int cx = width / 2;
-            int cy = height / 2;
-
-            Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = getEffectiveRooms();
-            for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
-                BlockPos roomPos = entry.getKey();
-                FacilityNetworkManager.RoomNode room = entry.getValue();
-
-                int nodeW = 54;
-                int nodeH = 38;
-                int nodeX = cx + (int) panX + (room.gridX * 72) - (nodeW / 2);
-                int nodeY = cy + (int) panY + (room.gridY * 54) - (nodeH / 2);
-
-                if (mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH) {
-                    ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(roomPos));
-                    this.onClose();
-                    return true;
-                }
-            }
-
             if (focusedRoomPos != null) {
                 ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoomPos));
                 this.onClose();
@@ -141,6 +115,13 @@ public class Scp079MapScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        panX -= dragX * 1.5;
+        panY -= dragY * 1.5;
+        return true;
     }
 
     private Map<BlockPos, FacilityNetworkManager.RoomNode> getEffectiveRooms() {
@@ -191,6 +172,25 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (this.minecraft != null) {
+            if (!this.minecraft.mouseHandler.isMouseGrabbed()) {
+                this.minecraft.mouseHandler.grabMouse();
+            }
+
+            double curX = this.minecraft.mouseHandler.xpos();
+            double curY = this.minecraft.mouseHandler.ypos();
+
+            if (lastRawMouseX >= 0 && lastRawMouseY >= 0) {
+                double dx = curX - lastRawMouseX;
+                double dy = curY - lastRawMouseY;
+                double sens = this.minecraft.options.sensitivity().get() * 0.8 + 0.4;
+                panX -= dx * sens;
+                panY -= dy * sens;
+            }
+            lastRawMouseX = curX;
+            lastRawMouseY = curY;
+        }
+
         animProgress = Math.min(1.0f, animProgress + 0.25f);
 
         int cx = width / 2;
@@ -210,7 +210,7 @@ public class Scp079MapScreen extends Screen {
         Font font = this.font;
 
         renderHeader(graphics, font, topY);
-        renderVectorMap(graphics, font, cx, cy, topY, bottomY, mouseX, mouseY);
+        renderVectorMap(graphics, font, cx, cy, topY, bottomY);
         renderCenterFixedReticle(graphics, font, cx, cy);
         renderBottomStatusBar(graphics, font, bottomY);
 
@@ -254,7 +254,7 @@ public class Scp079MapScreen extends Screen {
         }
     }
 
-    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY, int mouseX, int mouseY) {
+    private void renderVectorMap(GuiGraphics graphics, Font font, int cx, int cy, int topY, int bottomY) {
         int gridSpacing = 48;
         int gridOffsetX = ((int) panX) % gridSpacing;
         int gridOffsetY = ((int) panY) % gridSpacing;
@@ -283,9 +283,8 @@ public class Scp079MapScreen extends Screen {
             int cellCenterY = nodeY + (nodeH / 2);
 
             double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
-            boolean isHovered = (mouseX >= nodeX && mouseX <= nodeX + nodeW && mouseY >= nodeY && mouseY <= nodeY + nodeH);
 
-            if (isHovered || distSq <= closestDistSq) {
+            if (distSq <= closestDistSq) {
                 closestDistSq = distSq;
                 focusedRoomPos = roomPos;
             }
@@ -359,7 +358,7 @@ public class Scp079MapScreen extends Screen {
 
         graphics.drawString(font, scannerTxt, 30, by + 8, 0xFFE0F7FA, true);
 
-        String helpTxt = "DRAG MOUSE: PAN  |  [LMB]: CLICK ROOM / JUMP  |  [TAB / ESC]: EXIT";
+        String helpTxt = "MOUSE MOVE: PAN MAP  |  [LMB / SPACE]: SWITCH CAMERA  |  [TAB / ESC]: EXIT";
         graphics.drawString(font, helpTxt, width - font.width(helpTxt) - 30, by + 8, 0xAA80DEEA, false);
     }
 }
