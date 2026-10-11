@@ -321,6 +321,51 @@ public class UniversalDoorHandler {
         return true;
     }
 
+    public static boolean openDoor(Level level, BlockPos pos, Player player) {
+        if (level == null || pos == null) return false;
+        BlockState state = level.getBlockState(pos);
+
+        if (state.getBlock() instanceof DoorBlock) {
+            BlockPos lowerPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+            BlockPos upperPos = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER ? pos.above() : pos;
+            BlockState lowerState = level.getBlockState(lowerPos);
+            BlockState upperState = level.getBlockState(upperPos);
+
+            if (lowerState.getBlock() instanceof DoorBlock) {
+                level.setBlock(lowerPos, lowerState.setValue(DoorBlock.OPEN, true), 3);
+            }
+            if (upperState.getBlock() instanceof DoorBlock) {
+                level.setBlock(upperPos, upperState.setValue(DoorBlock.OPEN, true), 3);
+            }
+            level.playSound(null, pos, SoundEvents.IRON_DOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            notifyNeighbors(level, lowerPos);
+            notifyNeighbors(level, upperPos);
+            return true;
+        }
+
+        if (state.getBlock() instanceof TrapDoorBlock) {
+            level.setBlock(pos, state.setValue(TrapDoorBlock.OPEN, true), 3);
+            level.playSound(null, pos, SoundEvents.IRON_TRAPDOOR_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            notifyNeighbors(level, pos);
+            return true;
+        }
+
+        if (state.getBlock() instanceof FenceGateBlock) {
+            level.setBlock(pos, state.setValue(FenceGateBlock.OPEN, true), 3);
+            level.playSound(null, pos, SoundEvents.FENCE_GATE_OPEN, SoundSource.BLOCKS, 1.0f, 1.0f);
+            notifyNeighbors(level, pos);
+            return true;
+        }
+
+        triggerModdedDoorState(level, pos, player, true);
+        BlockState modified = setBooleanProperty(state, "open", true);
+        if (modified != state) {
+            level.setBlock(pos, modified, 3);
+        }
+        notifyNeighbors(level, pos);
+        return true;
+    }
+
     private static boolean triggerModdedDoorToggle(Level level, BlockPos pos, Player player) {
         for (int dy = -1; dy <= 2; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
