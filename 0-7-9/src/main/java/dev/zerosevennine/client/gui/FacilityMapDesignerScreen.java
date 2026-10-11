@@ -688,7 +688,7 @@ public class FacilityMapDesignerScreen extends Screen {
         graphics.fill(prevX, prevY, prevX + prevW, prevY + prevH, 0xFF020712);
         graphics.fill(prevX, prevY, prevX + prevW, prevY + 1, 0xFF00E5FF);
         graphics.fill(prevX, prevY + prevH - 1, prevX + prevW, prevY + prevH, 0xFF00E5FF);
-        graphics.fill(prevX, prevY + prevX + 1, prevY + prevH, 0xFF00E5FF);
+        graphics.fill(prevX, prevY, prevX + 1, prevY + prevH, 0xFF00E5FF);
         graphics.fill(prevX + prevW - 1, prevY, prevX + prevW, prevY + prevH, 0xFF00E5FF);
 
         // Grid lines inside preview box based on gridMode
