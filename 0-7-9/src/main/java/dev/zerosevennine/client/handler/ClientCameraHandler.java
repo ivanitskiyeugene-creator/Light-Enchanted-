@@ -259,7 +259,7 @@ public class ClientCameraHandler {
         }
 
         if (mc.player.tickCount % 2 == 0) {
-            ModNetwork.CHANNEL.sendToServer(new C2SUpdateCameraOrientationPacket(activeCameraPos, yaw, pitch));
+            ModNetwork.CHANNEL.sendToServer(new C2SUpdateCameraOrientationPacket(yaw, pitch));
         }
     }
 
