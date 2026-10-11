@@ -147,8 +147,6 @@ public class UniversalDoorHandler {
         if (level instanceof ServerLevel serverLevel) {
             ArmorStand dummy = new ArmorStand(serverLevel, centerPos.getX() + 0.5, centerPos.getY() + 0.1, centerPos.getZ() + 0.5);
             dummy.setInvisible(true);
-            dummy.setMarker(true);
-            dummy.setSmall(true);
             dummy.setNoGravity(true);
             dummy.setInvulnerable(true);
             dummy.setSilent(true);
