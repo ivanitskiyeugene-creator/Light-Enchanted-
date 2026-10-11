@@ -5,7 +5,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.capabilities.CapabilityProvider;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.MobEffectEvent;
 import net.minecraftforge.eventbus.api.Event;
@@ -35,12 +37,13 @@ public class BlinkDisablerHandler {
         String ns = id.getNamespace().toLowerCase();
 
         if (path.contains("blink") || path.contains("blinking") || path.contains("eyelid") ||
-            path.contains("eyes_closed") || path.contains("eye_close") || path.contains("close_eye")) {
+            path.contains("eyes_closed") || path.contains("eye_close") || path.contains("close_eye") ||
+            path.contains("blink_timer") || path.contains("blink_meter") || path.contains("eyelids")) {
             return true;
         }
 
-        if (ns.contains("scp") || ns.contains("modern") || ns.contains("lockdown") || ns.contains("facility")) {
-            if (path.contains("eye") || path.contains("173") || path.contains("vision_obscure") || path.contains("blackout")) {
+        if (ns.contains("scp") || ns.contains("modern") || ns.contains("lockdown") || ns.contains("facility") || ns.contains("scpfr")) {
+            if (path.contains("eye") || path.contains("173") || path.contains("vision_obscure") || path.contains("blackout") || path.contains("blink")) {
                 return true;
             }
         }
@@ -90,11 +93,13 @@ public class BlinkDisablerHandler {
         if (tag != null) {
             for (String key : new ArrayList<>(tag.getAllKeys())) {
                 String lKey = key.toLowerCase();
-                if (lKey.contains("blink") || lKey.contains("eyelid") || lKey.contains("eyes_closed") || lKey.contains("eye_state")) {
+                if (lKey.contains("blink") || lKey.contains("eyelid") || lKey.contains("eyes_closed") || lKey.contains("eye_state") || lKey.contains("eye_meter")) {
                     if (tag.contains(key, Tag.TAG_INT)) {
                         tag.putInt(key, 999999);
                     } else if (tag.contains(key, Tag.TAG_FLOAT)) {
                         tag.putFloat(key, 999999.0f);
+                    } else if (tag.contains(key, Tag.TAG_DOUBLE)) {
+                        tag.putDouble(key, 999999.0);
                     } else if (tag.contains(key, Tag.TAG_BYTE)) {
                         tag.putBoolean(key, false);
                     }
@@ -106,11 +111,28 @@ public class BlinkDisablerHandler {
         suppressPlayerCapabilityBlink(player);
     }
 
-    private static void suppressPlayerCapabilityBlink(Player player) {
+    public static void suppressPlayerCapabilityBlink(Player player) {
+        if (player == null) return;
         try {
-            // Check attached capabilities or fields on player / mod extensions
-            Class<?> pClass = player.getClass();
-            inspectAndSuppressObject(player, pClass);
+            // Direct player fields
+            inspectAndSuppressObject(player, player.getClass());
+
+            // Attached capabilities via CapabilityProvider reflection
+            for (Field f : CapabilityProvider.class.getDeclaredFields()) {
+                f.setAccessible(true);
+                Object val = f.get(player);
+                if (val != null) {
+                    if (val instanceof Map<?, ?> map) {
+                        for (Object capObj : map.values()) {
+                            if (capObj != null) {
+                                inspectAndSuppressObject(capObj, capObj.getClass());
+                            }
+                        }
+                    } else {
+                        inspectAndSuppressObject(val, val.getClass());
+                    }
+                }
+            }
         } catch (Exception ignored) {}
     }
 
@@ -123,7 +145,9 @@ public class BlinkDisablerHandler {
             while (current != null && current != Object.class) {
                 for (Field f : current.getDeclaredFields()) {
                     String name = f.getName().toLowerCase();
-                    if (name.contains("blink") || name.contains("eyelid") || name.contains("eyeclosed") || name.contains("eyesclosed")) {
+                    if (name.contains("blink") || name.contains("eyelid") || name.contains("eyeclosed") ||
+                        name.contains("eyesclosed") || name.contains("eyemeter") || name.contains("blinktimer") ||
+                        name.contains("blinkmeter") || name.contains("blinktime") || name.contains("blinkcooldown")) {
                         f.setAccessible(true);
                         matched.add(f);
                     }
@@ -142,6 +166,8 @@ public class BlinkDisablerHandler {
                     f.setInt(obj, 999999);
                 } else if (type == float.class || type == Float.class) {
                     f.setFloat(obj, 999999.0f);
+                } else if (type == double.class || type == Double.class) {
+                    f.setDouble(obj, 999999.0);
                 }
             } catch (Exception ignored) {}
         }

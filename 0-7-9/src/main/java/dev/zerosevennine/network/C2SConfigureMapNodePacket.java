@@ -2,6 +2,7 @@ package dev.zerosevennine.network;
 
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.facility.FacilityZone;
+import dev.zerosevennine.facility.RoomShape;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,18 +15,22 @@ public class C2SConfigureMapNodePacket {
     private final String roomName;
     private final FacilityZone zone;
     private final FacilityMapNodeBlockEntity.RoomType roomType;
+    private final RoomShape roomShape;
+    private final int rotation;
     private final FacilityZone targetZone;
     private final int gridX;
     private final int gridY;
     private final boolean hasGenerator;
 
     public C2SConfigureMapNodePacket(BlockPos nodePos, String roomName, FacilityZone zone,
-                                     FacilityMapNodeBlockEntity.RoomType roomType, FacilityZone targetZone,
-                                     int gridX, int gridY, boolean hasGenerator) {
+                                     FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
+                                     FacilityZone targetZone, int gridX, int gridY, boolean hasGenerator) {
         this.nodePos = nodePos;
         this.roomName = roomName;
         this.zone = zone;
         this.roomType = roomType;
+        this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
+        this.rotation = rotation;
         this.targetZone = targetZone;
         this.gridX = gridX;
         this.gridY = gridY;
@@ -37,6 +42,8 @@ public class C2SConfigureMapNodePacket {
         buf.writeUtf(msg.roomName);
         buf.writeEnum(msg.zone);
         buf.writeEnum(msg.roomType);
+        buf.writeEnum(msg.roomShape);
+        buf.writeInt(msg.rotation);
         buf.writeBoolean(msg.targetZone != null);
         if (msg.targetZone != null) {
             buf.writeEnum(msg.targetZone);
@@ -51,11 +58,13 @@ public class C2SConfigureMapNodePacket {
         String name = buf.readUtf();
         FacilityZone zone = buf.readEnum(FacilityZone.class);
         FacilityMapNodeBlockEntity.RoomType type = buf.readEnum(FacilityMapNodeBlockEntity.RoomType.class);
+        RoomShape shape = buf.readEnum(RoomShape.class);
+        int rot = buf.readInt();
         FacilityZone targetZ = buf.readBoolean() ? buf.readEnum(FacilityZone.class) : null;
         int gx = buf.readInt();
         int gy = buf.readInt();
         boolean gen = buf.readBoolean();
-        return new C2SConfigureMapNodePacket(pos, name, zone, type, targetZ, gx, gy, gen);
+        return new C2SConfigureMapNodePacket(pos, name, zone, type, shape, rot, targetZ, gx, gy, gen);
     }
 
     public static void handle(C2SConfigureMapNodePacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -67,6 +76,8 @@ public class C2SConfigureMapNodePacket {
                 nodeBe.setRoomName(msg.roomName);
                 nodeBe.setZone(msg.zone);
                 nodeBe.setRoomType(msg.roomType);
+                nodeBe.setRoomShape(msg.roomShape);
+                nodeBe.setRotation(msg.rotation);
                 nodeBe.setTargetZone(msg.targetZone);
                 nodeBe.setGridX(msg.gridX);
                 nodeBe.setGridY(msg.gridY);

@@ -2,11 +2,16 @@ package dev.zerosevennine.facility;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -22,11 +27,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.lang.reflect.Method;
+import java.util.List;
 
 public class UniversalDoorHandler {
 
@@ -75,7 +82,7 @@ public class UniversalDoorHandler {
                 path.contains("keypad") || path.contains("swipe") || path.contains("card_reader")) {
                 return true;
             }
-            if (ns.contains("scpfr") && (path.contains("keycard_reader") || path.contains("reader"))) {
+            if ((ns.contains("scp") || ns.contains("facility")) && (path.contains("keycard_reader") || path.contains("reader"))) {
                 return true;
             }
         }
@@ -122,7 +129,7 @@ public class UniversalDoorHandler {
             String path = key.getPath().toLowerCase();
             String ns = key.getNamespace().toLowerCase();
             if (path.contains("tesla") || path.contains("shock_gate") || path.contains("electric_gate") ||
-                path.contains("arc_gate")) {
+                path.contains("shock_barrier") || path.contains("tesla_gate") || path.contains("tesla_coil")) {
                 return true;
             }
             if ((ns.contains("scp") || ns.contains("facility")) && path.contains("tesla")) {
@@ -133,29 +140,74 @@ public class UniversalDoorHandler {
         return className.contains("tesla");
     }
 
-    public static boolean triggerTeslaGate(Level level, BlockPos pos, Player player) {
-        if (level == null || pos == null) return false;
+    public static void triggerTeslaGate(Level level, BlockPos pos, Player player) {
+        if (level == null || pos == null) return;
+
+        BlockPos centerPos = pos;
         for (int dy = -2; dy <= 2; dy++) {
             for (int dx = -2; dx <= 2; dx++) {
                 for (int dz = -2; dz <= 2; dz++) {
                     BlockPos p = pos.offset(dx, dy, dz);
-                    BlockEntity be = level.getBlockEntity(p);
-                    if (be != null) {
-                        if (invokeMethod(be, "discharge")) return true;
-                        if (invokeMethod(be, "shock")) return true;
-                        if (invokeMethod(be, "overcharge")) return true;
-                        if (invokeMethod(be, "trigger")) return true;
-                        if (invokeMethod(be, "activate")) return true;
-                        if (invokeMethod(be, "setPowered", boolean.class, true)) return true;
+                    BlockState st = level.getBlockState(p);
+                    if (isTeslaGateBlock(st)) {
+                        centerPos = p;
+                        break;
                     }
                 }
             }
         }
-        notifyNeighbors(level, pos);
-        return true;
+
+        if (level instanceof ServerLevel serverLevel) {
+            // Emulate player presence using invisible ArmorStand to trigger SCP: The Facility / SCPFR detection hitbox
+            ArmorStand dummy = new ArmorStand(serverLevel, centerPos.getX() + 0.5, centerPos.getY() + 0.1, centerPos.getZ() + 0.5);
+            dummy.setInvisible(true);
+            dummy.setNoGravity(true);
+            dummy.setInvulnerable(true);
+            dummy.setSilent(true);
+            dummy.setSmall(false);
+            dummy.addTag("scp079_tesla_dummy");
+            serverLevel.addFreshEntity(dummy);
+
+            // Also invoke direct BlockEntity methods if available
+            for (int dy = -2; dy <= 2; dy++) {
+                for (int dx = -2; dx <= 2; dx++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        BlockPos p = centerPos.offset(dx, dy, dz);
+                        BlockEntity be = serverLevel.getBlockEntity(p);
+                        if (be != null) {
+                            invokeMethod(be, "trigger");
+                            invokeMethod(be, "overcharge");
+                            invokeMethod(be, "discharge");
+                            invokeMethod(be, "activate");
+                            invokeMethod(be, "shock");
+                            invokeMethod(be, "onEntityInside", Entity.class, dummy);
+                            invokeMethod(be, "onEntityCollision", Entity.class, dummy);
+                        }
+                        BlockState bs = serverLevel.getBlockState(p);
+                        BlockState toggled = setBooleanProperty(bs, "active", true);
+                        if (toggled != bs) serverLevel.setBlock(p, toggled, 3);
+                    }
+                }
+            }
+
+            // Audio & Particle effects
+            serverLevel.playSound(null, centerPos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 1.2f, 1.4f);
+            serverLevel.playSound(null, centerPos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.5f, 0.5f);
+            serverLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK, centerPos.getX() + 0.5, centerPos.getY() + 1.2, centerPos.getZ() + 0.5, 45, 1.2, 1.2, 1.2, 0.2);
+            serverLevel.sendParticles(ParticleTypes.FLASH, centerPos.getX() + 0.5, centerPos.getY() + 1.2, centerPos.getZ() + 0.5, 3, 0.5, 0.5, 0.5, 0.0);
+
+            // Area shock damage to living entities inside Tesla Gate
+            AABB shockBox = new AABB(centerPos).inflate(3.5, 2.5, 3.5);
+            List<LivingEntity> targets = serverLevel.getEntitiesOfClass(LivingEntity.class, shockBox, e -> e != player && e != dummy && !e.isSpectator());
+            for (LivingEntity target : targets) {
+                target.hurt(serverLevel.damageSources().lightningBolt(), 100.0f);
+            }
+
+            dummy.discard();
+        }
     }
 
-    public static boolean toggleDoor(Level level, BlockPos pos, Player player) {
+    public static boolean toggleDoorState(Level level, BlockPos pos, Player player) {
         if (level == null || pos == null) return false;
         BlockState state = level.getBlockState(pos);
 
@@ -296,9 +348,9 @@ public class UniversalDoorHandler {
     public static void setAreaLockState(Level level, BlockPos centerPos, boolean lock, Player player) {
         if (level == null || centerPos == null) return;
 
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
+        for (int dy = -1; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
                     BlockPos p = centerPos.offset(dx, dy, dz);
                     swapButtonLockState(level, p, lock);
                 }
@@ -366,6 +418,19 @@ public class UniversalDoorHandler {
                 }
                 level.setBlock(pos, newState, 3);
                 notifyNeighbors(level, pos);
+            }
+        }
+
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be != null) {
+            if (lock) {
+                invokeMethod(be, "lock");
+                invokeMethod(be, "setLocked", boolean.class, true);
+                invokeMethod(be, "setIsLocked", boolean.class, true);
+            } else {
+                invokeMethod(be, "unlock");
+                invokeMethod(be, "setLocked", boolean.class, false);
+                invokeMethod(be, "setIsLocked", boolean.class, false);
             }
         }
     }
@@ -477,6 +542,7 @@ public class UniversalDoorHandler {
                     if (be != null) {
                         if (invokeMethod(be, "toggle")) return true;
                         if (invokeMethod(be, "toggleDoor")) return true;
+                        if (invokeMethod(be, "openDoor")) return true;
                         if (invokeMethod(be, "interact", Player.class, player)) return true;
                         if (invokeMethod(be, "onInteract", Player.class, player)) return true;
                         if (invokeMethod(be, "trigger")) return true;
@@ -497,6 +563,7 @@ public class UniversalDoorHandler {
                     BlockEntity be = level.getBlockEntity(p);
                     if (be != null) {
                         if (invokeMethod(be, open ? "open" : "close")) return true;
+                        if (invokeMethod(be, open ? "openDoor" : "closeDoor")) return true;
                         if (invokeMethod(be, "setOpen", boolean.class, open)) return true;
                         if (invokeMethod(be, "setOpened", boolean.class, open)) return true;
                         if (invokeMethod(be, "setPowered", boolean.class, open)) return true;

@@ -93,7 +93,7 @@ public class ModNetwork {
         List<S2CSyncFacilityMapPacket.NodeData> nodeDataList = new ArrayList<>();
         for (dev.zerosevennine.facility.FacilityNetworkManager.RoomNode node : dev.zerosevennine.facility.FacilityNetworkManager.getRooms().values()) {
             nodeDataList.add(new S2CSyncFacilityMapPacket.NodeData(
-                    node.pos, node.roomName, node.zone, node.roomType, node.targetZone,
+                    node.pos, node.roomName, node.zone, node.roomType, node.roomShape, node.rotation, node.targetZone,
                     node.gridX, node.gridY, node.hasGenerator, node.isGeneratorBooting
             ));
         }
@@ -126,9 +126,9 @@ public class ModNetwork {
     }
 
     public static void sendOpenMapNodeConfig(ServerPlayer player, BlockPos nodePos, String roomName, FacilityZone zone,
-                                            FacilityMapNodeBlockEntity.RoomType type, FacilityZone targetZone,
-                                            int gridX, int gridY, boolean hasGen) {
+                                            FacilityMapNodeBlockEntity.RoomType type, dev.zerosevennine.facility.RoomShape shape, int rotation,
+                                            FacilityZone targetZone, int gridX, int gridY, boolean hasGen) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new S2COpenMapNodeConfigPacket(nodePos, roomName, zone, type, targetZone, gridX, gridY, hasGen));
+                new S2COpenMapNodeConfigPacket(nodePos, roomName, zone, type, shape, rotation, targetZone, gridX, gridY, hasGen));
     }
 }

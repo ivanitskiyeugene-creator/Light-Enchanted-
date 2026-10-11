@@ -68,7 +68,7 @@ public class ScrewdriverItem extends Item {
             if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
                 if (level.getBlockEntity(pos) instanceof FacilityMapNodeBlockEntity nodeBe) {
                     ModNetwork.sendOpenMapNodeConfig(serverPlayer, pos, nodeBe.getRoomName(), nodeBe.getZone(),
-                            nodeBe.getRoomType(), nodeBe.getTargetZone(), nodeBe.getGridX(), nodeBe.getGridY(), nodeBe.hasGenerator());
+                            nodeBe.getRoomType(), nodeBe.getRoomShape(), nodeBe.getRotation(), nodeBe.getTargetZone(), nodeBe.getGridX(), nodeBe.getGridY(), nodeBe.hasGenerator());
                 }
             }
             return InteractionResult.sidedSuccess(level.isClientSide);

@@ -17,6 +17,8 @@ public class FacilityNetworkManager {
         public String roomName;
         public FacilityZone zone;
         public FacilityMapNodeBlockEntity.RoomType roomType;
+        public RoomShape roomShape;
+        public int rotation;
         public FacilityZone targetZone;
         public int gridX;
         public int gridY;
@@ -24,12 +26,14 @@ public class FacilityNetworkManager {
         public boolean isGeneratorBooting;
 
         public RoomNode(BlockPos pos, String roomName, FacilityZone zone,
-                        FacilityMapNodeBlockEntity.RoomType roomType, FacilityZone targetZone,
-                        int gridX, int gridY) {
+                        FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
+                        FacilityZone targetZone, int gridX, int gridY) {
             this.pos = pos;
             this.roomName = roomName;
             this.zone = zone;
             this.roomType = roomType;
+            this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
+            this.rotation = rotation;
             this.targetZone = targetZone;
             this.gridX = gridX;
             this.gridY = gridY;
@@ -43,7 +47,7 @@ public class FacilityNetworkManager {
 
     public static void registerMapNode(BlockPos pos, FacilityMapNodeBlockEntity be) {
         RoomNode node = new RoomNode(pos.immutable(), be.getRoomName(), be.getZone(),
-                be.getRoomType(), be.getTargetZone(), be.getGridX(), be.getGridY());
+                be.getRoomType(), be.getRoomShape(), be.getRotation(), be.getTargetZone(), be.getGridX(), be.getGridY());
         node.hasGenerator = be.hasGenerator();
         node.isGeneratorBooting = be.isGeneratorBooting();
         ROOMS.put(pos.immutable(), node);
@@ -164,13 +168,13 @@ public class FacilityNetworkManager {
                                           List<dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData> cameras) {
         ROOMS.clear();
         for (dev.zerosevennine.network.S2CSyncFacilityMapPacket.NodeData n : nodes) {
-            RoomNode node = new RoomNode(n.pos, n.name, n.zone, n.roomType, n.targetZone, n.gridX, n.gridY);
+            RoomNode node = new RoomNode(n.pos, n.name, n.zone, n.roomType, n.roomShape, n.rotation, n.targetZone, n.gridX, n.gridY);
             node.hasGenerator = n.hasGenerator;
             node.isGeneratorBooting = n.isGeneratorBooting;
             ROOMS.put(n.pos, node);
         }
 
-        // For any camera that doesn't have an explicit map node, auto-create a RoomNode so it appears on the schematic!
+        // For any camera that doesn't have an explicit map node, auto-create a RoomNode
         for (dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData cam : cameras) {
             boolean hasNode = false;
             for (RoomNode r : ROOMS.values()) {
@@ -183,7 +187,7 @@ public class FacilityNetworkManager {
                 int gx = ((cam.pos.getX() / 16) % 5);
                 int gy = ((cam.pos.getZ() / 16) % 5);
                 RoomNode autoNode = new RoomNode(cam.pos, cam.name, cam.zone,
-                        FacilityMapNodeBlockEntity.RoomType.STANDARD, cam.zone, gx, gy);
+                        FacilityMapNodeBlockEntity.RoomType.STANDARD, RoomShape.SQUARE, 0, cam.zone, gx, gy);
                 ROOMS.put(cam.pos, autoNode);
             }
         }

@@ -2,6 +2,7 @@ package dev.zerosevennine.blockentity;
 
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
+import dev.zerosevennine.facility.RoomShape;
 import dev.zerosevennine.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -35,6 +36,8 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
     private String roomName = "Heavy Hallway";
     private FacilityZone zone = FacilityZone.HCZ;
     private RoomType roomType = RoomType.STANDARD;
+    private RoomShape roomShape = RoomShape.SQUARE;
+    private int rotation = 0; // 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
     private FacilityZone targetZone = null;
     private int gridX = 0;
     private int gridY = 0;
@@ -108,6 +111,40 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
 
     public void setRoomType(RoomType roomType) {
         this.roomType = roomType;
+        if (roomType == RoomType.ELEVATOR) {
+            this.roomShape = RoomShape.ELEVATOR;
+        } else if (roomType == RoomType.CHECKPOINT) {
+            this.roomShape = RoomShape.CHECKPOINT;
+        }
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public RoomShape getRoomShape() {
+        return roomShape;
+    }
+
+    public void setRoomShape(RoomShape roomShape) {
+        this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
+        if (this.roomShape == RoomShape.ELEVATOR) {
+            this.roomType = RoomType.ELEVATOR;
+        } else if (this.roomShape == RoomShape.CHECKPOINT) {
+            this.roomType = RoomType.CHECKPOINT;
+        }
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public int getRotation() {
+        return rotation;
+    }
+
+    public void setRotation(int rotation) {
+        this.rotation = Math.floorMod(rotation, 4);
         setChanged();
         if (level != null && !level.isClientSide) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
@@ -180,9 +217,39 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
         this.boundaryPoints.clear();
         this.boundaryPoints.addAll(points);
         recalcBounds();
+        autoDetectShapeFromPoints();
         setChanged();
         if (level != null && !level.isClientSide) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    private void autoDetectShapeFromPoints() {
+        if (boundaryPoints.size() == 3) {
+            BlockPos p0 = boundaryPoints.get(0);
+            BlockPos p1 = boundaryPoints.get(1);
+            BlockPos p2 = boundaryPoints.get(2);
+            // Check L corner vs T vs Line
+            int dx1 = p1.getX() - p0.getX();
+            int dz1 = p1.getZ() - p0.getZ();
+            int dx2 = p2.getX() - p1.getX();
+            int dz2 = p2.getZ() - p1.getZ();
+            if (dx1 * dx2 + dz1 * dz2 == 0) {
+                this.roomShape = RoomShape.CORNER_L;
+                return;
+            }
+        }
+
+        if (minBound != null && maxBound != null) {
+            int sizeX = maxBound.getX() - minBound.getX() + 1;
+            int sizeZ = maxBound.getZ() - minBound.getZ() + 1;
+            if (sizeX >= sizeZ * 2) {
+                this.roomShape = RoomShape.STRAIGHT;
+                this.rotation = 1; // Horizontal
+            } else if (sizeZ >= sizeX * 2) {
+                this.roomShape = RoomShape.STRAIGHT;
+                this.rotation = 0; // Vertical
+            }
         }
     }
 
@@ -212,6 +279,8 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
         tag.putString("roomName", roomName);
         tag.putString("zone", zone.name());
         tag.putString("roomType", roomType.name());
+        tag.putString("roomShape", roomShape.name());
+        tag.putInt("rotation", rotation);
         if (targetZone != null) {
             tag.putString("targetZone", targetZone.name());
         }
@@ -242,12 +311,22 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
                 roomType = RoomType.valueOf(tag.getString("roomType"));
             } catch (Exception ignored) {}
         }
+        if (tag.contains("roomShape")) {
+            try {
+                roomShape = RoomShape.valueOf(tag.getString("roomShape"));
+            } catch (Exception ignored) {}
+        } else if (roomType == RoomType.ELEVATOR) {
+            roomShape = RoomShape.ELEVATOR;
+        } else if (roomType == RoomType.CHECKPOINT) {
+            roomShape = RoomShape.CHECKPOINT;
+        }
+        if (tag.contains("rotation")) {
+            rotation = tag.getInt("rotation");
+        }
         if (tag.contains("targetZone")) {
             try {
                 targetZone = FacilityZone.valueOf(tag.getString("targetZone"));
             } catch (Exception ignored) {}
-        } else {
-            targetZone = null;
         }
         gridX = tag.getInt("gridX");
         gridY = tag.getInt("gridY");
@@ -261,8 +340,8 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
             for (long p : pts) {
                 boundaryPoints.add(BlockPos.of(p));
             }
+            recalcBounds();
         }
-        recalcBounds();
     }
 
     @Override

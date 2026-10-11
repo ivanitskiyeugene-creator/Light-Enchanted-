@@ -3,6 +3,7 @@ package dev.zerosevennine.network;
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
+import dev.zerosevennine.facility.RoomShape;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
@@ -17,6 +18,8 @@ public class S2CSyncFacilityMapPacket {
         public final String name;
         public final FacilityZone zone;
         public final FacilityMapNodeBlockEntity.RoomType roomType;
+        public final RoomShape roomShape;
+        public final int rotation;
         public final FacilityZone targetZone;
         public final int gridX;
         public final int gridY;
@@ -24,12 +27,14 @@ public class S2CSyncFacilityMapPacket {
         public final boolean isGeneratorBooting;
 
         public NodeData(BlockPos pos, String name, FacilityZone zone,
-                        FacilityMapNodeBlockEntity.RoomType roomType, FacilityZone targetZone,
-                        int gridX, int gridY, boolean hasGenerator, boolean isGeneratorBooting) {
+                        FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
+                        FacilityZone targetZone, int gridX, int gridY, boolean hasGenerator, boolean isGeneratorBooting) {
             this.pos = pos;
             this.name = name;
             this.zone = zone;
             this.roomType = roomType;
+            this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
+            this.rotation = rotation;
             this.targetZone = targetZone;
             this.gridX = gridX;
             this.gridY = gridY;
@@ -42,6 +47,8 @@ public class S2CSyncFacilityMapPacket {
             buf.writeUtf(name != null ? name : "Room");
             buf.writeEnum(zone != null ? zone : FacilityZone.HCZ);
             buf.writeEnum(roomType != null ? roomType : FacilityMapNodeBlockEntity.RoomType.STANDARD);
+            buf.writeEnum(roomShape != null ? roomShape : RoomShape.SQUARE);
+            buf.writeInt(rotation);
             buf.writeEnum(targetZone != null ? targetZone : FacilityZone.HCZ);
             buf.writeInt(gridX);
             buf.writeInt(gridY);
@@ -54,12 +61,14 @@ public class S2CSyncFacilityMapPacket {
             String name = buf.readUtf();
             FacilityZone zone = buf.readEnum(FacilityZone.class);
             FacilityMapNodeBlockEntity.RoomType roomType = buf.readEnum(FacilityMapNodeBlockEntity.RoomType.class);
+            RoomShape roomShape = buf.readEnum(RoomShape.class);
+            int rot = buf.readInt();
             FacilityZone targetZone = buf.readEnum(FacilityZone.class);
             int gx = buf.readInt();
             int gy = buf.readInt();
             boolean gen = buf.readBoolean();
             boolean booting = buf.readBoolean();
-            return new NodeData(pos, name, zone, roomType, targetZone, gx, gy, gen, booting);
+            return new NodeData(pos, name, zone, roomType, roomShape, rot, targetZone, gx, gy, gen, booting);
         }
     }
 
