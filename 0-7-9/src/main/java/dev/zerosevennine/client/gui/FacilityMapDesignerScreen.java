@@ -24,9 +24,32 @@ import java.util.Map;
 public class FacilityMapDesignerScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation("zero_seven_nine", "textures/gui/scanlines.png");
 
-    private FacilityZone currentZone = FacilityZone.HCZ;
+    public enum GridMode {
+        FULL("СЕТКА: 1.0", 4, true, false),
+        TENTH("СЕТКА: 0.1", 1, true, true),
+        OFF("СЕТКА: ВЫКЛ", 1, false, false);
 
-    // Grid Coordinates
+        public final String label;
+        public final int snapStep;
+        public final boolean showMainGrid;
+        public final boolean showSubGrid;
+
+        GridMode(String label, int snapStep, boolean showMainGrid, boolean showSubGrid) {
+            this.label = label;
+            this.snapStep = snapStep;
+            this.showMainGrid = showMainGrid;
+            this.showSubGrid = showSubGrid;
+        }
+
+        public GridMode next() {
+            return values()[(ordinal() + 1) % values().length];
+        }
+    }
+
+    private FacilityZone currentZone = FacilityZone.HCZ;
+    private GridMode currentGridMode = GridMode.FULL;
+
+    // Grid Coordinates & Pan
     private int selectedGx = 0;
     private int selectedGy = 0;
     private int gridPanX = 0;
@@ -39,10 +62,11 @@ public class FacilityMapDesignerScreen extends Screen {
     private int selectedRotation = 0;
     private boolean selectedHasGen = false;
 
-    // Freeform Polygon Vertices (local coords, e.g. -24 to +24)
+    // Freeform Polygon Vertices (local coords, -24 to +24)
     private final List<int[]> activePolygon = new ArrayList<>();
     private int selectedVertexIndex = 0;
     private boolean draggingVertex = false;
+    private boolean draggingPreviewShape = false;
 
     // Dragging Room on Grid Canvas
     private boolean draggingRoom = false;
@@ -55,6 +79,7 @@ public class FacilityMapDesignerScreen extends Screen {
     private final List<BlockPos> localLinkedCameras = new ArrayList<>();
 
     private Button genBtn;
+    private Button gridModeBtn;
 
     public FacilityMapDesignerScreen() {
         super(Component.literal("Редактор карты 079"));
@@ -72,12 +97,12 @@ public class FacilityMapDesignerScreen extends Screen {
         super.init();
         refreshAvailableCameras();
 
-        int panelW = 204;
+        int panelW = 208;
         int panelX = width - panelW - 6;
-        int panelY = 26;
+        int panelY = 24;
 
         // Zone Tab Buttons at Top
-        int tabW = 60;
+        int tabW = 58;
         int tabStartX = 8;
         addRenderableWidget(Button.builder(Component.literal("LCZ"), b -> setZone(FacilityZone.LCZ))
                 .bounds(tabStartX, 4, tabW, 18).build());
@@ -88,8 +113,15 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("SURFACE"), b -> setZone(FacilityZone.SURFACE))
                 .bounds(tabStartX + (tabW + 4) * 3, 4, tabW, 18).build());
 
+        // Grid Scale Mode Switcher (1.0 / 0.1 / OFF)
+        gridModeBtn = Button.builder(Component.literal(currentGridMode.label), b -> {
+            currentGridMode = currentGridMode.next();
+            b.setMessage(Component.literal(currentGridMode.label));
+        }).bounds(tabStartX + (tabW + 4) * 4, 4, 78, 18).build();
+        addRenderableWidget(gridModeBtn);
+
         // Room Name EditBox
-        int sy = panelY + 14;
+        int sy = panelY + 12;
         nameEdit = new EditBox(font, panelX + 6, sy, panelW - 12, 16, Component.literal("Название комнаты"));
         nameEdit.setMaxLength(24);
         nameEdit.setValue("ROOM " + selectedGx + ":" + selectedGy);
@@ -99,20 +131,20 @@ public class FacilityMapDesignerScreen extends Screen {
         loadRoomDataAtSelection();
 
         // --- POINT / POLYGON TOOLS ---
-        sy += 18 + 72; // Under Live Preview box
+        sy += 16 + 72; // Under Live Preview box
         int pBtnW = (panelW - 18) / 3;
         int pBtnH = 15;
 
-        // Add / Remove Vertex Buttons
+        // Add / Remove Vertex & Center Buttons
         addRenderableWidget(Button.builder(Component.literal("+ ТОЧКА"), b -> addVertex())
                 .bounds(panelX + 6, sy, pBtnW, pBtnH).build());
         addRenderableWidget(Button.builder(Component.literal("- ТОЧКА"), b -> removeVertex())
                 .bounds(panelX + 8 + pBtnW, sy, pBtnW, pBtnH).build());
-        addRenderableWidget(Button.builder(Component.literal("СБРОС"), b -> resetPolygonToPreset())
+        addRenderableWidget(Button.builder(Component.literal("ЦЕНТР"), b -> centerPolygon())
                 .bounds(panelX + 10 + pBtnW * 2, sy, pBtnW, pBtnH).build());
 
-        // Scale & Dimension Tools (W-, W+, H-, H+, Rot)
-        sy += 17;
+        // Scale & Dimension Tools (W-, W+, H-, H+)
+        sy += 16;
         int sBtnW = (panelW - 22) / 4;
         addRenderableWidget(Button.builder(Component.literal("ШИР -"), b -> scaleWidth(0.85f))
                 .bounds(panelX + 6, sy, sBtnW, pBtnH).build());
@@ -124,7 +156,7 @@ public class FacilityMapDesignerScreen extends Screen {
                 .bounds(panelX + 12 + sBtnW * 3, sy, sBtnW, pBtnH).build());
 
         // Rotate Tools
-        sy += 17;
+        sy += 16;
         int rBtnW = (panelW - 18) / 3;
         addRenderableWidget(Button.builder(Component.literal("↺ 45°"), b -> rotatePolygon(-45))
                 .bounds(panelX + 6, sy, rBtnW, pBtnH).build());
@@ -133,7 +165,7 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("↻ 90°"), b -> rotatePolygon(90))
                 .bounds(panelX + 10 + rBtnW * 2, sy, rBtnW, pBtnH).build());
 
-        // --- PRESET SHAPE BUTTONS ---
+        // --- PRESET SHAPE BUTTONS (1:1 Square Bounding Box Templates) ---
         sy += 18;
         int shapeBtnW = (panelW - 18) / 4;
         addRenderableWidget(Button.builder(Component.literal("| ПРЯМ"), b -> applyPreset(RoomShape.STRAIGHT))
@@ -271,15 +303,25 @@ public class FacilityMapDesignerScreen extends Screen {
         selectedVertexIndex = 0;
     }
 
-    private void resetPolygonToPreset() {
-        activePolygon.clear();
-        activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
-        selectedVertexIndex = 0;
+    private void centerPolygon() {
+        if (activePolygon.isEmpty()) return;
+        int sumX = 0, sumY = 0;
+        for (int[] pt : activePolygon) {
+            sumX += pt[0];
+            sumY += pt[1];
+        }
+        int avgX = sumX / activePolygon.size();
+        int avgY = sumY / activePolygon.size();
+
+        for (int[] pt : activePolygon) {
+            pt[0] = Math.max(-28, Math.min(28, pt[0] - avgX));
+            pt[1] = Math.max(-28, Math.min(28, pt[1] - avgY));
+        }
     }
 
     private void addVertex() {
         if (activePolygon.isEmpty()) {
-            resetPolygonToPreset();
+            activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
             return;
         }
         int next = (selectedVertexIndex + 1) % activePolygon.size();
@@ -303,13 +345,13 @@ public class FacilityMapDesignerScreen extends Screen {
 
     private void scaleWidth(float factor) {
         for (int[] pt : activePolygon) {
-            pt[0] = Math.max(-30, Math.min(30, Math.round(pt[0] * factor)));
+            pt[0] = Math.max(-28, Math.min(28, Math.round(pt[0] * factor)));
         }
     }
 
     private void scaleHeight(float factor) {
         for (int[] pt : activePolygon) {
-            pt[1] = Math.max(-30, Math.min(30, Math.round(pt[1] * factor)));
+            pt[1] = Math.max(-28, Math.min(28, Math.round(pt[1] * factor)));
         }
     }
 
@@ -321,8 +363,8 @@ public class FacilityMapDesignerScreen extends Screen {
         for (int[] pt : activePolygon) {
             int nx = (int) Math.round(pt[0] * cos - pt[1] * sin);
             int ny = (int) Math.round(pt[0] * sin + pt[1] * cos);
-            pt[0] = Math.max(-30, Math.min(30, nx));
-            pt[1] = Math.max(-30, Math.min(30, ny));
+            pt[0] = Math.max(-28, Math.min(28, nx));
+            pt[1] = Math.max(-28, Math.min(28, ny));
         }
     }
 
@@ -378,14 +420,14 @@ public class FacilityMapDesignerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int panelW = 204;
+        int panelW = 208;
         int panelX = width - panelW - 6;
         int canvasW = width - panelW - 20;
-        int canvasH = height - 36;
+        int canvasH = height - 34;
 
-        // 1. Check Live Preview Box Point Clicking
+        // 1. Check Live Preview Box Point / Shape Clicking
         int prevX = panelX + 6;
-        int prevY = 26 + 32;
+        int prevY = 24 + 30;
         int prevW = panelW - 12;
         int prevH = 68;
 
@@ -393,23 +435,31 @@ public class FacilityMapDesignerScreen extends Screen {
             int originX = prevX + prevW / 2;
             int originY = prevY + prevH / 2;
 
-            for (int i = 0; i < activePolygon.size(); i++) {
-                int[] pt = activePolygon.get(i);
-                int vx = originX + pt[0];
-                int vy = originY + pt[1];
+            if (button == 0) { // LMB
+                for (int i = 0; i < activePolygon.size(); i++) {
+                    int[] pt = activePolygon.get(i);
+                    int vx = originX + pt[0];
+                    int vy = originY + pt[1];
 
-                if (Math.abs(mouseX - vx) <= 6 && Math.abs(mouseY - vy) <= 6) {
-                    selectedVertexIndex = i;
-                    draggingVertex = true;
-                    return true;
+                    if (Math.abs(mouseX - vx) <= 6 && Math.abs(mouseY - vy) <= 6) {
+                        selectedVertexIndex = i;
+                        draggingVertex = true;
+                        return true;
+                    }
                 }
+                // Clicked on background in preview -> drag entire shape
+                draggingPreviewShape = true;
+                return true;
+            } else if (button == 1 || button == 2) { // RMB/MMB drag entire shape
+                draggingPreviewShape = true;
+                return true;
             }
         }
 
         // 2. Check Blueprint Grid Canvas Clicking & Dragging
-        if (mouseX >= 8 && mouseX <= 8 + canvasW && mouseY >= 26 && mouseY <= 26 + canvasH) {
+        if (mouseX >= 8 && mouseX <= 8 + canvasW && mouseY >= 24 && mouseY <= 24 + canvasH) {
             int centerX = 8 + canvasW / 2 + gridPanX;
-            int centerY = 26 + canvasH / 2 + gridPanY;
+            int centerY = 24 + canvasH / 2 + gridPanY;
 
             int clickGx = (int) Math.floor((mouseX - centerX) / (double) CELL_SIZE);
             int clickGy = (int) Math.floor((mouseY - centerY) / (double) CELL_SIZE);
@@ -437,16 +487,19 @@ public class FacilityMapDesignerScreen extends Screen {
         if (draggingVertex) {
             draggingVertex = false;
         }
+        if (draggingPreviewShape) {
+            draggingPreviewShape = false;
+        }
 
         if (draggingRoom) {
             draggingRoom = false;
-            int panelW = 204;
+            int panelW = 208;
             int canvasW = width - panelW - 20;
-            int canvasH = height - 36;
+            int canvasH = height - 34;
 
-            if (mouseX >= 8 && mouseX <= 8 + canvasW && mouseY >= 26 && mouseY <= 26 + canvasH) {
+            if (mouseX >= 8 && mouseX <= 8 + canvasW && mouseY >= 24 && mouseY <= 24 + canvasH) {
                 int centerX = 8 + canvasW / 2 + gridPanX;
-                int centerY = 26 + canvasH / 2 + gridPanY;
+                int centerY = 24 + canvasH / 2 + gridPanY;
 
                 int dropGx = (int) Math.floor((mouseX - centerX) / (double) CELL_SIZE);
                 int dropGy = (int) Math.floor((mouseY - centerY) / (double) CELL_SIZE);
@@ -471,29 +524,46 @@ public class FacilityMapDesignerScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        // Drag individual vertex
         if (draggingVertex && selectedVertexIndex >= 0 && selectedVertexIndex < activePolygon.size()) {
-            int panelW = 204;
+            int panelW = 208;
             int panelX = width - panelW - 6;
             int prevX = panelX + 6;
-            int prevY = 26 + 32;
+            int prevY = 24 + 30;
             int prevW = panelW - 12;
             int prevH = 68;
             int originX = prevX + prevW / 2;
             int originY = prevY + prevH / 2;
 
-            int newLocalX = (int) Math.round(mouseX - originX);
-            int newLocalY = (int) Math.round(mouseY - originY);
+            int rawX = (int) Math.round(mouseX - originX);
+            int rawY = (int) Math.round(mouseY - originY);
 
-            // Snap to 2px grid and constrain
-            newLocalX = Math.max(-28, Math.min(28, (newLocalX / 2) * 2));
-            newLocalY = Math.max(-28, Math.min(28, (newLocalY / 2) * 2));
+            int snap = currentGridMode.snapStep;
+            int newLocalX = Math.round((float) rawX / snap) * snap;
+            int newLocalY = Math.round((float) rawY / snap) * snap;
+
+            newLocalX = Math.max(-28, Math.min(28, newLocalX));
+            newLocalY = Math.max(-28, Math.min(28, newLocalY));
 
             activePolygon.get(selectedVertexIndex)[0] = newLocalX;
             activePolygon.get(selectedVertexIndex)[1] = newLocalY;
             return true;
         }
 
-        if (button == 1 || button == 2) { // RMB or MMB pan
+        // Drag whole shape inside preview
+        if (draggingPreviewShape) {
+            int dx = (int) Math.round(dragX);
+            int dy = (int) Math.round(dragY);
+
+            for (int[] pt : activePolygon) {
+                pt[0] = Math.max(-28, Math.min(28, pt[0] + dx));
+                pt[1] = Math.max(-28, Math.min(28, pt[1] + dy));
+            }
+            return true;
+        }
+
+        // Canvas pan
+        if (button == 1 || button == 2) {
             gridPanX += (int) dragX;
             gridPanY += (int) dragY;
             return true;
@@ -506,11 +576,11 @@ public class FacilityMapDesignerScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, width, height, 0xFF020914);
 
-        int panelW = 204;
+        int panelW = 208;
         int canvasX = 8;
-        int canvasY = 26;
+        int canvasY = 24;
         int canvasW = width - panelW - 20;
-        int canvasH = height - 32;
+        int canvasH = height - 30;
 
         // Blueprint Grid canvas
         graphics.fill(canvasX, canvasY, canvasX + canvasW, canvasY + canvasH, 0xFF030D1A);
@@ -522,17 +592,35 @@ public class FacilityMapDesignerScreen extends Screen {
         int centerX = canvasX + canvasW / 2 + gridPanX;
         int centerY = canvasY + canvasH / 2 + gridPanY;
 
-        // Render Coordinate Grid
-        for (int x = -20; x <= 20; x++) {
-            int px = centerX + x * CELL_SIZE;
-            if (px >= canvasX && px <= canvasX + canvasW) {
-                graphics.fill(px, canvasY + 1, px + 1, canvasY + canvasH - 1, (x == 0) ? 0x6600E5FF : 0x1A00E5FF);
+        // Render Coordinate Grid based on gridMode
+        if (currentGridMode.showSubGrid) { // 1/10 Subgrid lines
+            int subStep = CELL_SIZE / 10;
+            for (int x = -100; x <= 100; x++) {
+                int px = centerX + x * subStep;
+                if (px >= canvasX && px <= canvasX + canvasW) {
+                    graphics.fill(px, canvasY + 1, px + 1, canvasY + canvasH - 1, 0x0D00E5FF);
+                }
+            }
+            for (int y = -100; y <= 100; y++) {
+                int py = centerY + y * subStep;
+                if (py >= canvasY && py <= canvasY + canvasH) {
+                    graphics.fill(canvasX + 1, py, canvasX + canvasW - 1, py + 1, 0x0D00E5FF);
+                }
             }
         }
-        for (int y = -20; y <= 20; y++) {
-            int py = centerY + y * CELL_SIZE;
-            if (py >= canvasY && py <= canvasY + canvasH) {
-                graphics.fill(canvasX + 1, py, canvasX + canvasW - 1, py + 1, (y == 0) ? 0x6600E5FF : 0x1A00E5FF);
+
+        if (currentGridMode.showMainGrid) { // Main grid lines
+            for (int x = -20; x <= 20; x++) {
+                int px = centerX + x * CELL_SIZE;
+                if (px >= canvasX && px <= canvasX + canvasW) {
+                    graphics.fill(px, canvasY + 1, px + 1, canvasY + canvasH - 1, (x == 0) ? 0x6600E5FF : 0x1A00E5FF);
+                }
+            }
+            for (int y = -20; y <= 20; y++) {
+                int py = centerY + y * CELL_SIZE;
+                if (py >= canvasY && py <= canvasY + canvasH) {
+                    graphics.fill(canvasX + 1, py, canvasX + canvasW - 1, py + 1, (y == 0) ? 0x6600E5FF : 0x1A00E5FF);
+                }
             }
         }
 
@@ -586,28 +674,45 @@ public class FacilityMapDesignerScreen extends Screen {
 
         // Header info
         String zoneHeader = "РЕДАКТОР: " + currentZone.name() + " // Site-02";
-        graphics.drawString(font, zoneHeader, 280, 8, 0xFF00E5FF, false);
-        graphics.drawString(font, "КЛЕТКА: [" + selectedGx + ", " + selectedGy + "]", panelX + 6, canvasY + 3, 0xFFE0F7FA, false);
+        graphics.drawString(font, zoneHeader, 340, 8, 0xFF00E5FF, false);
+        graphics.drawString(font, "КЛЕТКА: [" + selectedGx + ", " + selectedGy + "]", panelX + 6, canvasY + 2, 0xFFE0F7FA, false);
 
         // ==========================================
         // 🔍 LIVE VECTOR PREVIEW & POINT EDITOR BOX
         // ==========================================
         int prevX = panelX + 6;
-        int prevY = canvasY + 32;
+        int prevY = canvasY + 30;
         int prevW = panelW - 12;
         int prevH = 68;
 
         graphics.fill(prevX, prevY, prevX + prevW, prevY + prevH, 0xFF020712);
         graphics.fill(prevX, prevY, prevX + prevW, prevY + 1, 0xFF00E5FF);
         graphics.fill(prevX, prevY + prevH - 1, prevX + prevW, prevY + prevH, 0xFF00E5FF);
-        graphics.fill(prevX, prevY, prevX + 1, prevY + prevH, 0xFF00E5FF);
+        graphics.fill(prevX, prevY + prevX + 1, prevY + prevH, 0xFF00E5FF);
         graphics.fill(prevX + prevW - 1, prevY, prevX + prevW, prevY + prevH, 0xFF00E5FF);
 
-        // Grid lines inside preview box
+        // Grid lines inside preview box based on gridMode
         int pMidX = prevX + prevW / 2;
         int pMidY = prevY + prevH / 2;
-        graphics.fill(pMidX, prevY + 1, pMidX + 1, prevY + prevH - 1, 0x3300E5FF);
-        graphics.fill(prevX + 1, pMidY, prevX + prevW - 1, pMidY + 1, 0x3300E5FF);
+
+        if (currentGridMode.showSubGrid) {
+            for (int gx = -24; gx <= 24; gx += 4) {
+                graphics.fill(pMidX + gx, prevY + 1, pMidX + gx + 1, prevY + prevH - 1, 0x1500E5FF);
+            }
+            for (int gy = -24; gy <= 24; gy += 4) {
+                graphics.fill(prevX + 1, pMidY + gy, prevX + prevW - 1, pMidY + gy + 1, 0x1500E5FF);
+            }
+        }
+
+        if (currentGridMode.showMainGrid) {
+            graphics.fill(pMidX, prevY + 1, pMidX + 1, prevY + prevH - 1, 0x4400E5FF);
+            graphics.fill(prevX + 1, pMidY, prevX + prevW - 1, pMidY + 1, 0x4400E5FF);
+            // 1:1 Square Guide Bounds
+            graphics.fill(pMidX - 18, pMidY - 18, pMidX + 18, pMidY - 17, 0x2200E5FF);
+            graphics.fill(pMidX - 18, pMidY + 17, pMidX + 18, pMidY + 18, 0x2200E5FF);
+            graphics.fill(pMidX - 18, pMidY - 18, pMidX - 17, pMidY + 18, 0x2200E5FF);
+            graphics.fill(pMidX + 17, pMidY - 18, pMidX + 18, pMidY + 18, 0x2200E5FF);
+        }
 
         // Render Active Polygon in Preview
         FacilityNetworkManager.fillPolygonWithScanlines(graphics, pMidX, pMidY, activePolygon, 0xFF1D78B2, 0x2200E5FF, 0xFF00FFFF);
@@ -632,10 +737,10 @@ public class FacilityMapDesignerScreen extends Screen {
         BlockPos selCam = getSelectedCamera();
         String camTitle = (selCam != null) ?
                 ("ВЫБРАНА КАМЕРА: [" + selCam.getX() + ", " + selCam.getZ() + "]") : "НЕТ КАМЕР В ЗОНЕ";
-        graphics.drawString(font, camTitle, panelX + 6, canvasY + 238, 0xFF81D4FA, false);
+        graphics.drawString(font, camTitle, panelX + 6, canvasY + 236, 0xFF81D4FA, false);
 
         String linkCount = "ПРИВЯЗАНО КАМЕР: " + localLinkedCameras.size();
-        graphics.drawString(font, linkCount, panelX + 6, canvasY + 248, 0xFF00FF88, false);
+        graphics.drawString(font, linkCount, panelX + 6, canvasY + 246, 0xFF00FF88, false);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }

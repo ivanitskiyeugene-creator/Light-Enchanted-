@@ -320,6 +320,7 @@ public class FacilityNetworkManager {
         }
     }
 
+    // 1:1 Square Bounding Box Templates (Bounds: [-18..18, -18..18])
     public static List<int[]> generateDefaultVertices(RoomShape shape, int rot) {
         List<int[]> pts = new ArrayList<>();
         if (shape == null) shape = RoomShape.SQUARE;
@@ -327,107 +328,107 @@ public class FacilityNetworkManager {
 
         switch (shape) {
             case STRAIGHT -> {
-                if (rot == 0 || rot == 2) { // Vertical
-                    pts.add(new int[]{-8, -18});
-                    pts.add(new int[]{8, -18});
-                    pts.add(new int[]{8, 18});
-                    pts.add(new int[]{-8, 18});
-                } else { // Horizontal
-                    pts.add(new int[]{-24, -8});
-                    pts.add(new int[]{24, -8});
-                    pts.add(new int[]{24, 8});
-                    pts.add(new int[]{-24, 8});
+                if (rot == 0 || rot == 2) { // Vertical Corridor
+                    pts.add(new int[]{-6, -18});
+                    pts.add(new int[]{6, -18});
+                    pts.add(new int[]{6, 18});
+                    pts.add(new int[]{-6, 18});
+                } else { // Horizontal Corridor
+                    pts.add(new int[]{-18, -6});
+                    pts.add(new int[]{18, -6});
+                    pts.add(new int[]{18, 6});
+                    pts.add(new int[]{-18, 6});
                 }
             }
             case CORNER -> {
-                if (rot == 0) { // Top-Right
-                    pts.add(new int[]{-24, -18});
-                    pts.add(new int[]{24, -18});
-                    pts.add(new int[]{24, 18});
-                    pts.add(new int[]{8, 18});
-                    pts.add(new int[]{8, -6});
-                    pts.add(new int[]{-24, -6});
-                } else if (rot == 1) { // Bottom-Right
-                    pts.add(new int[]{8, -18});
-                    pts.add(new int[]{24, -18});
-                    pts.add(new int[]{24, 18});
-                    pts.add(new int[]{-24, 18});
-                    pts.add(new int[]{-24, 6});
-                    pts.add(new int[]{8, 6});
-                } else if (rot == 2) { // Bottom-Left
-                    pts.add(new int[]{-24, -18});
-                    pts.add(new int[]{-8, -18});
-                    pts.add(new int[]{-8, 6});
-                    pts.add(new int[]{24, 6});
-                    pts.add(new int[]{24, 18});
-                    pts.add(new int[]{-24, 18});
-                } else { // Top-Left
-                    pts.add(new int[]{-24, -18});
-                    pts.add(new int[]{24, -18});
-                    pts.add(new int[]{24, -6});
-                    pts.add(new int[]{-8, -6});
-                    pts.add(new int[]{-8, 18});
-                    pts.add(new int[]{-24, 18});
+                if (rot == 0) { // Top-Right Corner (1:1 square bounds)
+                    pts.add(new int[]{-18, -18});
+                    pts.add(new int[]{18, -18});
+                    pts.add(new int[]{18, 18});
+                    pts.add(new int[]{6, 18});
+                    pts.add(new int[]{6, -6});
+                    pts.add(new int[]{-18, -6});
+                } else if (rot == 1) { // Bottom-Right Corner (1:1 square bounds)
+                    pts.add(new int[]{6, -18});
+                    pts.add(new int[]{18, -18});
+                    pts.add(new int[]{18, 18});
+                    pts.add(new int[]{-18, 18});
+                    pts.add(new int[]{-18, 6});
+                    pts.add(new int[]{6, 6});
+                } else if (rot == 2) { // Bottom-Left Corner (1:1 square bounds)
+                    pts.add(new int[]{-18, -18});
+                    pts.add(new int[]{-6, -18});
+                    pts.add(new int[]{-6, 6});
+                    pts.add(new int[]{18, 6});
+                    pts.add(new int[]{18, 18});
+                    pts.add(new int[]{-18, 18});
+                } else { // Top-Left Corner (1:1 square bounds)
+                    pts.add(new int[]{-18, -18});
+                    pts.add(new int[]{18, -18});
+                    pts.add(new int[]{18, -6});
+                    pts.add(new int[]{-6, -6});
+                    pts.add(new int[]{-6, 18});
+                    pts.add(new int[]{-18, 18});
                 }
             }
             case T_SHAPE -> {
-                if (rot == 0) { // Stem South
-                    pts.add(new int[]{-24, -18});
-                    pts.add(new int[]{24, -18});
-                    pts.add(new int[]{24, -6});
-                    pts.add(new int[]{8, -6});
-                    pts.add(new int[]{8, 18});
-                    pts.add(new int[]{-8, 18});
-                    pts.add(new int[]{-8, -6});
-                    pts.add(new int[]{-24, -6});
-                } else if (rot == 1) { // Stem West
-                    pts.add(new int[]{8, -18});
-                    pts.add(new int[]{24, -18});
-                    pts.add(new int[]{24, 18});
-                    pts.add(new int[]{8, 18});
-                    pts.add(new int[]{8, 6});
-                    pts.add(new int[]{-24, 6});
-                    pts.add(new int[]{-24, -6});
-                    pts.add(new int[]{8, -6});
-                } else if (rot == 2) { // Stem North
-                    pts.add(new int[]{-8, -18});
-                    pts.add(new int[]{8, -18});
-                    pts.add(new int[]{8, 6});
-                    pts.add(new int[]{24, 6});
-                    pts.add(new int[]{24, 18});
-                    pts.add(new int[]{-24, 18});
-                    pts.add(new int[]{-24, 6});
-                    pts.add(new int[]{-8, 6});
-                } else { // Stem East
-                    pts.add(new int[]{-24, -18});
-                    pts.add(new int[]{-8, -18});
-                    pts.add(new int[]{-8, -6});
-                    pts.add(new int[]{24, -6});
-                    pts.add(new int[]{24, 6});
-                    pts.add(new int[]{-8, 6});
-                    pts.add(new int[]{-8, 18});
-                    pts.add(new int[]{-24, 18});
+                if (rot == 0) { // Stem South (1:1 square bounds)
+                    pts.add(new int[]{-18, -18});
+                    pts.add(new int[]{18, -18});
+                    pts.add(new int[]{18, -6});
+                    pts.add(new int[]{6, -6});
+                    pts.add(new int[]{6, 18});
+                    pts.add(new int[]{-6, 18});
+                    pts.add(new int[]{-6, -6});
+                    pts.add(new int[]{-18, -6});
+                } else if (rot == 1) { // Stem West (1:1 square bounds)
+                    pts.add(new int[]{6, -18});
+                    pts.add(new int[]{18, -18});
+                    pts.add(new int[]{18, 18});
+                    pts.add(new int[]{6, 18});
+                    pts.add(new int[]{6, 6});
+                    pts.add(new int[]{-18, 6});
+                    pts.add(new int[]{-18, -6});
+                    pts.add(new int[]{6, -6});
+                } else if (rot == 2) { // Stem North (1:1 square bounds)
+                    pts.add(new int[]{-6, -18});
+                    pts.add(new int[]{6, -18});
+                    pts.add(new int[]{6, 6});
+                    pts.add(new int[]{18, 6});
+                    pts.add(new int[]{18, 18});
+                    pts.add(new int[]{-18, 18});
+                    pts.add(new int[]{-18, 6});
+                    pts.add(new int[]{-6, 6});
+                } else { // Stem East (1:1 square bounds)
+                    pts.add(new int[]{-18, -18});
+                    pts.add(new int[]{-6, -18});
+                    pts.add(new int[]{-6, -6});
+                    pts.add(new int[]{18, -6});
+                    pts.add(new int[]{18, 6});
+                    pts.add(new int[]{-6, 6});
+                    pts.add(new int[]{-6, 18});
+                    pts.add(new int[]{-18, 18});
                 }
             }
-            case CROSS -> {
-                pts.add(new int[]{-8, -18});
-                pts.add(new int[]{8, -18});
-                pts.add(new int[]{8, -6});
-                pts.add(new int[]{24, -6});
-                pts.add(new int[]{24, 6});
-                pts.add(new int[]{8, 6});
-                pts.add(new int[]{8, 18});
-                pts.add(new int[]{-8, 18});
-                pts.add(new int[]{-8, 6});
-                pts.add(new int[]{-24, 6});
-                pts.add(new int[]{-24, -6});
-                pts.add(new int[]{-8, -6});
+            case CROSS -> { // 4-Way Cross (1:1 square bounds)
+                pts.add(new int[]{-6, -18});
+                pts.add(new int[]{6, -18});
+                pts.add(new int[]{6, -6});
+                pts.add(new int[]{18, -6});
+                pts.add(new int[]{18, 6});
+                pts.add(new int[]{6, 6});
+                pts.add(new int[]{6, 18});
+                pts.add(new int[]{-6, 18});
+                pts.add(new int[]{-6, 6});
+                pts.add(new int[]{-18, 6});
+                pts.add(new int[]{-18, -6});
+                pts.add(new int[]{-6, -6});
             }
-            default -> { // SQUARE / BOX / END / AIRLOCK
-                pts.add(new int[]{-22, -15});
-                pts.add(new int[]{22, -15});
-                pts.add(new int[]{22, 15});
-                pts.add(new int[]{-22, 15});
+            default -> { // SQUARE / BOX / END / AIRLOCK / ELEVATOR (1:1 square bounds)
+                pts.add(new int[]{-18, -18});
+                pts.add(new int[]{18, -18});
+                pts.add(new int[]{18, 18});
+                pts.add(new int[]{-18, 18});
             }
         }
         return pts;
