@@ -79,14 +79,24 @@ jobs:
           path: 0-7-9/build/libs/*.jar
           if-no-files-found: error
 
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish to GitHub Releases
+        if: success() && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "latest-build"
+          name: "Latest Build (0-7-9, Snow - SCPied, Light Enchanted)"
+          body: |
+            Continuous build from commit `${{ github.sha }}` on branch `${{ github.ref_name }}`.
+            
+            ### Included Mod Jars:
+            - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod.
+            - **Snow - SCPied** (`snow_scpied-*.jar`) — Dynamic snow accumulation & physical footprints/blood.
+            - **Light Enchanted** (`lightenchanted-*.jar`) — Volumetric lighting & Simple Ray Tracing (STR).
+          draft: false
+          prerelease: false
           files: |
             build/libs/*.jar
             snow-scpied/build/libs/*.jar
             0-7-9/build/libs/*.jar
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
