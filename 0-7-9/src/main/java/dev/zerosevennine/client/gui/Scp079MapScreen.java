@@ -529,6 +529,7 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(x, y + 1, x + 1, y + h, frameCol);
                 graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
             }
+            }
         }
 
         // Clean compact Room Title Text centered inside Room
