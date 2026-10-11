@@ -36,9 +36,9 @@ public class Scp079MapScreen extends Screen {
     private double panY = 0;
     private BlockPos focusedRoomPos = null;
 
-    private boolean tabHasBeenReleased = false;
-    private double lastRawMouseX = -1;
-    private double lastRawMouseY = -1;
+    private long openTimeMs = 0;
+    private double lastMouseX = -1;
+    private double lastMouseY = -1;
 
     public Scp079MapScreen() {
         super(Component.literal("Tactical Facility Map"));
@@ -47,21 +47,21 @@ public class Scp079MapScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        focusedRoomPos = null;
-        tabHasBeenReleased = false;
-        lastRawMouseX = -1;
-        lastRawMouseY = -1;
+        this.openTimeMs = System.currentTimeMillis();
+        this.focusedRoomPos = null;
+        this.lastMouseX = -1;
+        this.lastMouseY = -1;
 
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.grabMouse();
+        if (this.minecraft != null && this.minecraft.getWindow() != null) {
+            GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
         }
     }
 
     @Override
     public void removed() {
         super.removed();
-        if (this.minecraft != null) {
-            this.minecraft.mouseHandler.releaseMouse();
+        if (this.minecraft != null && this.minecraft.getWindow() != null) {
+            GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
         }
     }
 
@@ -89,17 +89,10 @@ public class Scp079MapScreen extends Screen {
     }
 
     @Override
-    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
-        if (isTabKey(keyCode, scanCode)) {
-            tabHasBeenReleased = true;
-        }
-        return super.keyReleased(keyCode, scanCode, modifiers);
-    }
-
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (isTabKey(keyCode, scanCode)) {
-            if (tabHasBeenReleased) {
+            // Debounce within first 250ms of opening to avoid instant auto-closing
+            if (System.currentTimeMillis() - openTimeMs > 250) {
                 this.onClose();
                 return true;
             }
@@ -132,6 +125,25 @@ public class Scp079MapScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
+        if (lastMouseX >= 0 && lastMouseY >= 0) {
+            double dx = mouseX - lastMouseX;
+            double dy = mouseY - lastMouseY;
+            panX -= dx * 1.5;
+            panY -= dy * 1.5;
+        }
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        panX -= dragX * 1.5;
+        panY -= dragY * 1.5;
+        return true;
     }
 
     private void switchCameraToRoom(BlockPos roomPos) {
@@ -201,24 +213,16 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (this.minecraft != null) {
-            if (!this.minecraft.mouseHandler.isMouseGrabbed()) {
-                this.minecraft.mouseHandler.grabMouse();
+        if (lastMouseX >= 0 && lastMouseY >= 0) {
+            double dx = mouseX - lastMouseX;
+            double dy = mouseY - lastMouseY;
+            if (dx != 0 || dy != 0) {
+                panX -= dx * 1.5;
+                panY -= dy * 1.5;
             }
-
-            double curX = this.minecraft.mouseHandler.xpos();
-            double curY = this.minecraft.mouseHandler.ypos();
-
-            if (lastRawMouseX >= 0 && lastRawMouseY >= 0) {
-                double dx = curX - lastRawMouseX;
-                double dy = curY - lastRawMouseY;
-                double sens = this.minecraft.options.sensitivity().get() * 0.8 + 0.4;
-                panX -= dx * sens;
-                panY -= dy * sens;
-            }
-            lastRawMouseX = curX;
-            lastRawMouseY = curY;
         }
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
 
         int cx = width / 2;
         int cy = height / 2;
@@ -360,7 +364,7 @@ public class Scp079MapScreen extends Screen {
 
         graphics.fill(x, y, x + w, y + 1, 0xFFE0F7FA);
         graphics.fill(x, y + h - 1, x + w, y + h, 0xFFE0F7FA);
-        graphics.fill(x, y, x + 1, y + h, 0xFFE0F7FA);
+        graphics.fill(x, y + 1, x + 1, y + h, 0xFFE0F7FA);
         graphics.fill(x + w - 1, y, x + w, y + h, 0xFFE0F7FA);
 
         int tw = font.width(label);
@@ -588,16 +592,16 @@ public class Scp079MapScreen extends Screen {
                     graphics.fill(midX + 3, ry + rh, midX + 4, y + h, frameCol);
                 } else if (rot == 1) {
                     fillWithScanlines(graphics, x, midY - 4, rx + 1, midY + 4, bgCol, scanlineCol);
-                    graphics.fill(x, midY - 4, rx, midY - 3, frameCol);
+                    fillWithScanlines(graphics, x, midY - 4, rx, midY - 3, frameCol);
                     graphics.fill(x, midY + 3, rx, midY + 4, frameCol);
                 } else if (rot == 2) {
                     fillWithScanlines(graphics, midX - 4, y, midX + 4, ry + 1, bgCol, scanlineCol);
-                    graphics.fill(midX - 4, y, midX - 3, ry, frameCol);
+                    fillWithScanlines(graphics, midX - 4, y, midX - 3, ry, frameCol);
                     graphics.fill(midX + 3, y, midX + 4, ry, frameCol);
                 } else {
                     fillWithScanlines(graphics, rx + rw - 1, midY - 4, x + w, midY + 4, bgCol, scanlineCol);
-                    graphics.fill(rx + rw, midY - 4, x + w, midY - 3, frameCol);
-                    graphics.fill(rx + rw, midY + 3, x + w, midY + 4, frameCol);
+                    fillWithScanlines(graphics, rx + rw, midY - 4, x + w, midY - 3, frameCol);
+                    fillWithScanlines(graphics, rx + rw, midY + 3, x + w, midY + 4, frameCol);
                 }
 
                 // If elevator / checkpoint: small red/green door indicator

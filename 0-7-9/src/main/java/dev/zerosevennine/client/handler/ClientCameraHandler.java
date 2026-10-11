@@ -238,11 +238,6 @@ public class ClientCameraHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        if (mc.screen == null && mc.options.keyPlayerList.consumeClick()) {
-            mc.setScreen(new Scp079MapScreen());
-            return;
-        }
-
         float yaw = mc.player.getYRot();
         float pitch = mc.player.getXRot();
 
