@@ -592,16 +592,16 @@ public class Scp079MapScreen extends Screen {
                     graphics.fill(midX + 3, ry + rh, midX + 4, y + h, frameCol);
                 } else if (rot == 1) {
                     fillWithScanlines(graphics, x, midY - 4, rx + 1, midY + 4, bgCol, scanlineCol);
-                    fillWithScanlines(graphics, x, midY - 4, rx, midY - 3, frameCol);
+                    graphics.fill(x, midY - 4, rx, midY - 3, frameCol);
                     graphics.fill(x, midY + 3, rx, midY + 4, frameCol);
                 } else if (rot == 2) {
                     fillWithScanlines(graphics, midX - 4, y, midX + 4, ry + 1, bgCol, scanlineCol);
-                    fillWithScanlines(graphics, midX - 4, y, midX - 3, ry, frameCol);
+                    graphics.fill(midX - 4, y, midX - 3, ry, frameCol);
                     graphics.fill(midX + 3, y, midX + 4, ry, frameCol);
                 } else {
                     fillWithScanlines(graphics, rx + rw - 1, midY - 4, x + w, midY + 4, bgCol, scanlineCol);
-                    fillWithScanlines(graphics, rx + rw, midY - 4, x + w, midY - 3, frameCol);
-                    fillWithScanlines(graphics, rx + rw, midY + 3, x + w, midY + 4, frameCol);
+                    graphics.fill(rx + rw, midY - 4, x + w, midY - 3, frameCol);
+                    graphics.fill(rx + rw, midY + 3, x + w, midY + 4, frameCol);
                 }
 
                 // If elevator / checkpoint: small red/green door indicator
