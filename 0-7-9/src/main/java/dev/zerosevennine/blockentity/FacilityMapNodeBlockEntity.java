@@ -235,7 +235,7 @@ public class FacilityMapNodeBlockEntity extends BlockEntity {
             int dx2 = p2.getX() - p1.getX();
             int dz2 = p2.getZ() - p1.getZ();
             if (dx1 * dx2 + dz1 * dz2 == 0) {
-                this.roomShape = RoomShape.CORNER_L;
+                this.roomShape = RoomShape.CORNER;
                 return;
             }
         }

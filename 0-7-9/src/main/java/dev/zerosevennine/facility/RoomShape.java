@@ -3,10 +3,11 @@ package dev.zerosevennine.facility;
 public enum RoomShape {
     SQUARE("Square Hall / Box", "BOX"),
     STRAIGHT("Straight Hallway", "I"),
-    CORNER_L("Corner Turn", "L"),
+    CORNER("Corner Turn", "L"),
     T_SHAPE("T-Junction", "T"),
-    CROSS_X("4-Way Intersection", "X"),
+    CROSS("4-Way Intersection", "X"),
     END_ROOM("End Chamber / Dead End", "END"),
+    AIRLOCK("Airlock Gate", "AIR"),
     ELEVATOR("Elevator Chamber", "ELEV"),
     CHECKPOINT("Heavy Checkpoint", "CHK");
 

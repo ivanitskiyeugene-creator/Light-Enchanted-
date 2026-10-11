@@ -111,6 +111,36 @@ public class FacilityNetworkManager {
         }
     }
 
+    public static void registerMapNode(BlockPos pos, FacilityMapNodeBlockEntity be) {
+        if (pos == null || be == null) return;
+        RoomNode node = getRoomAt(be.getZone(), be.getGridX(), be.getGridY());
+        if (node == null) {
+            node = new RoomNode(pos, be.getRoomName(), be.getZone(), be.getRoomType(), be.getRoomShape(), be.getRotation(), be.getTargetZone(), be.getGridX(), be.getGridY());
+            node.hasGenerator = be.hasGenerator();
+            node.isGeneratorBooting = be.isGeneratorBooting();
+            registerRoomNode(node);
+        } else {
+            node.pos = pos;
+            node.roomName = be.getRoomName();
+            node.roomType = be.getRoomType();
+            node.roomShape = be.getRoomShape();
+            node.rotation = be.getRotation();
+            node.targetZone = be.getTargetZone();
+            node.hasGenerator = be.hasGenerator();
+            node.isGeneratorBooting = be.isGeneratorBooting();
+        }
+    }
+
+    public static void unregisterMapNode(BlockPos pos) {
+        if (pos == null) return;
+        ROOMS.values().removeIf(r -> r.pos != null && r.pos.equals(pos));
+    }
+
+    public static void broadcastGeneratorWarning(FacilityMapNodeBlockEntity be) {
+        if (be == null) return;
+        onGeneratorBooting(be.getRoomName(), be.getBlockPos());
+    }
+
     public static Map<String, RoomNode> getRooms() {
         return ROOMS;
     }
