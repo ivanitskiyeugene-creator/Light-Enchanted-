@@ -30,6 +30,11 @@ def gen_camera_tex(path, base_rgb, dark_rgb, accent_rgb):
     for y in range(height):
         row = []
         for x in range(width):
+            # Top-left 2x2 corner is reserved as pure white (255,255,255) for untextured / custom colored geometry UV (0,0)
+            if x <= 1 and y <= 1:
+                row.append((255, 255, 255, 255))
+                continue
+
             # Panel lines
             is_panel = (x % 8 == 0) or (y % 8 == 0) or (x == 0 or x == 31 or y == 0 or y == 31)
             # Corner bolts
