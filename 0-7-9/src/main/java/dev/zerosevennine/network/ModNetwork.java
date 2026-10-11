@@ -87,6 +87,12 @@ public class ModNetwork {
                 .decoder(C2SRequestMapSyncPacket::decode)
                 .consumerMainThread(C2SRequestMapSyncPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(C2SEditMapRoomPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SEditMapRoomPacket::encode)
+                .decoder(C2SEditMapRoomPacket::decode)
+                .consumerMainThread(C2SEditMapRoomPacket::handle)
+                .add();
     }
 
     public static void sendFacilityMapToClient(ServerPlayer player) {

@@ -3,10 +3,13 @@ package dev.zerosevennine.facility;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.config.Scp079Config;
+import dev.zerosevennine.network.ModNetwork;
 import dev.zerosevennine.system.Scp079PlayerManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
 import java.util.*;
@@ -24,48 +27,91 @@ public class FacilityNetworkManager {
         public int gridY;
         public boolean hasGenerator;
         public boolean isGeneratorBooting;
+        public final List<BlockPos> linkedCameras = new ArrayList<>();
 
         public RoomNode(BlockPos pos, String roomName, FacilityZone zone,
                         FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
                         FacilityZone targetZone, int gridX, int gridY) {
-            this.pos = pos;
-            this.roomName = roomName;
-            this.zone = zone;
-            this.roomType = roomType;
+            this.pos = pos != null ? pos.immutable() : new BlockPos(gridX * 16, 64, gridY * 16);
+            this.roomName = roomName != null ? roomName : "ROOM";
+            this.zone = zone != null ? zone : FacilityZone.HCZ;
+            this.roomType = roomType != null ? roomType : FacilityMapNodeBlockEntity.RoomType.STANDARD;
             this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
             this.rotation = rotation;
-            this.targetZone = targetZone;
+            this.targetZone = targetZone != null ? targetZone : this.zone;
             this.gridX = gridX;
             this.gridY = gridY;
             this.hasGenerator = false;
             this.isGeneratorBooting = false;
         }
+
+        public String getKey() {
+            return zone.name() + "_" + gridX + "_" + gridY;
+        }
     }
 
-    private static final Map<BlockPos, RoomNode> ROOMS = new HashMap<>();
+    private static final Map<String, RoomNode> ROOMS = new LinkedHashMap<>();
     private static final Map<BlockPos, CameraBlockEntity> CAMERAS = new HashMap<>();
 
-    public static void registerMapNode(BlockPos pos, FacilityMapNodeBlockEntity be) {
-        RoomNode node = new RoomNode(pos.immutable(), be.getRoomName(), be.getZone(),
-                be.getRoomType(), be.getRoomShape(), be.getRotation(), be.getTargetZone(), be.getGridX(), be.getGridY());
-        node.hasGenerator = be.hasGenerator();
-        node.isGeneratorBooting = be.isGeneratorBooting();
-        ROOMS.put(pos.immutable(), node);
+    public static String getRoomKey(FacilityZone zone, int gx, int gy) {
+        return zone.name() + "_" + gx + "_" + gy;
     }
 
-    public static void unregisterMapNode(BlockPos pos) {
-        ROOMS.remove(pos);
+    public static void clearAllRooms() {
+        ROOMS.clear();
+    }
+
+    public static void registerRoomNode(RoomNode node) {
+        if (node == null) return;
+        ROOMS.put(node.getKey(), node);
+    }
+
+    public static void removeRoom(FacilityZone zone, int gx, int gy) {
+        ROOMS.remove(getRoomKey(zone, gx, gy));
+    }
+
+    public static void clearZone(FacilityZone zone) {
+        ROOMS.entrySet().removeIf(e -> e.getValue().zone == zone);
+    }
+
+    public static RoomNode getRoomAt(FacilityZone zone, int gx, int gy) {
+        return ROOMS.get(getRoomKey(zone, gx, gy));
+    }
+
+    public static List<RoomNode> getRoomsInZone(FacilityZone zone) {
+        List<RoomNode> list = new ArrayList<>();
+        for (RoomNode r : ROOMS.values()) {
+            if (r.zone == zone) {
+                list.add(r);
+            }
+        }
+        return list;
+    }
+
+    public static RoomNode findRoomForCamera(BlockPos camPos) {
+        if (camPos == null) return null;
+        for (RoomNode r : ROOMS.values()) {
+            if (r.linkedCameras.contains(camPos) || r.pos.equals(camPos)) {
+                return r;
+            }
+        }
+        return null;
     }
 
     public static void registerCamera(BlockPos pos, CameraBlockEntity be) {
+        if (pos == null || be == null) return;
         CAMERAS.put(pos.immutable(), be);
     }
 
     public static void unregisterCamera(BlockPos pos) {
+        if (pos == null) return;
         CAMERAS.remove(pos);
+        for (RoomNode r : ROOMS.values()) {
+            r.linkedCameras.remove(pos);
+        }
     }
 
-    public static Map<BlockPos, RoomNode> getRooms() {
+    public static Map<String, RoomNode> getRooms() {
         return ROOMS;
     }
 
@@ -74,17 +120,18 @@ public class FacilityNetworkManager {
     }
 
     public static CameraBlockEntity getCamera(BlockPos pos) {
+        if (pos == null) return null;
         return CAMERAS.get(pos);
     }
 
     public static BlockPos findCameraInZone(FacilityZone zone) {
-        for (Map.Entry<BlockPos, CameraBlockEntity> entry : CAMERAS.entrySet()) {
-            if (entry.getValue().getZone() == zone) {
-                return entry.getKey();
+        for (RoomNode r : getRoomsInZone(zone)) {
+            if (!r.linkedCameras.isEmpty()) {
+                return r.linkedCameras.get(0);
             }
         }
-        for (Map.Entry<BlockPos, RoomNode> entry : ROOMS.entrySet()) {
-            if (entry.getValue().zone == zone) {
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : CAMERAS.entrySet()) {
+            if (entry.getValue().getZone() == zone) {
                 return entry.getKey();
             }
         }
@@ -92,15 +139,35 @@ public class FacilityNetworkManager {
     }
 
     public static BlockPos findNextCamera(BlockPos currentPos, Direction direction) {
+        if (currentPos == null) return null;
+
         CameraBlockEntity current = CAMERAS.get(currentPos);
         if (current != null) {
-            BlockPos target = current.getWasdNeighbors().get(direction);
-            if (target != null && CAMERAS.containsKey(target)) {
-                return target;
+            BlockPos manualTarget = current.getWasdNeighbors().get(direction);
+            if (manualTarget != null && (CAMERAS.containsKey(manualTarget) || manualTarget != null)) {
+                return manualTarget;
             }
         }
 
-        // Automatic spatial fallback if no manual link was defined
+        // Grid-based automatic navigation lookup
+        RoomNode currentRoom = findRoomForCamera(currentPos);
+        if (currentRoom != null) {
+            int nx = currentRoom.gridX;
+            int ny = currentRoom.gridY;
+            switch (direction) {
+                case NORTH -> ny -= 1;
+                case SOUTH -> ny += 1;
+                case WEST -> nx -= 1;
+                case EAST -> nx += 1;
+                default -> {}
+            }
+            RoomNode nextRoom = getRoomAt(currentRoom.zone, nx, ny);
+            if (nextRoom != null && !nextRoom.linkedCameras.isEmpty()) {
+                return nextRoom.linkedCameras.get(0);
+            }
+        }
+
+        // Automatic spatial fallback
         double bestDist = Double.MAX_VALUE;
         BlockPos bestPos = null;
 
@@ -129,11 +196,64 @@ public class FacilityNetworkManager {
         return bestPos;
     }
 
-    private static final Set<BlockPos> OVERCHARGED_GENERATORS = new HashSet<>();
+    public static void autoLinkWasd(ServerLevel level) {
+        for (FacilityZone zone : FacilityZone.values()) {
+            List<RoomNode> zoneRooms = getRoomsInZone(zone);
+            for (RoomNode r : zoneRooms) {
+                if (r.linkedCameras.isEmpty()) continue;
+                BlockPos camPos = r.linkedCameras.get(0);
+                CameraBlockEntity camBe = CAMERAS.get(camPos);
+                if (camBe == null && level != null && level.getBlockEntity(camPos) instanceof CameraBlockEntity cbe) {
+                    camBe = cbe;
+                    registerCamera(camPos, cbe);
+                }
+                if (camBe == null) continue;
 
-    public static void broadcastGeneratorWarning(FacilityMapNodeBlockEntity node) {
-        onGeneratorBooting(node.getRoomName(), node.getBlockPos());
+                // North
+                RoomNode northRoom = getRoomAt(zone, r.gridX, r.gridY - 1);
+                if (northRoom != null && !northRoom.linkedCameras.isEmpty()) {
+                    camBe.setWasdNeighbor(Direction.NORTH, northRoom.linkedCameras.get(0));
+                } else {
+                    camBe.setWasdNeighbor(Direction.NORTH, null);
+                }
+
+                // South
+                RoomNode southRoom = getRoomAt(zone, r.gridX, r.gridY + 1);
+                if (southRoom != null && !southRoom.linkedCameras.isEmpty()) {
+                    camBe.setWasdNeighbor(Direction.SOUTH, southRoom.linkedCameras.get(0));
+                } else {
+                    camBe.setWasdNeighbor(Direction.SOUTH, null);
+                }
+
+                // West
+                RoomNode westRoom = getRoomAt(zone, r.gridX - 1, r.gridY);
+                if (westRoom != null && !westRoom.linkedCameras.isEmpty()) {
+                    camBe.setWasdNeighbor(Direction.WEST, westRoom.linkedCameras.get(0));
+                } else {
+                    camBe.setWasdNeighbor(Direction.WEST, null);
+                }
+
+                // East
+                RoomNode eastRoom = getRoomAt(zone, r.gridX + 1, r.gridY);
+                if (eastRoom != null && !eastRoom.linkedCameras.isEmpty()) {
+                    camBe.setWasdNeighbor(Direction.EAST, eastRoom.linkedCameras.get(0));
+                } else {
+                    camBe.setWasdNeighbor(Direction.EAST, null);
+                }
+            }
+        }
     }
+
+    public static void markDirtyAndSync(ServerLevel level) {
+        if (level == null) return;
+        FacilityMapSavedData.get(level).setDirty();
+        autoLinkWasd(level);
+        for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            ModNetwork.sendFacilityMapToClient(player);
+        }
+    }
+
+    private static final Set<BlockPos> OVERCHARGED_GENERATORS = new HashSet<>();
 
     public static void onGeneratorBooting(String roomName, BlockPos pos) {
         String msg = "Generator booting up: " + roomName;
@@ -149,13 +269,12 @@ public class FacilityNetworkManager {
             session.boostApRegenForGenerator();
         }
 
-        // Configurable generator recontainment limit (standard default: 3)
         int reqGens = Scp079Config.COMMON != null ?
                 Scp079Config.COMMON.generatorsRequiredForRecontainment.get() : 3;
         if (OVERCHARGED_GENERATORS.size() >= reqGens) {
             if (level != null && level.getServer() != null) {
                 for (UUID uuid : new ArrayList<>(Scp079PlayerManager.getSessionsMap().keySet())) {
-                    net.minecraft.server.level.ServerPlayer p = level.getServer().getPlayerList().getPlayer(uuid);
+                    ServerPlayer p = level.getServer().getPlayerList().getPlayer(uuid);
                     if (p != null) {
                         Scp079PlayerManager.terminate079(p);
                     }
@@ -171,25 +290,8 @@ public class FacilityNetworkManager {
             RoomNode node = new RoomNode(n.pos, n.name, n.zone, n.roomType, n.roomShape, n.rotation, n.targetZone, n.gridX, n.gridY);
             node.hasGenerator = n.hasGenerator;
             node.isGeneratorBooting = n.isGeneratorBooting;
-            ROOMS.put(n.pos, node);
-        }
-
-        // For any camera that doesn't have an explicit map node, auto-create a RoomNode
-        for (dev.zerosevennine.network.S2CSyncFacilityMapPacket.CameraData cam : cameras) {
-            boolean hasNode = false;
-            for (RoomNode r : ROOMS.values()) {
-                if (r.pos.distSqr(cam.pos) <= 16 * 16 && r.zone == cam.zone) {
-                    hasNode = true;
-                    break;
-                }
-            }
-            if (!hasNode) {
-                int gx = ((cam.pos.getX() / 16) % 5);
-                int gy = ((cam.pos.getZ() / 16) % 5);
-                RoomNode autoNode = new RoomNode(cam.pos, cam.name, cam.zone,
-                        FacilityMapNodeBlockEntity.RoomType.STANDARD, RoomShape.SQUARE, 0, cam.zone, gx, gy);
-                ROOMS.put(cam.pos, autoNode);
-            }
+            node.linkedCameras.addAll(n.linkedCameras);
+            ROOMS.put(node.getKey(), node);
         }
     }
 }

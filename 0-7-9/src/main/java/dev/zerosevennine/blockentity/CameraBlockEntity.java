@@ -99,10 +99,6 @@ public class CameraBlockEntity extends BlockEntity {
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, CameraBlockEntity be) {
-        if (!level.isClientSide) {
-            FacilityNetworkManager.registerCamera(pos, be);
-        }
-
         float yawDiff = be.targetYaw - be.currentYaw;
         while (yawDiff < -180.0f) yawDiff += 360.0f;
         while (yawDiff > 180.0f) yawDiff -= 360.0f;

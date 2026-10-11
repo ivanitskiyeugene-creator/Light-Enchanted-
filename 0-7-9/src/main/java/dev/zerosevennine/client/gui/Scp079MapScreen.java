@@ -2,7 +2,6 @@ package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
-import dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
@@ -16,7 +15,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,20 +23,20 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Scp079MapScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation("zero_seven_nine", "textures/gui/scanlines.png");
 
     private double panX = 0;
     private double panY = 0;
-    private BlockPos focusedRoomPos = null;
+    private FacilityNetworkManager.RoomNode focusedRoom = null;
 
     private long openTimeMs = 0;
     private double lastMouseX = -1;
     private double lastMouseY = -1;
+
+    private FacilityZone viewingZone = FacilityZone.HCZ;
 
     public Scp079MapScreen() {
         super(Component.literal("Tactical Facility Map"));
@@ -48,9 +46,24 @@ public class Scp079MapScreen extends Screen {
     protected void init() {
         super.init();
         this.openTimeMs = System.currentTimeMillis();
-        this.focusedRoomPos = null;
+        this.focusedRoom = null;
         this.lastMouseX = -1;
         this.lastMouseY = -1;
+
+        // Determine active zone from current camera
+        if (ClientCameraHandler.activeCameraPos != null) {
+            CameraBlockEntity cam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
+            if (cam != null) {
+                this.viewingZone = cam.getZone();
+            }
+            FacilityNetworkManager.RoomNode r = FacilityNetworkManager.findRoomForCamera(ClientCameraHandler.activeCameraPos);
+            if (r != null) {
+                this.viewingZone = r.zone;
+                // Center pan on active room
+                this.panX = -r.gridX * 72;
+                this.panY = -r.gridY * 54;
+            }
+        }
 
         if (this.minecraft != null && this.minecraft.getWindow() != null) {
             GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
@@ -91,7 +104,6 @@ public class Scp079MapScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (isTabKey(keyCode, scanCode)) {
-            // Debounce within first 250ms of opening to avoid instant auto-closing
             if (System.currentTimeMillis() - openTimeMs > 250) {
                 this.onClose();
                 return true;
@@ -105,8 +117,8 @@ public class Scp079MapScreen extends Screen {
         }
 
         if (keyCode == GLFW.GLFW_KEY_SPACE) {
-            if (focusedRoomPos != null) {
-                switchCameraToRoom(focusedRoomPos);
+            if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoom.linkedCameras.get(0)));
                 this.onClose();
                 return true;
             }
@@ -118,8 +130,8 @@ public class Scp079MapScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            if (focusedRoomPos != null) {
-                switchCameraToRoom(focusedRoomPos);
+            if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(focusedRoom.linkedCameras.get(0)));
                 this.onClose();
                 return true;
             }
@@ -144,71 +156,6 @@ public class Scp079MapScreen extends Screen {
         panX -= dragX * 1.5;
         panY -= dragY * 1.5;
         return true;
-    }
-
-    private void switchCameraToRoom(BlockPos roomPos) {
-        BlockPos camPos = findCameraForRoom(roomPos);
-        if (camPos != null) {
-            ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(camPos));
-        }
-    }
-
-    private BlockPos findCameraForRoom(BlockPos roomPos) {
-        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getCameras().entrySet()) {
-            if (entry.getKey().distSqr(roomPos) <= 16 * 16) {
-                return entry.getKey();
-            }
-        }
-        if (FacilityNetworkManager.getCameras().containsKey(roomPos)) {
-            return roomPos;
-        }
-        return roomPos;
-    }
-
-    private Map<BlockPos, FacilityNetworkManager.RoomNode> getEffectiveRooms() {
-        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = new HashMap<>(FacilityNetworkManager.getRooms());
-
-        if (ClientCameraHandler.activeCameraPos != null && !ClientCameraHandler.activeCameraPos.equals(BlockPos.ZERO)) {
-            BlockPos currentPos = ClientCameraHandler.activeCameraPos;
-            if (!rooms.containsKey(currentPos)) {
-                String camName = "CAM-" + currentPos.getX() + ":" + currentPos.getZ();
-                FacilityZone zone = FacilityZone.HCZ;
-                if (minecraft != null && minecraft.level != null) {
-                    if (minecraft.level.getBlockEntity(currentPos) instanceof CameraBlockEntity cbe) {
-                        camName = cbe.getCameraName();
-                        zone = cbe.getZone();
-                    }
-                }
-                rooms.put(currentPos, new FacilityNetworkManager.RoomNode(
-                        currentPos, camName, zone, FacilityMapNodeBlockEntity.RoomType.STANDARD, RoomShape.SQUARE, 0, zone, 0, 0
-                ));
-            }
-
-            if (minecraft != null && minecraft.level != null) {
-                if (minecraft.level.getBlockEntity(currentPos) instanceof CameraBlockEntity cbe) {
-                    for (Map.Entry<Direction, BlockPos> neighbor : cbe.getWasdNeighbors().entrySet()) {
-                        BlockPos nPos = neighbor.getValue();
-                        if (!rooms.containsKey(nPos)) {
-                            int gx = switch (neighbor.getKey()) {
-                                case EAST -> 1;
-                                case WEST -> -1;
-                                default -> 0;
-                            };
-                            int gy = switch (neighbor.getKey()) {
-                                case SOUTH -> 1;
-                                case NORTH -> -1;
-                                default -> 0;
-                            };
-                            rooms.put(nPos, new FacilityNetworkManager.RoomNode(
-                                    nPos, "Neighbor Room", cbe.getZone(), FacilityMapNodeBlockEntity.RoomType.STANDARD, RoomShape.SQUARE, 0, cbe.getZone(), gx, gy
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
-        return rooms;
     }
 
     @Override
@@ -239,7 +186,7 @@ public class Scp079MapScreen extends Screen {
 
         Font font = this.font;
 
-        // 1. Vector Schematic Map (Rendered underneath UI panels)
+        // 1. Vector Schematic Map (Strictly isolated for current zone)
         renderSchematicMap(graphics, font, cx, cy);
 
         // 2. Top Center Zone Title
@@ -261,18 +208,11 @@ public class Scp079MapScreen extends Screen {
     }
 
     private void renderTopZoneHeader(GuiGraphics graphics, Font font) {
-        FacilityZone zone = FacilityZone.LCZ;
-        if (minecraft != null && minecraft.level != null && ClientCameraHandler.activeCameraPos != null) {
-            if (minecraft.level.getBlockEntity(ClientCameraHandler.activeCameraPos) instanceof CameraBlockEntity cam) {
-                zone = cam.getZone();
-            }
-        }
-
-        String title = switch (zone) {
-            case LCZ -> "ЗОНА ЛЁГКОГО СОДЕРЖАНИЯ";
-            case HCZ -> "ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ";
-            case EZ -> "ВХОДНАЯ ЗОНА";
-            case SURFACE -> "ПОВЕРХНОСТЬ";
+        String title = switch (viewingZone) {
+            case LCZ -> "ЗОНА ЛЁГКОГО СОДЕРЖАНИЯ (LCZ)";
+            case HCZ -> "ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ (HCZ)";
+            case EZ -> "ВХОДНАЯ ЗОНА (EZ)";
+            case SURFACE -> "ПОВЕРХНОСТЬ (SURFACE)";
         };
 
         int tw = font.width(title);
@@ -372,26 +312,23 @@ public class Scp079MapScreen extends Screen {
     }
 
     private void renderCenterReticle(GuiGraphics graphics, Font font, int cx, int cy) {
-        int col = (focusedRoomPos != null) ? 0xFFFFFFFF : 0xCCE0F7FA;
+        int col = (focusedRoom != null) ? 0xFFFFFFFF : 0xCCE0F7FA;
 
         // Fixed Center Target Dot
         graphics.fill(cx - 2, cy - 2, cx + 2, cy + 2, col);
 
-        if (focusedRoomPos != null) {
-            String prompt = "[LMB / SPACE] SWITCH CAMERA";
+        if (focusedRoom != null) {
+            String prompt = "[LMB / SPACE] SWITCH CAMERA" + (!focusedRoom.linkedCameras.isEmpty() ? "" : " (NO CAMERA)");
             graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, 0xFFE0F7FA, true);
         }
     }
 
     private void renderSchematicMap(GuiGraphics graphics, Font font, int cx, int cy) {
-        Map<BlockPos, FacilityNetworkManager.RoomNode> rooms = getEffectiveRooms();
-        focusedRoomPos = null;
+        List<FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRoomsInZone(viewingZone);
+        focusedRoom = null;
         double closestDistSq = 42.0 * 42.0;
 
-        for (Map.Entry<BlockPos, FacilityNetworkManager.RoomNode> entry : rooms.entrySet()) {
-            BlockPos roomPos = entry.getKey();
-            FacilityNetworkManager.RoomNode room = entry.getValue();
-
+        for (FacilityNetworkManager.RoomNode room : rooms) {
             int nodeW = 54;
             int nodeH = 38;
             int nodeX = cx + (int) panX + (room.gridX * 72) - (nodeW / 2);
@@ -404,11 +341,11 @@ public class Scp079MapScreen extends Screen {
 
             if (distSq <= closestDistSq) {
                 closestDistSq = distSq;
-                focusedRoomPos = roomPos;
+                focusedRoom = room;
             }
 
-            boolean isCurrent = roomPos.equals(ClientCameraHandler.activeCameraPos);
-            boolean isFocused = roomPos.equals(focusedRoomPos);
+            boolean isCurrent = (ClientCameraHandler.activeCameraPos != null && room.linkedCameras.contains(ClientCameraHandler.activeCameraPos));
+            boolean isFocused = (room == focusedRoom);
 
             renderScpSlRoom(graphics, font, nodeX, nodeY, nodeW, nodeH, room, isCurrent, isFocused);
         }
@@ -439,108 +376,100 @@ public class Scp079MapScreen extends Screen {
                 if (rot == 0) { // Stem South
                     fillWithScanlines(graphics, x, y, x + w, y + armW, bgCol, scanlineCol);
                     fillWithScanlines(graphics, midX - armW / 2, y + armW, midX + armW / 2, y + h, bgCol, scanlineCol);
-
                     graphics.fill(x, y, x + w, y + 1, frameCol);
+                    graphics.fill(x, y + armW - 1, midX - armW / 2 + 1, y + armW, frameCol);
+                    graphics.fill(midX + armW / 2 - 1, y + armW - 1, x + w, y + armW, frameCol);
                     graphics.fill(x, y, x + 1, y + armW, frameCol);
                     graphics.fill(x + w - 1, y, x + w, y + armW, frameCol);
-                    graphics.fill(x, y + armW - 1, midX - armW / 2, y + armW, frameCol);
-                    graphics.fill(midX + armW / 2, y + armW - 1, x + w, y + armW, frameCol);
                     graphics.fill(midX - armW / 2, y + armW, midX - armW / 2 + 1, y + h, frameCol);
                     graphics.fill(midX + armW / 2 - 1, y + armW, midX + armW / 2, y + h, frameCol);
                     graphics.fill(midX - armW / 2, y + h - 1, midX + armW / 2, y + h, frameCol);
                 } else if (rot == 1) { // Stem West
                     fillWithScanlines(graphics, x + w - armW, y, x + w, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x, midY - armW / 2, x + w - armW, midY + armW / 2, bgCol, scanlineCol);
-
                     graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
                     graphics.fill(x + w - armW, y, x + w, y + 1, frameCol);
                     graphics.fill(x + w - armW, y + h - 1, x + w, y + h, frameCol);
-                    graphics.fill(x + w - armW, y, x + w - armW + 1, midY - armW / 2, frameCol);
-                    graphics.fill(x + w - armW, midY + armW / 2, x + w - armW + 1, y + h, frameCol);
+                    graphics.fill(x, midY - armW / 2, x + 1, midY + armW / 2, frameCol);
                     graphics.fill(x, midY - armW / 2, x + w - armW, midY - armW / 2 + 1, frameCol);
                     graphics.fill(x, midY + armW / 2 - 1, x + w - armW, midY + armW / 2, frameCol);
-                    graphics.fill(x, midY - armW / 2, x + 1, midY + armW / 2, frameCol);
+                    graphics.fill(x + w - armW, y, x + w - armW + 1, midY - armW / 2 + 1, frameCol);
+                    graphics.fill(x + w - armW, midY + armW / 2 - 1, x + w - armW + 1, y + h, frameCol);
                 } else if (rot == 2) { // Stem North
                     fillWithScanlines(graphics, x, y + h - armW, x + w, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, midX - armW / 2, y, midX + armW / 2, y + h - armW, bgCol, scanlineCol);
-
                     graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
+                    graphics.fill(x, y + h - armW, midX - armW / 2 + 1, y + h - armW + 1, frameCol);
+                    graphics.fill(midX + armW / 2 - 1, y + h - armW, x + w, y + h - armW + 1, frameCol);
                     graphics.fill(x, y + h - armW, x + 1, y + h, frameCol);
                     graphics.fill(x + w - 1, y + h - armW, x + w, y + h, frameCol);
-                    graphics.fill(x, y + h - armW, midX - armW / 2, y + h - armW + 1, frameCol);
-                    graphics.fill(midX + armW / 2, y + h - armW, x + w, y + h - armW + 1, frameCol);
                     graphics.fill(midX - armW / 2, y, midX - armW / 2 + 1, y + h - armW, frameCol);
                     graphics.fill(midX + armW / 2 - 1, y, midX + armW / 2, y + h - armW, frameCol);
                     graphics.fill(midX - armW / 2, y, midX + armW / 2, y + 1, frameCol);
                 } else { // Stem East
                     fillWithScanlines(graphics, x, y, x + armW, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x + armW, midY - armW / 2, x + w, midY + armW / 2, bgCol, scanlineCol);
-
                     graphics.fill(x, y, x + 1, y + h, frameCol);
                     graphics.fill(x, y, x + armW, y + 1, frameCol);
                     graphics.fill(x, y + h - 1, x + armW, y + h, frameCol);
-                    graphics.fill(x + armW - 1, y, x + armW, midY - armW / 2, frameCol);
-                    graphics.fill(x + armW - 1, midY + armW / 2, x + armW, y + h, frameCol);
+                    graphics.fill(x + w - 1, midY - armW / 2, x + w, midY + armW / 2, frameCol);
                     graphics.fill(x + armW, midY - armW / 2, x + w, midY - armW / 2 + 1, frameCol);
                     graphics.fill(x + armW, midY + armW / 2 - 1, x + w, midY + armW / 2, frameCol);
-                    graphics.fill(x + w - 1, midY - armW / 2, x + w, midY + armW / 2, frameCol);
+                    graphics.fill(x + armW - 1, y, x + armW, midY - armW / 2 + 1, frameCol);
+                    graphics.fill(x + armW - 1, midY + armW / 2 - 1, x + armW, y + h, frameCol);
                 }
             }
-            case CORNER_L -> {
-                if (rot == 0) {
+            case CORNER -> {
+                if (rot == 0) { // Top-Right corner
                     fillWithScanlines(graphics, x, y, x + w, y + armW, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x + w - armW, y + armW, x + w, y + h, bgCol, scanlineCol);
-
                     graphics.fill(x, y, x + w, y + 1, frameCol);
                     graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
                     graphics.fill(x, y, x + 1, y + armW, frameCol);
-                    graphics.fill(x, y + armW - 1, x + w - armW, y + armW, frameCol);
-                    graphics.fill(x + w - armW, y + armW, x + w - armW + 1, y + h, frameCol);
                     graphics.fill(x + w - armW, y + h - 1, x + w, y + h, frameCol);
-                } else if (rot == 1) {
+                    graphics.fill(x, y + armW - 1, x + w - armW + 1, y + armW, frameCol);
+                    graphics.fill(x + w - armW, y + armW, x + w - armW + 1, y + h, frameCol);
+                } else if (rot == 1) { // Bottom-Right corner
                     fillWithScanlines(graphics, x, y + h - armW, x + w, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x + w - armW, y, x + w, y + h - armW, bgCol, scanlineCol);
-
                     graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
                     graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
                     graphics.fill(x, y + h - armW, x + 1, y + h, frameCol);
-                    graphics.fill(x, y + h - armW, x + w - armW, y + h - armW + 1, frameCol);
-                    graphics.fill(x + w - armW, y, x + w - armW + 1, y + h - armW, frameCol);
                     graphics.fill(x + w - armW, y, x + w, y + 1, frameCol);
-                } else if (rot == 2) {
+                    graphics.fill(x, y + h - armW, x + w - armW + 1, y + h - armW + 1, frameCol);
+                    graphics.fill(x + w - armW, y, x + w - armW + 1, y + h - armW, frameCol);
+                } else if (rot == 2) { // Bottom-Left corner
                     fillWithScanlines(graphics, x, y + h - armW, x + w, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x, y, x + armW, y + h - armW, bgCol, scanlineCol);
-
                     graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
                     graphics.fill(x, y, x + 1, y + h, frameCol);
                     graphics.fill(x + w - 1, y + h - armW, x + w, y + h, frameCol);
-                    graphics.fill(x + armW, y + h - armW, x + w, y + h - armW + 1, frameCol);
-                    graphics.fill(x + armW - 1, y, x + armW, y + h - armW, frameCol);
                     graphics.fill(x, y, x + armW, y + 1, frameCol);
-                } else {
+                    graphics.fill(x + armW - 1, y + h - armW, x + w, y + h - armW + 1, frameCol);
+                    graphics.fill(x + armW - 1, y, x + armW, y + h - armW, frameCol);
+                } else { // Top-Left corner
                     fillWithScanlines(graphics, x, y, x + w, y + armW, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x, y + armW, x + armW, y + h, bgCol, scanlineCol);
-
                     graphics.fill(x, y, x + w, y + 1, frameCol);
                     graphics.fill(x, y, x + 1, y + h, frameCol);
                     graphics.fill(x + w - 1, y, x + w, y + armW, frameCol);
-                    graphics.fill(x + armW, y + armW - 1, x + w, y + armW, frameCol);
-                    graphics.fill(x + armW - 1, y + armW, x + armW, y + h, frameCol);
                     graphics.fill(x, y + h - 1, x + armW, y + h, frameCol);
+                    graphics.fill(x + armW - 1, y + armW - 1, x + w, y + armW, frameCol);
+                    graphics.fill(x + armW - 1, y + armW, x + armW, y + h, frameCol);
                 }
             }
             case STRAIGHT -> {
-                if (rot == 0 || rot == 2) { // Vertical
-                    int cx1 = midX - armW / 2;
-                    int cx2 = midX + armW / 2;
+                if (rot == 0 || rot == 2) { // Vertical Corridor
+                    int cx1 = midX - (armW / 2);
+                    int cx2 = midX + (armW / 2);
                     fillWithScanlines(graphics, cx1, y, cx2, y + h, bgCol, scanlineCol);
                     graphics.fill(cx1, y, cx1 + 1, y + h, frameCol);
                     graphics.fill(cx2 - 1, y, cx2, y + h, frameCol);
                     graphics.fill(cx1, y, cx2, y + 1, frameCol);
                     graphics.fill(cx1, y + h - 1, cx2, y + h, frameCol);
-                } else { // Horizontal
-                    int cy1 = midY - armW / 2;
-                    int cy2 = midY + armW / 2;
+                } else { // Horizontal Corridor
+                    int cy1 = midY - (armW / 2);
+                    int cy2 = midY + (armW / 2);
                     fillWithScanlines(graphics, x, cy1, x + w, cy2, bgCol, scanlineCol);
                     graphics.fill(x, cy1, x + w, cy1 + 1, frameCol);
                     graphics.fill(x, cy2 - 1, x + w, cy2, frameCol);
@@ -548,31 +477,32 @@ public class Scp079MapScreen extends Screen {
                     graphics.fill(x + w - 1, cy1, x + w, cy2, frameCol);
                 }
             }
-            case CROSS_X -> {
+            case CROSS -> {
                 fillWithScanlines(graphics, x, midY - armW / 2, x + w, midY + armW / 2, bgCol, scanlineCol);
                 fillWithScanlines(graphics, midX - armW / 2, y, midX + armW / 2, y + h, bgCol, scanlineCol);
-
                 int x1 = midX - armW / 2;
                 int x2 = midX + armW / 2;
                 int y1 = midY - armW / 2;
                 int y2 = midY + armW / 2;
+                graphics.fill(x, y1, x1 + 1, y1 + 1, frameCol);
+                graphics.fill(x2 - 1, y1, x + w, y1 + 1, frameCol);
+                graphics.fill(x, y2 - 1, x1 + 1, y2, frameCol);
+                graphics.fill(x2 - 1, y2 - 1, x + w, y2, frameCol);
+                graphics.fill(x1, y, x1 + 1, y1 + 1, frameCol);
+                graphics.fill(x2 - 1, y, x2, y1 + 1, frameCol);
+                graphics.fill(x1, y2 - 1, x1 + 1, y + h, frameCol);
+                graphics.fill(x2 - 1, y2 - 1, x2, y + h, frameCol);
+            }
+            case AIRLOCK -> {
+                fillWithScanlines(graphics, x, y, x + w, y + h, bgCol, scanlineCol);
+                graphics.fill(x, y, x + w, y + 1, frameCol);
+                graphics.fill(x, y + h - 1, x + w, y + h, frameCol);
+                graphics.fill(x, y + 1, x + 1, y + h, frameCol);
+                graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
 
-                graphics.fill(x1, y, x2, y + 1, frameCol);
-                graphics.fill(x1, y + h - 1, x2, y + h, frameCol);
-                graphics.fill(x, y1, x + 1, y2, frameCol);
-                graphics.fill(x + w - 1, y1, x + w, y2, frameCol);
-
-                graphics.fill(x, y1, x1, y1 + 1, frameCol);
-                graphics.fill(x1, y, x1 + 1, y1, frameCol);
-
-                graphics.fill(x2, y1, x + w, y1 + 1, frameCol);
-                graphics.fill(x2 - 1, y, x2, y1, frameCol);
-
-                graphics.fill(x, y2 - 1, x1, y2, frameCol);
-                graphics.fill(x1, y2, x1 + 1, y + h, frameCol);
-
-                graphics.fill(x2, y2 - 1, x + w, y2, frameCol);
-                graphics.fill(x2 - 1, y2, x2, y + h, frameCol);
+                // Double airlock gate indicator bars
+                graphics.fill(midX - 12, y + 2, midX - 10, y + h - 2, 0xFFFFCC00);
+                graphics.fill(midX + 10, y + 2, midX + 12, y + h - 2, 0xFFFFCC00);
             }
             case END_ROOM, ELEVATOR, CHECKPOINT -> {
                 int rx = x + 4;
@@ -585,26 +515,6 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(rx, ry, rx + 1, ry + rh, frameCol);
                 graphics.fill(rx + rw - 1, ry, rx + rw, ry + rh, frameCol);
 
-                // Small entry doorway stub based on rotation
-                if (rot == 0) {
-                    fillWithScanlines(graphics, midX - 4, ry + rh - 1, midX + 4, y + h, bgCol, scanlineCol);
-                    graphics.fill(midX - 4, ry + rh, midX - 3, y + h, frameCol);
-                    graphics.fill(midX + 3, ry + rh, midX + 4, y + h, frameCol);
-                } else if (rot == 1) {
-                    fillWithScanlines(graphics, x, midY - 4, rx + 1, midY + 4, bgCol, scanlineCol);
-                    graphics.fill(x, midY - 4, rx, midY - 3, frameCol);
-                    graphics.fill(x, midY + 3, rx, midY + 4, frameCol);
-                } else if (rot == 2) {
-                    fillWithScanlines(graphics, midX - 4, y, midX + 4, ry + 1, bgCol, scanlineCol);
-                    graphics.fill(midX - 4, y, midX - 3, ry, frameCol);
-                    graphics.fill(midX + 3, y, midX + 4, ry, frameCol);
-                } else {
-                    fillWithScanlines(graphics, rx + rw - 1, midY - 4, x + w, midY + 4, bgCol, scanlineCol);
-                    graphics.fill(rx + rw, midY - 4, x + w, midY - 3, frameCol);
-                    graphics.fill(rx + rw, midY + 3, x + w, midY + 4, frameCol);
-                }
-
-                // If elevator / checkpoint: small red/green door indicator
                 if (shape == RoomShape.ELEVATOR || shape == RoomShape.CHECKPOINT) {
                     graphics.fill(midX - 4, midY + 2, midX + 4, midY + 4, 0xFFFF4444);
                 }
@@ -618,41 +528,38 @@ public class Scp079MapScreen extends Screen {
             }
         }
 
-        // Room Name / Code Text inside Room
+        // Clean compact Room Title Text centered inside Room
         String name = room.roomName;
         if (name != null && !name.isEmpty()) {
-            int tw = font.width(name);
-            int tx = midX - (tw / 2);
-            int ty = midY - 4;
-            int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
-            graphics.drawString(font, name, tx, ty, textCol, false);
+            if (name.length() > 8) {
+                String line1 = name.substring(0, Math.min(7, name.length()));
+                String line2 = name.substring(Math.min(7, name.length()));
+                if (line2.length() > 7) line2 = line2.substring(0, 6) + ".";
+
+                int tw1 = font.width(line1);
+                int tw2 = font.width(line2);
+                int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
+                graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, textCol, false);
+                graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, textCol, false);
+            } else {
+                int tw = font.width(name);
+                int tx = midX - (tw / 2);
+                int ty = midY - 4;
+                int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
+                graphics.drawString(font, name, tx, ty, textCol, false);
+            }
         }
 
         // If active camera: draw small red camera symbol
         if (isCurrent) {
-            graphics.fill(midX - 3, midY + 4, midX + 3, midY + 6, 0xFFFF3333);
-        }
-
-        // Focused brackets
-        if (isFocused) {
-            graphics.fill(x - 3, y - 3, x + 1, y - 2, 0xFFFFFFFF);
-            graphics.fill(x - 3, y - 3, x - 2, y + 1, 0xFFFFFFFF);
-
-            graphics.fill(x + w - 1, y - 3, x + w + 3, y - 2, 0xFFFFFFFF);
-            graphics.fill(x + w + 2, y - 3, x + w + 3, y + 1, 0xFFFFFFFF);
-
-            graphics.fill(x - 3, y + h + 2, x + 1, y + h + 3, 0xFFFFFFFF);
-            graphics.fill(x - 3, y + h - 1, x - 2, y + h + 3, 0xFFFFFFFF);
-
-            graphics.fill(x + w - 1, y + h + 2, x + w + 3, y + h + 3, 0xFFFFFFFF);
-            graphics.fill(x + w + 2, y + h - 1, x + w + 3, y + h + 3, 0xFFFFFFFF);
+            graphics.fill(midX - 3, midY + 6, midX + 3, midY + 8, 0xFFFF3333);
         }
     }
 
     private void fillWithScanlines(GuiGraphics graphics, int x1, int y1, int x2, int y2, int bgCol, int scanlineCol) {
         graphics.fill(x1, y1, x2, y2, bgCol);
-        for (int y = y1; y < y2; y += 2) {
-            graphics.fill(x1, y, x2, y + 1, scanlineCol);
+        for (int py = y1; py < y2; py += 2) {
+            graphics.fill(x1, py, x2, py + 1, scanlineCol);
         }
     }
 }

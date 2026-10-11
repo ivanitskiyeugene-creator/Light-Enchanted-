@@ -123,10 +123,20 @@ public class Scp079CameraOverlay {
         // WASD Neighbor routing list
         Map<Direction, BlockPos> neighbors = cam != null ? cam.getWasdNeighbors() : Map.of();
 
-        renderWasdEntry(graphics, font, lx, ly + 16, "W", neighbors.get(Direction.NORTH));
-        renderWasdEntry(graphics, font, lx, ly + 28, "S", neighbors.get(Direction.SOUTH));
-        renderWasdEntry(graphics, font, lx, ly + 40, "A", neighbors.get(Direction.WEST));
-        renderWasdEntry(graphics, font, lx, ly + 52, "D", neighbors.get(Direction.EAST));
+        BlockPos northTarget = neighbors.get(Direction.NORTH);
+        BlockPos southTarget = neighbors.get(Direction.SOUTH);
+        BlockPos westTarget = neighbors.get(Direction.WEST);
+        BlockPos eastTarget = neighbors.get(Direction.EAST);
+
+        if (northTarget == null) northTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.NORTH);
+        if (southTarget == null) southTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.SOUTH);
+        if (westTarget == null) westTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.WEST);
+        if (eastTarget == null) eastTarget = FacilityNetworkManager.findNextCamera(ClientCameraHandler.activeCameraPos, Direction.EAST);
+
+        renderWasdEntry(graphics, font, lx, ly + 16, "W", northTarget);
+        renderWasdEntry(graphics, font, lx, ly + 28, "S", southTarget);
+        renderWasdEntry(graphics, font, lx, ly + 40, "A", westTarget);
+        renderWasdEntry(graphics, font, lx, ly + 52, "D", eastTarget);
     }
 
     private static void renderWasdEntry(GuiGraphics graphics, Font font, int x, int y, String key, BlockPos targetPos) {
@@ -139,9 +149,12 @@ public class Scp079CameraOverlay {
             CameraBlockEntity targetCam = FacilityNetworkManager.getCamera(targetPos);
             if (targetCam != null) {
                 targetName = targetCam.getCameraName();
-            } else if (FacilityNetworkManager.getRooms().containsKey(targetPos)) {
-                targetName = FacilityNetworkManager.getRooms().get(targetPos).roomName;
-            } else {
+            }
+            FacilityNetworkManager.RoomNode targetRoom = FacilityNetworkManager.findRoomForCamera(targetPos);
+            if (targetRoom != null && targetRoom.roomName != null && !targetRoom.roomName.isEmpty()) {
+                targetName = targetRoom.roomName;
+            }
+            if (targetName == null) {
                 targetName = "CONNECTED ROOM";
             }
         }

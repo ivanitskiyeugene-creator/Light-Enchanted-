@@ -29,7 +29,7 @@ public class MapTabletItem extends Item {
         }
         if (level.isClientSide) {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                Minecraft.getInstance().setScreen(new Scp079MapScreen());
+                Minecraft.getInstance().setScreen(new dev.zerosevennine.client.gui.FacilityMapDesignerScreen());
             });
         }
         return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide);

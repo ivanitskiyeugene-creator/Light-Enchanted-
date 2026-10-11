@@ -25,6 +25,7 @@ public class S2CSyncFacilityMapPacket {
         public final int gridY;
         public final boolean hasGenerator;
         public final boolean isGeneratorBooting;
+        public final List<BlockPos> linkedCameras = new ArrayList<>();
 
         public NodeData(BlockPos pos, String name, FacilityZone zone,
                         FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
@@ -54,6 +55,11 @@ public class S2CSyncFacilityMapPacket {
             buf.writeInt(gridY);
             buf.writeBoolean(hasGenerator);
             buf.writeBoolean(isGeneratorBooting);
+
+            buf.writeInt(linkedCameras.size());
+            for (BlockPos cp : linkedCameras) {
+                buf.writeBlockPos(cp);
+            }
         }
 
         public static NodeData read(FriendlyByteBuf buf) {
@@ -68,7 +74,13 @@ public class S2CSyncFacilityMapPacket {
             int gy = buf.readInt();
             boolean gen = buf.readBoolean();
             boolean booting = buf.readBoolean();
-            return new NodeData(pos, name, zone, roomType, roomShape, rot, targetZone, gx, gy, gen, booting);
+            NodeData data = new NodeData(pos, name, zone, roomType, roomShape, rot, targetZone, gx, gy, gen, booting);
+
+            int camCount = buf.readInt();
+            for (int i = 0; i < camCount; i++) {
+                data.linkedCameras.add(buf.readBlockPos());
+            }
+            return data;
         }
     }
 
@@ -98,8 +110,8 @@ public class S2CSyncFacilityMapPacket {
     private final List<CameraData> cameras;
 
     public S2CSyncFacilityMapPacket(List<NodeData> nodes, List<CameraData> cameras) {
-        this.nodes = nodes;
-        this.cameras = cameras;
+        this.nodes = nodes != null ? nodes : new ArrayList<>();
+        this.cameras = cameras != null ? cameras : new ArrayList<>();
     }
 
     public static void encode(S2CSyncFacilityMapPacket msg, FriendlyByteBuf buf) {
@@ -115,16 +127,16 @@ public class S2CSyncFacilityMapPacket {
 
     public static S2CSyncFacilityMapPacket decode(FriendlyByteBuf buf) {
         int nodeCount = buf.readInt();
-        List<NodeData> nodes = new ArrayList<>(nodeCount);
+        List<NodeData> nodes = new ArrayList<>();
         for (int i = 0; i < nodeCount; i++) {
             nodes.add(NodeData.read(buf));
         }
         int camCount = buf.readInt();
-        List<CameraData> cameras = new ArrayList<>(camCount);
+        List<CameraData> cams = new ArrayList<>();
         for (int i = 0; i < camCount; i++) {
-            cameras.add(CameraData.read(buf));
+            cams.add(CameraData.read(buf));
         }
-        return new S2CSyncFacilityMapPacket(nodes, cameras);
+        return new S2CSyncFacilityMapPacket(nodes, cams);
     }
 
     public static void handle(S2CSyncFacilityMapPacket msg, Supplier<NetworkEvent.Context> ctx) {
