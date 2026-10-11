@@ -250,7 +250,13 @@ public class Scp079MapScreen extends Screen {
         String title = "FACILITY SCHEMATIC OVERVIEW // SCP-079 INTERFACE";
         graphics.drawString(font, title, 30, topY + 16, 0xFF00E5FF, true);
 
-        String activeZone = "ZONE: " + ClientCameraHandler.activeZone.getCode();
+        String zoneCode = "HCZ";
+        if (minecraft != null && minecraft.level != null && ClientCameraHandler.activeCameraPos != null) {
+            if (minecraft.level.getBlockEntity(ClientCameraHandler.activeCameraPos) instanceof CameraBlockEntity cam) {
+                zoneCode = cam.getZone().getCode();
+            }
+        }
+        String activeZone = "ZONE: " + zoneCode;
         graphics.drawString(font, activeZone, width - font.width(activeZone) - 30, topY + 16, 0xFFE0F7FA, false);
     }
 

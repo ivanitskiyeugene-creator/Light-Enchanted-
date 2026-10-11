@@ -164,7 +164,6 @@ public class UniversalDoorHandler {
             dummy.setNoGravity(true);
             dummy.setInvulnerable(true);
             dummy.setSilent(true);
-            dummy.setSmall(false);
             dummy.addTag("scp079_tesla_dummy");
             serverLevel.addFreshEntity(dummy);
 
@@ -205,6 +204,10 @@ public class UniversalDoorHandler {
 
             dummy.discard();
         }
+    }
+
+    public static boolean toggleDoor(Level level, BlockPos pos, Player player) {
+        return toggleDoorState(level, pos, player);
     }
 
     public static boolean toggleDoorState(Level level, BlockPos pos, Player player) {
