@@ -647,7 +647,7 @@ public class FacilityMapDesignerScreen extends Screen {
     }
 
     private void startInWorldLinkMode() {
-        ClientCameraLinker.startLinking(this.currentZone, this.selectedGx, this.selectedGy,
+        ClientCameraLinker.enterLinkMode(this.currentZone, this.selectedGx, this.selectedGy,
                 this.nameEdit.getValue(), this.selectedShape, this.selectedRotation,
                 this.selectedHasGen, this.activePolygon, this.localLinkedCameras);
         this.onClose();

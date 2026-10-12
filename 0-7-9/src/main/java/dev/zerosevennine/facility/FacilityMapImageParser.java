@@ -1,5 +1,7 @@
 package dev.zerosevennine.facility;
 
+import net.minecraft.core.BlockPos;
+
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
