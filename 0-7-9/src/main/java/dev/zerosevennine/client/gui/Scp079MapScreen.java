@@ -495,6 +495,10 @@ public class Scp079MapScreen extends Screen {
         RoomShape shape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
         int rot = Math.floorMod(room.rotation, 4);
 
+        boolean isTransit = (room.targetZone != room.zone ||
+                             room.roomShape == RoomShape.ELEVATOR ||
+                             room.roomShape == RoomShape.CHECKPOINT);
+
         int bgCol;
         int frameCol;
         int scanlineCol;
