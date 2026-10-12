@@ -556,7 +556,7 @@ public class Scp079MapScreen extends Screen {
                     fillWithScanlines(graphics, x, y, x + armW, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x + armW, midY - armW / 2, x + w, midY + armW / 2, bgCol, scanlineCol);
                     graphics.fill(x, y, x + 1, y + h, frameCol);
-                    graphics.fill(x, y + armW, y + 1, frameCol);
+                    graphics.fill(x, y, x + armW, y + 1, frameCol);
                     graphics.fill(x, y + h - 1, x + armW, y + h, frameCol);
                     graphics.fill(x + w - 1, midY - armW / 2, x + w, midY + armW / 2, frameCol);
                     graphics.fill(x + armW, midY - armW / 2, x + w, midY - armW / 2 + 1, frameCol);
