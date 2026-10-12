@@ -81,6 +81,18 @@ public class FacilityMapDesignerScreen extends Screen {
     private Button genBtn;
     private Button gridModeBtn;
 
+    // Clipboard for Room Copy & Paste (Ctrl+C / Ctrl+V)
+    public static class RoomClipboard {
+        public String roomName;
+        public RoomShape shape;
+        public int rotation;
+        public boolean hasGen;
+        public final List<int[]> polygon = new ArrayList<>();
+    }
+    private static RoomClipboard clipboard = null;
+    private String noticeMessage = null;
+    private int noticeTimer = 0;
+
     public FacilityMapDesignerScreen() {
         super(Component.literal("Редактор карты 079"));
     }
@@ -204,18 +216,66 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("- ОТВЯЗАТЬ КАМЕРЫ"), b -> unlinkAllCameras())
                 .bounds(panelX + 6, sy, panelW - 12, 14).build());
 
-        // --- ACTION BUTTONS ---
-        sy += 18;
-        addRenderableWidget(Button.builder(Component.literal("✓ СОХРАНИТЬ КОМНАТУ"), b -> placeOrUpdateRoom())
-                .bounds(panelX + 6, sy, panelW - 12, 18).build());
-
-        sy += 20;
-        addRenderableWidget(Button.builder(Component.literal("✗ УДАЛИТЬ КОМНАТУ"), b -> deleteSelectedRoom())
-                .bounds(panelX + 6, sy, panelW - 12, 15).build());
+        // --- ACTION BUTTONS (Copy / Paste / Save / Delete) ---
+        sy += 16;
+        int cpBtnW = (panelW - 16) / 2;
+        addRenderableWidget(Button.builder(Component.literal("📋 КОПИР. (Ctrl+C)"), b -> copyCurrentRoom())
+                .bounds(panelX + 6, sy, cpBtnW, 15).build());
+        addRenderableWidget(Button.builder(Component.literal("📋 ВСТАВ. (Ctrl+V)"), b -> pasteRoomAtSelection())
+                .bounds(panelX + 8 + cpBtnW, sy, cpBtnW, 15).build());
 
         sy += 17;
+        addRenderableWidget(Button.builder(Component.literal("✓ СОХРАНИТЬ КОМНАТУ"), b -> placeOrUpdateRoom())
+                .bounds(panelX + 6, sy, panelW - 12, 17).build());
+
+        sy += 19;
+        addRenderableWidget(Button.builder(Component.literal("✗ УДАЛИТЬ КОМНАТУ"), b -> deleteSelectedRoom())
+                .bounds(panelX + 6, sy, panelW - 12, 14).build());
+
+        sy += 16;
         addRenderableWidget(Button.builder(Component.literal("ОЧИСТИТЬ ВСЮ ЗОНУ"), b -> clearCurrentZone())
                 .bounds(panelX + 6, sy, panelW - 12, 14).build());
+    }
+
+    public void copyCurrentRoom() {
+        clipboard = new RoomClipboard();
+        clipboard.roomName = nameEdit != null ? nameEdit.getValue() : ("ROOM " + selectedGx + ":" + selectedGy);
+        clipboard.shape = selectedShape;
+        clipboard.rotation = selectedRotation;
+        clipboard.hasGen = selectedHasGen;
+        clipboard.polygon.clear();
+        for (int[] pt : activePolygon) {
+            clipboard.polygon.add(new int[]{pt[0], pt[1]});
+        }
+        showNotice("СКОПИРОВАНО В БУФЕР: " + clipboard.roomName + " (Ctrl+C)");
+    }
+
+    public void pasteRoomAtSelection() {
+        if (clipboard == null) {
+            showNotice("БУФЕР ОБМЕНА ПУСТ (Сначала нажмите Ctrl+C)");
+            return;
+        }
+        selectedShape = clipboard.shape;
+        selectedRotation = clipboard.rotation;
+        selectedHasGen = clipboard.hasGen;
+        activePolygon.clear();
+        for (int[] pt : clipboard.polygon) {
+            activePolygon.add(new int[]{pt[0], pt[1]});
+        }
+        localLinkedCameras.clear();
+        if (nameEdit != null) {
+            nameEdit.setValue(clipboard.roomName);
+        }
+        if (genBtn != null) {
+            genBtn.setMessage(Component.literal("ГЕНЕРАТОР: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }
+        placeOrUpdateRoom();
+        showNotice("ВСТАВЛЕНО В [" + selectedGx + ", " + selectedGy + "] (Ctrl+V)");
+    }
+
+    private void showNotice(String msg) {
+        this.noticeMessage = msg;
+        this.noticeTimer = 60; // 3 seconds at 20 fps / 60 frames
     }
 
     public void restoreState(FacilityZone zone, int gx, int gy, String name,
@@ -605,6 +665,38 @@ public class FacilityMapDesignerScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.nameEdit != null && this.nameEdit.isFocused()) {
+            if (this.nameEdit.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+        }
+
+        // Room Copy (Ctrl+C)
+        if (Screen.hasControlDown() && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_C) {
+            copyCurrentRoom();
+            return true;
+        }
+
+        // Room Paste (Ctrl+V)
+        if (Screen.hasControlDown() && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_V) {
+            pasteRoomAtSelection();
+            return true;
+        }
+
+        // Room Delete (Delete / Backspace when not typing)
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE || keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE) {
+            if (this.nameEdit == null || !this.nameEdit.isFocused()) {
+                deleteSelectedRoom();
+                showNotice("КОМНАТА УДАЛЕНА ИЗ [" + selectedGx + ", " + selectedGy + "]");
+                return true;
+            }
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, width, height, 0xFF020914);
 
@@ -771,6 +863,21 @@ public class FacilityMapDesignerScreen extends Screen {
 
         String wasdNotice = "WASD: АВТО-МАРШРУТЫ";
         graphics.drawString(font, wasdNotice, panelX + 6, canvasY + 246, 0xFF81D4FA, false);
+
+        // Hotkey bar at bottom of canvas
+        String hotkeyBar = "Ctrl+C: Копировать | Ctrl+V: Вставить | Del: Удалить | ПКМ+Драг: Панорама";
+        graphics.drawString(font, hotkeyBar, canvasX + 6, canvasY + canvasH - 12, 0x9900E5FF, false);
+
+        // Clipboard Notice Popup
+        if (noticeTimer > 0 && noticeMessage != null) {
+            noticeTimer--;
+            int nw = font.width(noticeMessage) + 16;
+            int nx = canvasX + (canvasW - nw) / 2;
+            int ny = canvasY + 10;
+            graphics.fill(nx - 1, ny - 1, nx + nw + 1, ny + 15, 0xFF00E5FF);
+            graphics.fill(nx, ny, nx + nw, ny + 14, 0xEE031522);
+            graphics.drawString(font, noticeMessage, nx + 8, ny + 3, 0xFF00FF88, false);
+        }
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
