@@ -1,0 +1,20 @@
+{
+    "targets": [
+        "swap"
+    ],
+    "passes": [
+        {
+            "name": "zero_seven_nine:cctv",
+            "intarget": "minecraft:main",
+            "outtarget": "swap",
+            "values": [
+                { "name": "Time", "values": [ 0.0 ] }
+            ]
+        },
+        {
+            "name": "blit",
+            "intarget": "swap",
+            "outtarget": "minecraft:main"
+        }
+    ]
+}

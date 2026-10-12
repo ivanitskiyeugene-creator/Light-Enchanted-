@@ -63,7 +63,17 @@ public class Scp079Config {
                     .define("disableScpBlink", true);
 
             builder.pop();
+
+            builder.push("visuals");
+
+            enableCctvShader = builder
+                    .comment("Enable realistic CCTV Fisheye & CRT Scanline post-processing shader in camera view. Default: true.")
+                    .define("enableCctvShader", true);
+
+            builder.pop();
         }
+
+        public final ForgeConfigSpec.BooleanValue enableCctvShader;
     }
 
     public static final ForgeConfigSpec COMMON_SPEC;

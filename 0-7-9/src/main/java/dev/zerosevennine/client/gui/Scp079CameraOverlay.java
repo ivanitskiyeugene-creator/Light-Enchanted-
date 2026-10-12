@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.ZeroSevenNine;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
+import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.client.Minecraft;
@@ -173,16 +174,19 @@ public class Scp079CameraOverlay {
     }
 
     private static void renderCrtOverlay(GuiGraphics graphics, int width, int height, Minecraft mc) {
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.08f);
-        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        boolean shaderActive = Scp079Config.COMMON == null || Scp079Config.COMMON.enableCctvShader.get();
+        if (!shaderActive) {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.08f);
+            graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-        // Subtle rolling scan line
-        long time = mc.level != null ? mc.level.getGameTime() : 0;
-        int rollY = (int) ((time * 2) % Math.max(1, height));
-        graphics.fill(0, rollY, width, rollY + 2, 0x1200E5FF);
+            // Subtle rolling scan line fallback
+            long time = mc.level != null ? mc.level.getGameTime() : 0;
+            int rollY = (int) ((time * 2) % Math.max(1, height));
+            graphics.fill(0, rollY, width, rollY + 2, 0x1200E5FF);
+        }
     }
 
     private static void renderScreenCornerBrackets(GuiGraphics graphics, int width, int height) {

@@ -7,6 +7,7 @@ import dev.zerosevennine.block.AbstractCameraBlock;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.gui.Scp079CameraOverlay;
 import dev.zerosevennine.client.gui.Scp079MapScreen;
+import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.facility.DeviceType;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
@@ -25,6 +26,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
@@ -298,12 +300,35 @@ public class ClientCameraHandler {
         }
     }
 
+    public static final ResourceLocation CCTV_SHADER = new ResourceLocation("zero_seven_nine", "shaders/post/cctv.json");
+
+    public static void updateCctvShader(Minecraft mc) {
+        if (mc.gameRenderer == null) return;
+        boolean wantsShader = in079Mode && (Scp079Config.COMMON == null || Scp079Config.COMMON.enableCctvShader.get());
+
+        if (wantsShader) {
+            if (mc.gameRenderer.currentEffect() == null) {
+                try {
+                    mc.gameRenderer.loadEffect(CCTV_SHADER);
+                } catch (Exception ignored) {}
+            }
+        } else {
+            if (mc.gameRenderer.currentEffect() != null) {
+                try {
+                    mc.gameRenderer.shutdownEffect();
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !in079Mode) return;
+        if (event.phase != TickEvent.Phase.END) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
+        updateCctvShader(mc);
+
+        if (!in079Mode || mc.player == null) return;
 
         // Transition timers
         if (zoneTransitionTicks > 0) {
