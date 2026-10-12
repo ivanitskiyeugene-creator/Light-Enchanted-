@@ -2,8 +2,10 @@ package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
+import dev.zerosevennine.facility.FacilityMapImageParser;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
+import dev.zerosevennine.facility.RoomPrefab;
 import dev.zerosevennine.facility.RoomShape;
 import dev.zerosevennine.network.C2SEditMapRoomPacket;
 import dev.zerosevennine.network.ModNetwork;
@@ -17,6 +19,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +84,14 @@ public class FacilityMapDesignerScreen extends Screen {
     private Button genBtn;
     private Button targetZoneBtn;
     private Button gridModeBtn;
+    private Button refToggleBtn;
+    private Button refFileBtn;
+    private Button refAlphaBtn;
+    private Button prefabBtn;
     private FacilityZone selectedTargetZone = FacilityZone.HCZ;
+
+    // Prefab Catalog
+    private int currentPrefabIndex = 0;
 
     // Clipboard for Room Copy & Paste (Ctrl+C / Ctrl+V)
     public static class RoomClipboard {
@@ -111,29 +121,62 @@ public class FacilityMapDesignerScreen extends Screen {
     protected void init() {
         super.init();
         refreshAvailableCameras();
+        ReferenceOverlayManager.refreshFileList();
 
         int panelW = 208;
         int panelX = width - panelW - 6;
         int panelY = 24;
 
         // Zone Tab Buttons at Top
-        int tabW = 58;
+        int tabW = 48;
         int tabStartX = 8;
         addRenderableWidget(Button.builder(Component.literal("LCZ"), b -> setZone(FacilityZone.LCZ))
                 .bounds(tabStartX, 4, tabW, 18).build());
         addRenderableWidget(Button.builder(Component.literal("HCZ"), b -> setZone(FacilityZone.HCZ))
-                .bounds(tabStartX + tabW + 4, 4, tabW, 18).build());
+                .bounds(tabStartX + tabW + 2, 4, tabW, 18).build());
         addRenderableWidget(Button.builder(Component.literal("EZ"), b -> setZone(FacilityZone.EZ))
-                .bounds(tabStartX + (tabW + 4) * 2, 4, tabW, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("SURFACE"), b -> setZone(FacilityZone.SURFACE))
-                .bounds(tabStartX + (tabW + 4) * 3, 4, tabW, 18).build());
+                .bounds(tabStartX + (tabW + 2) * 2, 4, tabW, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("SURF"), b -> setZone(FacilityZone.SURFACE))
+                .bounds(tabStartX + (tabW + 2) * 3, 4, tabW, 18).build());
 
         // Grid Scale Mode Switcher (1.0 / 0.1 / OFF)
         gridModeBtn = Button.builder(Component.literal(currentGridMode.label), b -> {
             currentGridMode = currentGridMode.next();
             b.setMessage(Component.literal(currentGridMode.label));
-        }).bounds(tabStartX + (tabW + 4) * 4, 4, 78, 18).build();
+        }).bounds(tabStartX + (tabW + 2) * 4, 4, 72, 18).build();
         addRenderableWidget(gridModeBtn);
+
+        // Reference Overlay Controls (Top Bar)
+        int refX = tabStartX + (tabW + 2) * 4 + 76;
+        refToggleBtn = Button.builder(Component.literal("ПОДЛОЖКА: " + (ReferenceOverlayManager.enabled ? "ВКЛ" : "ВЫКЛ")), b -> {
+            ReferenceOverlayManager.enabled = !ReferenceOverlayManager.enabled;
+            b.setMessage(Component.literal("ПОДЛОЖКА: " + (ReferenceOverlayManager.enabled ? "ВКЛ" : "ВЫКЛ")));
+        }).bounds(refX, 4, 88, 18).build();
+        addRenderableWidget(refToggleBtn);
+
+        refFileBtn = Button.builder(Component.literal("ФАЙЛ: " + ReferenceOverlayManager.getActiveFileName()), b -> {
+            ReferenceOverlayManager.cycleNextFile();
+            b.setMessage(Component.literal("ФАЙЛ: " + ReferenceOverlayManager.getActiveFileName()));
+        }).bounds(refX + 90, 4, 110, 18).build();
+        addRenderableWidget(refFileBtn);
+
+        refAlphaBtn = Button.builder(Component.literal((int)(ReferenceOverlayManager.alpha * 100) + "%"), b -> {
+            float[] alphas = {0.25f, 0.5f, 0.75f, 1.0f};
+            float nextA = 0.5f;
+            for (int i = 0; i < alphas.length; i++) {
+                if (Math.abs(ReferenceOverlayManager.alpha - alphas[i]) < 0.05f) {
+                    nextA = alphas[(i + 1) % alphas.length];
+                    break;
+                }
+            }
+            ReferenceOverlayManager.alpha = nextA;
+            b.setMessage(Component.literal((int)(ReferenceOverlayManager.alpha * 100) + "%"));
+        }).bounds(refX + 202, 4, 34, 18).build();
+        addRenderableWidget(refAlphaBtn);
+
+        // Auto-Build by Screenshot Button
+        addRenderableWidget(Button.builder(Component.literal("⚡ АВТОСБОРКА"), b -> triggerAutoBuild())
+                .bounds(refX + 238, 4, 86, 18).build());
 
         // Room Name EditBox
         int sy = panelY + 12;
@@ -145,8 +188,23 @@ public class FacilityMapDesignerScreen extends Screen {
         // Load existing room data if present
         loadRoomDataAtSelection();
 
-        // --- POINT / POLYGON TOOLS ---
+        // --- PREFABS CATALOG TOOL ---
         sy += 16 + 72; // Under Live Preview box
+        int pfbW = (panelW - 18) / 3;
+        addRenderableWidget(Button.builder(Component.literal("◀ ПРЕФАБ"), b -> cyclePrefab(-1))
+                .bounds(panelX + 6, sy, pfbW, 15).build());
+
+        List<RoomPrefab> prefabs = RoomPrefab.getPrefabsForZone(currentZone);
+        String pfbTitle = !prefabs.isEmpty() ? prefabs.get(Math.min(currentPrefabIndex, prefabs.size() - 1)).defaultName : "ПРЕФАБЫ";
+        prefabBtn = Button.builder(Component.literal(pfbTitle), b -> applyCurrentPrefab())
+                .bounds(panelX + 8 + pfbW, sy, pfbW, 15).build();
+        addRenderableWidget(prefabBtn);
+
+        addRenderableWidget(Button.builder(Component.literal("ПРЕФАБ ▶"), b -> cyclePrefab(1))
+                .bounds(panelX + 10 + pfbW * 2, sy, pfbW, 15).build());
+
+        // --- POINT / POLYGON TOOLS ---
+        sy += 17;
         int pBtnW = (panelW - 18) / 3;
         int pBtnH = 15;
 
@@ -180,7 +238,7 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("↻ 90°"), b -> rotatePolygon(90))
                 .bounds(panelX + 10 + rBtnW * 2, sy, rBtnW, pBtnH).build());
 
-        // --- PRESET SHAPE BUTTONS (1:1 Square Bounding Box Templates) ---
+        // --- PRESET SHAPE BUTTONS ---
         sy += 18;
         int shapeBtnW = (panelW - 18) / 4;
         addRenderableWidget(Button.builder(Component.literal("| ПРЯМ"), b -> applyPreset(RoomShape.STRAIGHT))
@@ -247,6 +305,70 @@ public class FacilityMapDesignerScreen extends Screen {
                 .bounds(panelX + 6, sy, panelW - 12, 14).build());
     }
 
+    private void cyclePrefab(int delta) {
+        List<RoomPrefab> prefabs = RoomPrefab.getPrefabsForZone(currentZone);
+        if (prefabs.isEmpty()) return;
+        currentPrefabIndex = (currentPrefabIndex + delta + prefabs.size()) % prefabs.size();
+        RoomPrefab p = prefabs.get(currentPrefabIndex);
+        if (prefabBtn != null) {
+            prefabBtn.setMessage(Component.literal(p.defaultName));
+        }
+        applyCurrentPrefab();
+    }
+
+    private void applyCurrentPrefab() {
+        List<RoomPrefab> prefabs = RoomPrefab.getPrefabsForZone(currentZone);
+        if (prefabs.isEmpty() || currentPrefabIndex >= prefabs.size()) return;
+        RoomPrefab p = prefabs.get(currentPrefabIndex);
+
+        this.selectedShape = p.shape;
+        this.selectedRotation = p.defaultRotation;
+        this.selectedTargetZone = p.targetZone;
+        this.nameEdit.setValue(p.defaultName);
+
+        this.activePolygon.clear();
+        List<int[]> pts = FacilityNetworkManager.createShapePolygon(p.shape, p.defaultRotation);
+        for (int[] pt : pts) {
+            this.activePolygon.add(new int[]{pt[0], pt[1]});
+        }
+
+        if (targetZoneBtn != null) {
+            targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
+        }
+
+        placeOrUpdateRoom();
+        showNotice("ПРЕФАБ ПРИМЕНЕН: " + p.defaultName + " (" + p.description + ")");
+    }
+
+    private void triggerAutoBuild() {
+        BufferedImage img = ReferenceOverlayManager.getBufferedImage();
+        if (img == null) {
+            showNotice("ОШИБКА: Поместите .png в папку 079_references и выберите файл!");
+            return;
+        }
+
+        FacilityMapImageParser.ParseResult res = FacilityMapImageParser.parseMapFromImage(img, currentZone);
+        if (!res.success) {
+            showNotice("ОШИБКА: " + res.message);
+            return;
+        }
+
+        // Apply all parsed rooms
+        FacilityNetworkManager.clearZone(currentZone);
+        for (FacilityNetworkManager.RoomNode r : res.rooms) {
+            FacilityNetworkManager.registerRoomNode(r);
+            ModNetwork.CHANNEL.sendToServer(new C2SEditMapRoomPacket(
+                    C2SEditMapRoomPacket.Action.PLACE_OR_UPDATE,
+                    currentZone, r.gridX, r.gridY, r.roomName, r.roomShape, r.rotation,
+                    r.hasGenerator, r.targetZone, null, r.gridX, r.gridY, r.customPolygon
+            ));
+        }
+
+        autoLinkWasd();
+        loadRoomDataAtSelection();
+        showNotice("⚡ " + res.message);
+    }
+
     public void copyCurrentRoom() {
         clipboard = new RoomClipboard();
         clipboard.roomName = nameEdit != null ? nameEdit.getValue() : ("ROOM " + selectedGx + ":" + selectedGy);
@@ -290,7 +412,7 @@ public class FacilityMapDesignerScreen extends Screen {
 
     private void showNotice(String msg) {
         this.noticeMessage = msg;
-        this.noticeTimer = 60; // 3 seconds at 20 fps / 60 frames
+        this.noticeTimer = 80;
     }
 
     public void restoreState(FacilityZone zone, int gx, int gy, String name,
@@ -317,104 +439,50 @@ public class FacilityMapDesignerScreen extends Screen {
                 this.localLinkedCameras.add(p.immutable());
             }
         }
-    }
-
-    private void startInWorldLinkMode() {
-        dev.zerosevennine.client.handler.ClientCameraLinker.enterLinkMode(
-                currentZone, selectedGx, selectedGy, nameEdit.getValue(),
-                selectedShape, selectedRotation, selectedHasGen,
-                activePolygon, localLinkedCameras
-        );
-        if (this.minecraft != null) {
-            this.minecraft.setScreen(null);
+        if (this.genBtn != null) {
+            this.genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
         }
-    }
-
-    private void setZone(FacilityZone zone) {
-        this.currentZone = zone;
-        refreshAvailableCameras();
-        loadRoomDataAtSelection();
     }
 
     private void refreshAvailableCameras() {
         availableCameras.clear();
-        for (Map.Entry<BlockPos, CameraBlockEntity> e : FacilityNetworkManager.getCameras().entrySet()) {
-            if (e.getValue().getZone() == currentZone) {
-                availableCameras.add(e.getKey());
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getAllCameras().entrySet()) {
+            if (entry.getValue().getZone() == currentZone) {
+                availableCameras.add(entry.getKey());
             }
         }
-        if (selectedCamIndex >= availableCameras.size()) {
-            selectedCamIndex = 0;
-        }
-    }
-
-    private BlockPos getSelectedCamera() {
-        if (availableCameras.isEmpty()) return null;
-        if (selectedCamIndex < 0 || selectedCamIndex >= availableCameras.size()) selectedCamIndex = 0;
-        return availableCameras.get(selectedCamIndex);
-    }
-
-    private void cycleCamera() {
-        if (availableCameras.isEmpty()) return;
-        selectedCamIndex = (selectedCamIndex + 1) % availableCameras.size();
-    }
-
-    private void linkSelectedCamera() {
-        BlockPos cam = getSelectedCamera();
-        if (cam != null && !localLinkedCameras.contains(cam)) {
-            localLinkedCameras.add(cam);
-        }
-    }
-
-    private void unlinkAllCameras() {
-        localLinkedCameras.clear();
     }
 
     private void loadRoomDataAtSelection() {
-        localLinkedCameras.clear();
+        FacilityNetworkManager.RoomNode node = FacilityNetworkManager.getRoomAt(currentZone, selectedGx, selectedGy);
         activePolygon.clear();
+        localLinkedCameras.clear();
 
-        FacilityNetworkManager.RoomNode room = FacilityNetworkManager.getRoomAt(currentZone, selectedGx, selectedGy);
-        if (room != null) {
-            nameEdit.setValue(room.roomName != null ? room.roomName : "");
-            selectedShape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
-            selectedRotation = room.rotation;
-            selectedHasGen = room.hasGenerator;
-            selectedTargetZone = room.targetZone != null ? room.targetZone : getDefaultTargetZone(currentZone, selectedShape);
-            localLinkedCameras.addAll(room.linkedCameras);
+        if (node != null) {
+            nameEdit.setValue(node.roomName);
+            selectedShape = node.roomShape != null ? node.roomShape : RoomShape.SQUARE;
+            selectedRotation = node.rotation;
+            selectedHasGen = node.hasGenerator;
+            selectedTargetZone = node.targetZone != null ? node.targetZone : currentZone;
+            localLinkedCameras.addAll(node.linkedCameras);
 
-            if (!room.customPolygon.isEmpty()) {
-                for (int[] pt : room.customPolygon) {
-                    activePolygon.add(new int[]{pt[0], pt[1]});
-                }
-            } else {
-                activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
+            for (int[] pt : node.getEffectivePolygon()) {
+                activePolygon.add(new int[]{pt[0], pt[1]});
             }
         } else {
             nameEdit.setValue("ROOM " + selectedGx + ":" + selectedGy);
-            selectedShape = RoomShape.STRAIGHT;
+            selectedShape = RoomShape.SQUARE;
             selectedRotation = 0;
             selectedHasGen = false;
             selectedTargetZone = getDefaultTargetZone(currentZone, selectedShape);
-            activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
+            applyPreset(RoomShape.SQUARE);
         }
 
-        selectedVertexIndex = 0;
         if (genBtn != null) {
             genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
         }
         if (targetZoneBtn != null) {
             targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
-        }
-    }
-
-    private void cycleTargetZone() {
-        FacilityZone[] zones = FacilityZone.values();
-        int next = (selectedTargetZone.ordinal() + 1) % (zones.length + 1);
-        if (next == zones.length) {
-            selectedTargetZone = currentZone;
-        } else {
-            selectedTargetZone = zones[next];
         }
     }
 
@@ -431,15 +499,59 @@ public class FacilityMapDesignerScreen extends Screen {
         return zone;
     }
 
+    private void cycleTargetZone() {
+        FacilityZone[] zones = FacilityZone.values();
+        int next = (selectedTargetZone.ordinal() + 1) % zones.length;
+        selectedTargetZone = zones[next];
+    }
+
+    private void setZone(FacilityZone z) {
+        this.currentZone = z;
+        refreshAvailableCameras();
+        currentPrefabIndex = 0;
+        List<RoomPrefab> prefabs = RoomPrefab.getPrefabsForZone(currentZone);
+        if (prefabBtn != null && !prefabs.isEmpty()) {
+            prefabBtn.setMessage(Component.literal(prefabs.get(0).defaultName));
+        }
+        loadRoomDataAtSelection();
+    }
+
     private void applyPreset(RoomShape shape) {
         this.selectedShape = shape;
         this.selectedTargetZone = getDefaultTargetZone(currentZone, shape);
         if (targetZoneBtn != null) {
             targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
         }
-        activePolygon.clear();
-        activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(shape, selectedRotation));
-        selectedVertexIndex = 0;
+        this.activePolygon.clear();
+        List<int[]> defaultPts = FacilityNetworkManager.createShapePolygon(shape, selectedRotation);
+        for (int[] pt : defaultPts) {
+            this.activePolygon.add(new int[]{pt[0], pt[1]});
+        }
+    }
+
+    private void addVertex() {
+        if (activePolygon.isEmpty()) {
+            activePolygon.add(new int[]{0, 0});
+            selectedVertexIndex = 0;
+            return;
+        }
+        int[] cur = activePolygon.get(selectedVertexIndex);
+        int nextIdx = (selectedVertexIndex + 1) % activePolygon.size();
+        int[] next = activePolygon.get(nextIdx);
+        int mx = (cur[0] + next[0]) / 2;
+        int my = (cur[1] + next[1]) / 2;
+
+        activePolygon.add(nextIdx, new int[]{mx, my});
+        selectedVertexIndex = nextIdx;
+    }
+
+    private void removeVertex() {
+        if (activePolygon.size() > 3) {
+            activePolygon.remove(selectedVertexIndex);
+            if (selectedVertexIndex >= activePolygon.size()) {
+                selectedVertexIndex = activePolygon.size() - 1;
+            }
+        }
     }
 
     private void centerPolygon() {
@@ -453,32 +565,8 @@ public class FacilityMapDesignerScreen extends Screen {
         int avgY = sumY / activePolygon.size();
 
         for (int[] pt : activePolygon) {
-            pt[0] = Math.max(-28, Math.min(28, pt[0] - avgX));
-            pt[1] = Math.max(-28, Math.min(28, pt[1] - avgY));
-        }
-    }
-
-    private void addVertex() {
-        if (activePolygon.isEmpty()) {
-            activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
-            return;
-        }
-        int next = (selectedVertexIndex + 1) % activePolygon.size();
-        int[] p1 = activePolygon.get(selectedVertexIndex);
-        int[] p2 = activePolygon.get(next);
-        int midX = (p1[0] + p2[0]) / 2;
-        int midY = (p1[1] + p2[1]) / 2;
-
-        activePolygon.add(selectedVertexIndex + 1, new int[]{midX, midY});
-        selectedVertexIndex++;
-    }
-
-    private void removeVertex() {
-        if (activePolygon.size() > 3) {
-            activePolygon.remove(selectedVertexIndex);
-            if (selectedVertexIndex >= activePolygon.size()) {
-                selectedVertexIndex = 0;
-            }
+            pt[0] -= avgX;
+            pt[1] -= avgY;
         }
     }
 
@@ -557,6 +645,19 @@ public class FacilityMapDesignerScreen extends Screen {
         loadRoomDataAtSelection();
     }
 
+    private void startInWorldLinkMode() {
+        ClientCameraLinker.startLinking(this.currentZone, this.selectedGx, this.selectedGy,
+                this.nameEdit.getValue(), this.selectedShape, this.selectedRotation,
+                this.selectedHasGen, this.activePolygon, this.localLinkedCameras);
+        this.onClose();
+    }
+
+    private void unlinkAllCameras() {
+        localLinkedCameras.clear();
+        placeOrUpdateRoom();
+        showNotice("ВСЕ КАМЕРЫ ОТВЯЗАНЫ");
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         int panelW = 208;
@@ -623,76 +724,76 @@ public class FacilityMapDesignerScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (draggingVertex) {
+        if (button == 0) {
+            if (draggingRoom) {
+                int panelW = 208;
+                int canvasW = width - panelW - 20;
+                int centerX = 8 + canvasW / 2 + gridPanX;
+                int centerY = 24 + (height - 34) / 2 + gridPanY;
+
+                int targetGx = (int) Math.floor((mouseX - centerX) / (double) CELL_SIZE);
+                int targetGy = (int) Math.floor((mouseY - centerY) / (double) CELL_SIZE);
+
+                if (targetGx != dragSourceGx || targetGy != dragSourceGy) {
+                    FacilityNetworkManager.RoomNode src = FacilityNetworkManager.getRoomAt(currentZone, dragSourceGx, dragSourceGy);
+                    if (src != null) {
+                        FacilityNetworkManager.removeRoom(currentZone, dragSourceGx, dragSourceGy);
+                        ModNetwork.CHANNEL.sendToServer(new C2SEditMapRoomPacket(
+                                C2SEditMapRoomPacket.Action.MOVE_ROOM,
+                                currentZone, dragSourceGx, dragSourceGy, src.roomName, src.roomShape,
+                                src.rotation, src.hasGenerator, src.targetZone,
+                                !src.linkedCameras.isEmpty() ? src.linkedCameras.get(0) : null,
+                                targetGx, targetGy, src.customPolygon
+                        ));
+
+                        src.gridX = targetGx;
+                        src.gridY = targetGy;
+                        FacilityNetworkManager.registerRoomNode(src);
+
+                        selectedGx = targetGx;
+                        selectedGy = targetGy;
+                        loadRoomDataAtSelection();
+                        showNotice("КОМНАТА ПЕРЕМЕЩЕНА В [" + targetGx + ", " + targetGy + "]");
+                    }
+                }
+                draggingRoom = false;
+            }
             draggingVertex = false;
-        }
-        if (draggingPreviewShape) {
             draggingPreviewShape = false;
         }
-
-        if (draggingRoom) {
-            draggingRoom = false;
-            int panelW = 208;
-            int canvasW = width - panelW - 20;
-            int canvasH = height - 34;
-
-            if (mouseX >= 8 && mouseX <= 8 + canvasW && mouseY >= 24 && mouseY <= 24 + canvasH) {
-                int centerX = 8 + canvasW / 2 + gridPanX;
-                int centerY = 24 + canvasH / 2 + gridPanY;
-
-                int dropGx = (int) Math.floor((mouseX - centerX) / (double) CELL_SIZE);
-                int dropGy = (int) Math.floor((mouseY - centerY) / (double) CELL_SIZE);
-
-                if (dropGx != dragSourceGx || dropGy != dragSourceGy) {
-                    // Move Room on Server
-                    ModNetwork.CHANNEL.sendToServer(new C2SEditMapRoomPacket(
-                            C2SEditMapRoomPacket.Action.MOVE_ROOM,
-                            currentZone, dragSourceGx, dragSourceGy, "", RoomShape.SQUARE, 0, false, currentZone, null,
-                            dropGx, dropGy, null
-                    ));
-                    FacilityNetworkManager.moveRoom(currentZone, dragSourceGx, dragSourceGy, dropGx, dropGy);
-                    selectedGx = dropGx;
-                    selectedGy = dropGy;
-                    loadRoomDataAtSelection();
-                }
-            }
-        }
-
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        // Drag individual vertex
-        if (draggingVertex && selectedVertexIndex >= 0 && selectedVertexIndex < activePolygon.size()) {
-            int panelW = 208;
-            int panelX = width - panelW - 6;
+        int panelW = 208;
+        int panelX = width - panelW - 6;
+
+        // Preview box point dragging
+        if (draggingVertex && !activePolygon.isEmpty() && selectedVertexIndex < activePolygon.size()) {
             int prevX = panelX + 6;
             int prevY = 24 + 30;
-            int prevW = panelW - 12;
-            int prevH = 68;
-            int originX = prevX + prevW / 2;
-            int originY = prevY + prevH / 2;
+            int originX = prevX + (panelW - 12) / 2;
+            int originY = prevY + 34;
 
-            int rawX = (int) Math.round(mouseX - originX);
-            int rawY = (int) Math.round(mouseY - originY);
+            int rawX = (int) (mouseX - originX);
+            int rawY = (int) (mouseY - originY);
 
             int snap = currentGridMode.snapStep;
-            int newLocalX = Math.round((float) rawX / snap) * snap;
-            int newLocalY = Math.round((float) rawY / snap) * snap;
+            int snappedX = Math.round((float) rawX / snap) * snap;
+            int snappedY = Math.round((float) rawY / snap) * snap;
 
-            newLocalX = Math.max(-28, Math.min(28, newLocalX));
-            newLocalY = Math.max(-28, Math.min(28, newLocalY));
-
-            activePolygon.get(selectedVertexIndex)[0] = newLocalX;
-            activePolygon.get(selectedVertexIndex)[1] = newLocalY;
+            int[] pt = activePolygon.get(selectedVertexIndex);
+            pt[0] = Math.max(-28, Math.min(28, snappedX));
+            pt[1] = Math.max(-28, Math.min(28, snappedY));
             return true;
         }
 
-        // Drag whole shape inside preview
-        if (draggingPreviewShape) {
-            int dx = (int) Math.round(dragX);
-            int dy = (int) Math.round(dragY);
+        // Preview box entire shape dragging
+        if (draggingPreviewShape && !activePolygon.isEmpty()) {
+            int snap = currentGridMode.snapStep;
+            int dx = Math.round((float) dragX / snap) * snap;
+            int dy = Math.round((float) dragY / snap) * snap;
 
             for (int[] pt : activePolygon) {
                 pt[0] = Math.max(-28, Math.min(28, pt[0] + dx));
@@ -763,7 +864,25 @@ public class FacilityMapDesignerScreen extends Screen {
         int centerX = canvasX + canvasW / 2 + gridPanX;
         int centerY = canvasY + canvasH / 2 + gridPanY;
 
-        // Render Coordinate Grid based on gridMode
+        // 1. Render Reference Overlay (if enabled)
+        if (ReferenceOverlayManager.enabled && ReferenceOverlayManager.getTextureLocation() != null) {
+            ResourceLocation refLoc = ReferenceOverlayManager.getTextureLocation();
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, ReferenceOverlayManager.alpha);
+
+            int imgW = ReferenceOverlayManager.getImageWidth();
+            int imgH = ReferenceOverlayManager.getImageHeight();
+            int drawW = (int) (imgW * ReferenceOverlayManager.scale);
+            int drawH = (int) (imgH * ReferenceOverlayManager.scale);
+            int imgX = centerX - drawW / 2 + ReferenceOverlayManager.panX;
+            int imgY = centerY - drawH / 2 + ReferenceOverlayManager.panY;
+
+            graphics.blit(refLoc, imgX, imgY, 0, 0, drawW, drawH, drawW, drawH);
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        // 2. Render Coordinate Grid based on gridMode
         if (currentGridMode.showSubGrid) { // 1/10 Subgrid lines
             int subStep = CELL_SIZE / 10;
             for (int x = -100; x <= 100; x++) {
@@ -817,159 +936,104 @@ public class FacilityMapDesignerScreen extends Screen {
                 renderFormattedTitle(graphics, font, r.roomName, midX, midY, 0xFFE0F7FA);
 
                 if (r.hasGenerator) {
-                    graphics.fill(midX - 2, midY - 12, midX + 2, midY - 10, 0xFFFFCC00);
+                    graphics.drawString(font, "⚡", rx + 2, ry + 2, 0xFFFFCC00, false);
                 }
                 if (!r.linkedCameras.isEmpty()) {
-                    graphics.fill(midX - 2, midY + 10, midX + 2, midY + 12, 0xFF00FF88);
+                    graphics.drawString(font, "📷" + r.linkedCameras.size(), rx + CELL_SIZE - 18, ry + 2, 0xFF00FF88, false);
                 }
             }
         }
 
-        // Highlight Selected Cell Cursor
-        int selPx = centerX + selectedGx * CELL_SIZE;
-        int selPy = centerY + selectedGy * CELL_SIZE;
-        if (selPx + CELL_SIZE >= canvasX && selPx <= canvasX + canvasW && selPy + CELL_SIZE >= canvasY && selPy <= canvasY + canvasH) {
-            graphics.fill(selPx, selPy, selPx + CELL_SIZE, selPy + 1, 0xFF00FF88);
-            graphics.fill(selPx, selPy + CELL_SIZE - 1, selPx + CELL_SIZE, selPy + CELL_SIZE, 0xFF00FF88);
-            graphics.fill(selPx, selPy + 1, selPx + 1, selPy + CELL_SIZE, 0xFF00FF88);
-            graphics.fill(selPx + CELL_SIZE - 1, selPy, selPx + CELL_SIZE, selPy + CELL_SIZE, 0xFF00FF88);
+        // Render Selection Box on Grid
+        int selX = centerX + selectedGx * CELL_SIZE;
+        int selY = centerY + selectedGy * CELL_SIZE;
+        if (selX + CELL_SIZE >= canvasX && selX <= canvasX + canvasW && selY + CELL_SIZE >= canvasY && selY <= canvasY + canvasH) {
+            graphics.fill(selX, selY, selX + CELL_SIZE, selY + 1, 0xFF00FF88);
+            graphics.fill(selX, selY + CELL_SIZE - 1, selX + CELL_SIZE, selY + CELL_SIZE, 0xFF00FF88);
+            graphics.fill(selX, selY, selX + 1, selY + CELL_SIZE, 0xFF00FF88);
+            graphics.fill(selX + CELL_SIZE - 1, selY, selX + CELL_SIZE, selY + CELL_SIZE, 0xFF00FF88);
         }
 
-        // Right Inspector Panel
+        // Render Right Properties Panel
         int panelX = width - panelW - 6;
-        graphics.fill(panelX, canvasY, width - 6, canvasY + canvasH, 0xFF081928);
-        graphics.fill(panelX, canvasY, width - 6, canvasY + 1, 0xFF00E5FF);
-        graphics.fill(panelX, canvasY + canvasH - 1, width - 6, canvasY + canvasH, 0xFF00E5FF);
+        graphics.fill(panelX, canvasY, panelX + panelW, canvasY + canvasH, 0xEE020B16);
+        graphics.fill(panelX, canvasY, panelX + panelW, canvasY + 1, 0xFF00E5FF);
+        graphics.fill(panelX, canvasY + canvasH - 1, panelX + panelW, canvasY + canvasH, 0xFF00E5FF);
         graphics.fill(panelX, canvasY, panelX + 1, canvasY + canvasH, 0xFF00E5FF);
-        graphics.fill(width - 7, canvasY, width - 6, canvasY + canvasH, 0xFF00E5FF);
+        graphics.fill(panelX + panelW - 1, canvasY, panelX + panelW, canvasY + canvasH, 0xFF00E5FF);
 
-        // Header info
-        String zoneHeader = "РЕДАКТОР: " + currentZone.name() + " // Site-02";
-        graphics.drawString(font, zoneHeader, 340, 8, 0xFF00E5FF, false);
-        graphics.drawString(font, "КЛЕТКА: [" + selectedGx + ", " + selectedGy + "]", panelX + 6, canvasY + 2, 0xFFE0F7FA, false);
+        graphics.drawString(font, "СВОЙСТВА ПОМЕЩЕНИЯ", panelX + 8, canvasY + 4, 0xFF00E5FF, true);
 
-        // ==========================================
-        // 🔍 LIVE VECTOR PREVIEW & POINT EDITOR BOX
-        // ==========================================
+        // Render Live Preview Box with Vertices
         int prevX = panelX + 6;
         int prevY = canvasY + 30;
         int prevW = panelW - 12;
         int prevH = 68;
 
-        graphics.fill(prevX, prevY, prevX + prevW, prevY + prevH, 0xFF020712);
+        graphics.fill(prevX, prevY, prevX + prevW, prevY + prevH, 0xFF01060D);
         graphics.fill(prevX, prevY, prevX + prevW, prevY + 1, 0xFF00E5FF);
         graphics.fill(prevX, prevY + prevH - 1, prevX + prevW, prevY + prevH, 0xFF00E5FF);
         graphics.fill(prevX, prevY, prevX + 1, prevY + prevH, 0xFF00E5FF);
         graphics.fill(prevX + prevW - 1, prevY, prevX + prevW, prevY + prevH, 0xFF00E5FF);
 
-        // Grid lines inside preview box based on gridMode
-        int pMidX = prevX + prevW / 2;
-        int pMidY = prevY + prevH / 2;
+        int originX = prevX + prevW / 2;
+        int originY = prevY + prevH / 2;
 
-        if (currentGridMode.showSubGrid) {
-            for (int gx = -24; gx <= 24; gx += 4) {
-                graphics.fill(pMidX + gx, prevY + 1, pMidX + gx + 1, prevY + prevH - 1, 0x1500E5FF);
-            }
-            for (int gy = -24; gy <= 24; gy += 4) {
-                graphics.fill(prevX + 1, pMidY + gy, prevX + prevW - 1, pMidY + gy + 1, 0x1500E5FF);
-            }
+        // Preview axis crosshair
+        graphics.fill(originX - 16, originY, originX + 16, originY + 1, 0x3300E5FF);
+        graphics.fill(originX, originY - 16, originX + 1, originY + 16, 0x3300E5FF);
+
+        // Fill Live Polygon in preview
+        if (activePolygon.size() >= 3) {
+            FacilityNetworkManager.fillPolygonWithScanlines(graphics, originX, originY, activePolygon, 0xFF1D78B2, 0x2200E5FF, 0xFF00FFFF);
         }
 
-        if (currentGridMode.showMainGrid) {
-            graphics.fill(pMidX, prevY + 1, pMidX + 1, prevY + prevH - 1, 0x4400E5FF);
-            graphics.fill(prevX + 1, pMidY, prevX + prevW - 1, pMidY + 1, 0x4400E5FF);
-            // 1:1 Square Guide Bounds
-            graphics.fill(pMidX - 18, pMidY - 18, pMidX + 18, pMidY - 17, 0x2200E5FF);
-            graphics.fill(pMidX - 18, pMidY + 17, pMidX + 18, pMidY + 18, 0x2200E5FF);
-            graphics.fill(pMidX - 18, pMidY - 18, pMidX - 17, pMidY + 18, 0x2200E5FF);
-            graphics.fill(pMidX + 17, pMidY - 18, pMidX + 18, pMidY + 18, 0x2200E5FF);
-        }
-
-        // Render Active Polygon in Preview
-        FacilityNetworkManager.fillPolygonWithScanlines(graphics, pMidX, pMidY, activePolygon, 0xFF1D78B2, 0x2200E5FF, 0xFF00FFFF);
-
-        // Render Live Room Title
-        String liveName = nameEdit != null ? nameEdit.getValue() : "ROOM";
-        renderFormattedTitle(graphics, font, liveName, pMidX, pMidY, 0xFFE0F7FA);
-
-        // Render Interactive Vertex Handles
+        // Draw Interactive Vertices
         for (int i = 0; i < activePolygon.size(); i++) {
             int[] pt = activePolygon.get(i);
-            int vx = pMidX + pt[0];
-            int vy = pMidY + pt[1];
+            int vx = originX + pt[0];
+            int vy = originY + pt[1];
 
-            boolean isSel = (i == selectedVertexIndex);
-            int handleCol = isSel ? 0xFFFFFF00 : 0xFF00FF88;
-            graphics.fill(vx - 2, vy - 2, vx + 3, vy + 3, handleCol);
-            graphics.fill(vx - 1, vy - 1, vx + 2, vy + 2, isSel ? 0xFF000000 : 0xFF021B14);
+            int vCol = (i == selectedVertexIndex) ? 0xFF00FF88 : 0xFF00E5FF;
+            graphics.fill(vx - 2, vy - 2, vx + 2, vy + 2, vCol);
+            graphics.fill(vx - 1, vy - 1, vx + 1, vy + 1, 0xFFFFFFFF);
         }
 
-        // Camera Link info display
-        String linkCount = "ПРИВЯЗАНО КАМЕР: " + localLinkedCameras.size();
-        graphics.drawString(font, linkCount, panelX + 6, canvasY + 236, 0xFF00FF88, false);
-
-        String wasdNotice = "WASD: АВТО-МАРШРУТЫ";
-        graphics.drawString(font, wasdNotice, panelX + 6, canvasY + 246, 0xFF81D4FA, false);
-
-        // Hotkey bar at bottom of canvas
-        String hotkeyBar = "Ctrl+C: Копировать | Ctrl+V: Вставить | Del: Удалить | ПКМ+Драг: Панорама";
-        graphics.drawString(font, hotkeyBar, canvasX + 6, canvasY + canvasH - 12, 0x9900E5FF, false);
-
-        // Clipboard Notice Popup
-        if (noticeTimer > 0 && noticeMessage != null) {
+        // Render Feedback Notice Banner (if active)
+        if (noticeMessage != null && noticeTimer > 0) {
             noticeTimer--;
             int nw = font.width(noticeMessage) + 16;
-            int nx = canvasX + (canvasW - nw) / 2;
-            int ny = canvasY + 10;
-            graphics.fill(nx - 1, ny - 1, nx + nw + 1, ny + 15, 0xFF00E5FF);
-            graphics.fill(nx, ny, nx + nw, ny + 14, 0xEE031522);
-            graphics.drawString(font, noticeMessage, nx + 8, ny + 3, 0xFF00FF88, false);
+            int nx = (canvasX + canvasW - nw) / 2;
+            int ny = canvasY + 8;
+            graphics.fill(nx, ny, nx + nw, ny + 16, 0xEE001B2E);
+            graphics.fill(nx, ny, nx + nw, ny + 1, 0xFF00FF88);
+            graphics.fill(nx, ny + 15, nx + nw, ny + 16, 0xFF00FF88);
+            graphics.drawString(font, noticeMessage, nx + 8, ny + 4, 0xFFE0F7FA, true);
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void renderFormattedTitle(GuiGraphics graphics, Font font, String name, int midX, int midY, int textCol) {
+    private void renderFormattedTitle(GuiGraphics graphics, Font font, String name, int midX, int midY, int color) {
         if (name == null || name.trim().isEmpty()) return;
-        name = name.trim();
+        name = name.trim().toUpperCase();
 
         String[] parts = name.split("\\s+");
-        String line1 = "";
-        String line2 = "";
-
         if (parts.length == 1) {
-            if (name.length() > 8) {
-                line1 = name.substring(0, 7);
-                line2 = name.substring(7);
-                if (line2.length() > 7) line2 = line2.substring(0, 6) + ".";
-            } else {
-                line1 = name;
-            }
+            int tw = font.width(name);
+            graphics.drawString(font, name, midX - (tw / 2), midY - 4, color, false);
         } else if (parts.length == 2) {
-            line1 = parts[0];
-            line2 = parts[1];
-            if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
-            if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
+            int tw1 = font.width(parts[0]);
+            int tw2 = font.width(parts[1]);
+            graphics.drawString(font, parts[0], midX - (tw1 / 2), midY - 8, color, false);
+            graphics.drawString(font, parts[1], midX - (tw2 / 2), midY + 1, color, false);
         } else {
-            line1 = parts[0];
-            StringBuilder sb = new StringBuilder();
-            for (int i = 1; i < parts.length; i++) {
-                if (sb.length() > 0) sb.append(" ");
-                sb.append(parts[i]);
-            }
-            line2 = sb.toString();
-            if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
-            if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
-        }
-
-        if (!line2.isEmpty()) {
+            String line1 = parts[0];
+            String line2 = parts[1] + " " + parts[2];
             int tw1 = font.width(line1);
             int tw2 = font.width(line2);
-            graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, textCol, false);
-            graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, textCol, false);
-        } else {
-            int tw = font.width(line1);
-            graphics.drawString(font, line1, midX - (tw / 2), midY - 4, textCol, false);
+            graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, color, false);
+            graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, color, false);
         }
     }
 }
