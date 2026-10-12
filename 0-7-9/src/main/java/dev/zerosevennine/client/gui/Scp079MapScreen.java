@@ -59,15 +59,39 @@ public class Scp079MapScreen extends Screen {
             FacilityNetworkManager.RoomNode r = FacilityNetworkManager.findRoomForCamera(ClientCameraHandler.activeCameraPos);
             if (r != null) {
                 this.viewingZone = r.zone;
-                // Center pan on active room
-                this.panX = -r.gridX * 72;
-                this.panY = -r.gridY * 54;
+                int zox = getZoneOffsetX(r.zone);
+                int zoy = getZoneOffsetY(r.zone);
+                this.panX = -(zox + r.gridX * 72);
+                this.panY = -(zoy + r.gridY * 54);
+            } else {
+                int zox = getZoneOffsetX(this.viewingZone);
+                int zoy = getZoneOffsetY(this.viewingZone);
+                this.panX = -zox;
+                this.panY = -zoy;
             }
         }
 
         if (this.minecraft != null && this.minecraft.getWindow() != null) {
             GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
         }
+    }
+
+    public static int getZoneOffsetX(FacilityZone zone) {
+        return switch (zone) {
+            case LCZ -> -320;
+            case HCZ -> -320;
+            case EZ -> 320;
+            case SURFACE -> 320;
+        };
+    }
+
+    public static int getZoneOffsetY(FacilityZone zone) {
+        return switch (zone) {
+            case LCZ -> 280;
+            case HCZ -> -140;
+            case EZ -> -140;
+            case SURFACE -> -560;
+        };
     }
 
     @Override
@@ -150,36 +174,30 @@ public class Scp079MapScreen extends Screen {
     private void handleRoomClick() {
         if (focusedRoom == null) return;
 
-        boolean isTransit = (focusedRoom.targetZone != focusedRoom.zone ||
-                             focusedRoom.roomShape == RoomShape.ELEVATOR ||
-                             focusedRoom.roomShape == RoomShape.CHECKPOINT);
+        FacilityZone activeZone = this.viewingZone;
+        if (ClientCameraHandler.activeCameraPos != null) {
+            CameraBlockEntity activeCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
+            if (activeCam != null) activeZone = activeCam.getZone();
+        }
 
-        if (isTransit) {
-            FacilityZone destZone = getDefaultDestination(focusedRoom);
-            if (destZone == viewingZone) return;
+        int cost = (int) C2SSwitchCameraPacket.calculateTransitionCost(activeZone, focusedRoom.zone);
+        if (cost > 0 && ClientCameraHandler.ap < cost) {
+            return; // Insufficient AP
+        }
 
-            int cost = (destZone == FacilityZone.SURFACE || focusedRoom.zone == FacilityZone.SURFACE) ? 20 : 10;
-            if (ClientCameraHandler.ap < cost) {
-                return; // Insufficient AP
-            }
-
-            BlockPos targetCam = FacilityNetworkManager.findTransitCamera(focusedRoom, destZone);
-            if (targetCam != null) {
-                ClientCameraHandler.startZoneTransition(viewingZone, destZone, targetCam);
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetCam));
-                this.viewingZone = destZone;
-                FacilityNetworkManager.RoomNode destRoom = FacilityNetworkManager.findRoomForCamera(targetCam);
-                if (destRoom != null) {
-                    this.panX = -destRoom.gridX * 72;
-                    this.panY = -destRoom.gridY * 54;
-                }
-            }
+        BlockPos targetCam = null;
+        if (!focusedRoom.linkedCameras.isEmpty()) {
+            targetCam = focusedRoom.linkedCameras.get(0);
         } else {
-            if (!focusedRoom.linkedCameras.isEmpty()) {
-                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
-                this.onClose();
+            targetCam = FacilityNetworkManager.findTransitCamera(focusedRoom, focusedRoom.zone);
+        }
+
+        if (targetCam != null) {
+            if (focusedRoom.zone != activeZone) {
+                ClientCameraHandler.startZoneTransition(activeZone, focusedRoom.zone, targetCam);
             }
+            ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetCam));
+            this.onClose();
         }
     }
 
@@ -252,13 +270,13 @@ public class Scp079MapScreen extends Screen {
     }
 
     private void renderTopZoneHeader(GuiGraphics graphics, Font font) {
-        String title = switch (viewingZone) {
-            case LCZ -> "ЗОНА ЛЁГКОГО СОДЕРЖАНИЯ (LCZ)";
-            case HCZ -> "ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ (HCZ)";
-            case EZ -> "ВХОДНАЯ ЗОНА (EZ)";
-            case SURFACE -> "ПОВЕРХНОСТЬ (SURFACE)";
-        };
+        FacilityZone activeZone = this.viewingZone;
+        if (ClientCameraHandler.activeCameraPos != null) {
+            CameraBlockEntity activeCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
+            if (activeCam != null) activeZone = activeCam.getZone();
+        }
 
+        String title = "ГЛОБАЛЬНАЯ СХЕМА СТАНЦИИ SITE-02 // ТЕКУЩИЙ СЕКТОР: " + activeZone.name();
         int tw = font.width(title);
         int tx = (width - tw) / 2;
         graphics.drawString(font, title, tx, 22, 0xFF42A5F5, true);
@@ -362,73 +380,140 @@ public class Scp079MapScreen extends Screen {
         graphics.fill(cx - 2, cy - 2, cx + 2, cy + 2, col);
 
         if (focusedRoom != null) {
-            boolean isTransit = (focusedRoom.targetZone != focusedRoom.zone ||
-                                 focusedRoom.roomShape == RoomShape.ELEVATOR ||
-                                 focusedRoom.roomShape == RoomShape.CHECKPOINT);
+            FacilityZone activeZone = this.viewingZone;
+            if (ClientCameraHandler.activeCameraPos != null) {
+                CameraBlockEntity activeCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
+                if (activeCam != null) activeZone = activeCam.getZone();
+            }
 
-            if (isTransit) {
-                FacilityZone destZone = getDefaultDestination(focusedRoom);
-                int cost = (destZone == FacilityZone.SURFACE || focusedRoom.zone == FacilityZone.SURFACE) ? 20 : 10;
-                boolean canAfford = ClientCameraHandler.ap >= cost;
-                String typeName = (focusedRoom.roomShape == RoomShape.ELEVATOR) ? "ЛИФТ" : "КПП";
-                String prompt = "[LMB / SPACE] " + typeName + " -> " + destZone.name() + " (" + cost + " AP)";
-                int promptCol = canAfford ? 0xFFFFCC00 : 0xFFFF4444;
-                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, promptCol, true);
-            } else {
+            int cost = (int) C2SSwitchCameraPacket.calculateTransitionCost(activeZone, focusedRoom.zone);
+            boolean canAfford = ClientCameraHandler.ap >= cost;
+
+            if (focusedRoom.zone == activeZone) {
                 String prompt = !focusedRoom.linkedCameras.isEmpty() ?
-                        "[LMB / SPACE] КАМЕРА: " + focusedRoom.roomName :
+                        "[LMB / SPACE] " + focusedRoom.roomName + " (0 AP)" :
                         "[ " + focusedRoom.roomName + " ] (НЕТ КАМЕРЫ)";
                 graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, 0xFFE0F7FA, true);
+            } else {
+                String prompt = !focusedRoom.linkedCameras.isEmpty() ?
+                        "[LMB / SPACE] " + focusedRoom.zone.name() + ": " + focusedRoom.roomName + " (" + cost + " AP)" :
+                        "[ " + focusedRoom.zone.name() + ": " + focusedRoom.roomName + " ] (" + cost + " AP)";
+                int promptCol = canAfford ? 0xFFFFCC00 : 0xFFFF4444;
+                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, promptCol, true);
             }
         }
     }
 
     private void renderSchematicMap(GuiGraphics graphics, Font font, int cx, int cy) {
-        List<FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRoomsInZone(viewingZone);
+        FacilityZone activeZone = this.viewingZone;
+        if (ClientCameraHandler.activeCameraPos != null) {
+            CameraBlockEntity activeCam = FacilityNetworkManager.getCamera(ClientCameraHandler.activeCameraPos);
+            if (activeCam != null) activeZone = activeCam.getZone();
+        }
+
+        renderSectorConduits(graphics, font, cx, cy);
+
         focusedRoom = null;
         double closestDistSq = 42.0 * 42.0;
 
-        for (FacilityNetworkManager.RoomNode room : rooms) {
-            int nodeW = 54;
-            int nodeH = 38;
-            int nodeX = cx + (int) panX + (room.gridX * 72) - (nodeW / 2);
-            int nodeY = cy + (int) panY + (room.gridY * 54) - (nodeH / 2);
+        for (FacilityZone zone : FacilityZone.values()) {
+            boolean isCurrentZone = (zone == activeZone);
+            int zoneOx = getZoneOffsetX(zone);
+            int zoneOy = getZoneOffsetY(zone);
 
-            int cellCenterX = nodeX + (nodeW / 2);
-            int cellCenterY = nodeY + (nodeH / 2);
+            // Sector Title Banner
+            int sX = cx + (int) panX + zoneOx - 28;
+            int sY = cy + (int) panY + zoneOy - 70;
+            String sectorTitle = switch (zone) {
+                case LCZ -> "[ SECTOR 01 // LIGHT CONTAINMENT ZONE (LCZ) ]";
+                case HCZ -> "[ SECTOR 02 // HEAVY CONTAINMENT ZONE (HCZ) ]";
+                case EZ -> "[ SECTOR 03 // ENTRANCE ZONE (EZ) ]";
+                case SURFACE -> "[ SECTOR 04 // SURFACE LEVEL (SURFACE) ]";
+            };
+            int sCol = isCurrentZone ? 0xFF00E5FF : 0x5500E5FF;
+            graphics.drawString(font, sectorTitle, sX, sY, sCol, false);
 
-            double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
+            List<FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRoomsInZone(zone);
+            for (FacilityNetworkManager.RoomNode room : rooms) {
+                int nodeW = 54;
+                int nodeH = 38;
+                int nodeX = cx + (int) panX + zoneOx + (room.gridX * 72) - (nodeW / 2);
+                int nodeY = cy + (int) panY + zoneOy + (room.gridY * 54) - (nodeH / 2);
 
-            if (distSq <= closestDistSq) {
-                closestDistSq = distSq;
-                focusedRoom = room;
+                int cellCenterX = nodeX + (nodeW / 2);
+                int cellCenterY = nodeY + (nodeH / 2);
+
+                double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
+
+                if (distSq <= closestDistSq) {
+                    closestDistSq = distSq;
+                    focusedRoom = room;
+                }
+
+                boolean isCurrent = (ClientCameraHandler.activeCameraPos != null && room.linkedCameras.contains(ClientCameraHandler.activeCameraPos));
+                boolean isFocused = (room == focusedRoom);
+
+                renderScpSlRoom(graphics, font, nodeX, nodeY, nodeW, nodeH, room, isCurrent, isFocused, isCurrentZone);
             }
-
-            boolean isCurrent = (ClientCameraHandler.activeCameraPos != null && room.linkedCameras.contains(ClientCameraHandler.activeCameraPos));
-            boolean isFocused = (room == focusedRoom);
-
-            renderScpSlRoom(graphics, font, nodeX, nodeY, nodeW, nodeH, room, isCurrent, isFocused);
         }
     }
 
+    private void renderSectorConduits(GuiGraphics graphics, Font font, int cx, int cy) {
+        int hczX = cx + (int) panX + getZoneOffsetX(FacilityZone.HCZ);
+        int hczY = cy + (int) panY + getZoneOffsetY(FacilityZone.HCZ);
+
+        int lczX = cx + (int) panX + getZoneOffsetX(FacilityZone.LCZ);
+        int lczY = cy + (int) panY + getZoneOffsetY(FacilityZone.LCZ);
+
+        int ezX = cx + (int) panX + getZoneOffsetX(FacilityZone.EZ);
+        int ezY = cy + (int) panY + getZoneOffsetY(FacilityZone.EZ);
+
+        int surX = cx + (int) panX + getZoneOffsetX(FacilityZone.SURFACE);
+        int surY = cy + (int) panY + getZoneOffsetY(FacilityZone.SURFACE);
+
+        // 1. LCZ <---> HCZ Elevator Shaft (Vertical connection)
+        for (int y = hczY + 40; y < lczY - 40; y += 8) {
+            graphics.fill(hczX - 1, y, hczX + 1, y + 4, 0x3300E5FF);
+        }
+        graphics.drawString(font, "▲ ELEVATOR SHAFTS A / B ▼", hczX - 68, (hczY + lczY) / 2 - 4, 0x4481D4FA, false);
+
+        // 2. HCZ <---> EZ Checkpoint Gates (Horizontal connection)
+        for (int x = hczX + 60; x < ezX - 60; x += 8) {
+            graphics.fill(x, hczY - 1, x + 4, hczY + 1, 0x3300E5FF);
+        }
+        graphics.drawString(font, "◄ CHECKPOINTS A / B ►", (hczX + ezX) / 2 - 58, hczY - 12, 0x4481D4FA, false);
+
+        // 3. EZ <---> SURFACE Elevators (Vertical connection)
+        for (int y = surY + 40; y < ezY - 40; y += 8) {
+            graphics.fill(ezX - 1, y, ezX + 1, y + 4, 0x3300E5FF);
+        }
+        graphics.drawString(font, "▲ GATE A / B ELEVATORS ▼", ezX - 68, (surY + ezY) / 2 - 4, 0x4481D4FA, false);
+    }
+
     private void renderScpSlRoom(GuiGraphics graphics, Font font, int x, int y, int w, int h,
-                                 FacilityNetworkManager.RoomNode room, boolean isCurrent, boolean isFocused) {
+                                 FacilityNetworkManager.RoomNode room, boolean isCurrent, boolean isFocused, boolean isCurrentZone) {
         RoomShape shape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
         int rot = Math.floorMod(room.rotation, 4);
 
-        // Authentic SCP:SL Room Colors
-        boolean isTransit = (room.targetZone != room.zone ||
-                             room.roomShape == RoomShape.ELEVATOR ||
-                             room.roomShape == RoomShape.CHECKPOINT);
+        int bgCol;
+        int frameCol;
+        int scanlineCol;
 
-        int bgCol = isCurrent ? 0xFF00C882 : (isFocused ? 0xFF1D78B2 : 0xFF125884);
-        int frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : (isTransit ? 0xFFFFCC00 : 0xFF186494));
-        int scanlineCol = isCurrent ? 0x22FFFFFF : 0x1A00E5FF;
+        if (isCurrentZone) {
+            bgCol = isCurrent ? 0xFF00C882 : (isFocused ? 0xFF1D78B2 : 0xFF125884);
+            frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF186494);
+            scanlineCol = isCurrent ? 0x22FFFFFF : 0x1A00E5FF;
 
-        if (room.isGeneratorBooting) {
-            long time = System.currentTimeMillis() / 250;
-            bgCol = (time % 2 == 0) ? 0xFFFF3300 : 0xFFFFAA00;
-            frameCol = 0xFFFFFFFF;
+            if (room.isGeneratorBooting) {
+                long time = System.currentTimeMillis() / 250;
+                bgCol = (time % 2 == 0) ? 0xFFFF3300 : 0xFFFFAA00;
+                frameCol = 0xFFFFFFFF;
+            }
+        } else {
+            // Fog of War for foreign zones
+            bgCol = isFocused ? 0xFF1A3850 : 0xFF081826;
+            frameCol = isFocused ? 0xFFFFCC00 : 0xFF0E3854;
+            scanlineCol = 0x0A00E5FF;
         }
 
         int midX = x + (w / 2);
@@ -600,7 +685,7 @@ public class Scp079MapScreen extends Screen {
         String name = room.roomName;
         if (name != null && !name.trim().isEmpty()) {
             name = name.trim();
-            int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
+            int textCol = isCurrent ? 0xFF021B14 : (isCurrentZone ? 0xFFE0F7FA : 0x8890CAF9);
 
             String[] parts = name.split("\\s+");
             String line1 = "";

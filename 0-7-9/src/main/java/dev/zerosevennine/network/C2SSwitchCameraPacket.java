@@ -94,8 +94,7 @@ public class C2SSwitchCameraPacket {
                     FacilityZone targetZone = targetCam != null ? targetCam.getZone() : currentZone;
 
                     boolean isCrossZone = (targetZone != currentZone);
-                    // Map navigation within same zone is 0 AP (FREE). Checkpoint transition is 10 AP. Surface transition is 20 AP. WASD is 2 AP.
-                    float cost = isWasd ? 2.0f : (isCrossZone ? (targetZone == FacilityZone.SURFACE || currentZone == FacilityZone.SURFACE ? 20.0f : 10.0f) : 0.0f);
+                    float cost = isWasd ? 2.0f : calculateTransitionCost(currentZone, targetZone);
 
                     if (session.spendAp(cost)) {
                         Scp079PlayerManager.switchCamera(player, targetPos);
@@ -110,5 +109,23 @@ public class C2SSwitchCameraPacket {
             }
         });
         ctx.get().setPacketHandled(true);
+    }
+
+    public static float calculateTransitionCost(FacilityZone from, FacilityZone to) {
+        if (from == to) return 0.0f;
+
+        // Direct adjacent hops = 20 AP
+        if ((from == FacilityZone.HCZ && to == FacilityZone.EZ) || (from == FacilityZone.EZ && to == FacilityZone.HCZ)) return 20.0f;
+        if ((from == FacilityZone.LCZ && to == FacilityZone.HCZ) || (from == FacilityZone.HCZ && to == FacilityZone.LCZ)) return 20.0f;
+        if ((from == FacilityZone.EZ && to == FacilityZone.SURFACE) || (from == FacilityZone.SURFACE && to == FacilityZone.EZ)) return 20.0f;
+
+        // 2-zone long distance hops = 50 AP
+        if ((from == FacilityZone.HCZ && to == FacilityZone.SURFACE) || (from == FacilityZone.SURFACE && to == FacilityZone.HCZ)) return 50.0f;
+        if ((from == FacilityZone.LCZ && to == FacilityZone.EZ) || (from == FacilityZone.EZ && to == FacilityZone.LCZ)) return 50.0f;
+
+        // Max distance across facility (LCZ <-> Surface) = 80 AP
+        if ((from == FacilityZone.LCZ && to == FacilityZone.SURFACE) || (from == FacilityZone.SURFACE && to == FacilityZone.LCZ)) return 80.0f;
+
+        return 20.0f;
     }
 }
