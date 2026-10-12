@@ -37,6 +37,7 @@ public class FacilityMapSavedData extends SavedData {
                 int gy = rTag.getInt("gy");
                 boolean gen = rTag.getBoolean("gen");
                 boolean booting = rTag.getBoolean("booting");
+                boolean showText = !rTag.contains("showText") || rTag.getBoolean("showText");
                 FacilityZone targetZone = rTag.contains("targetZone") ? FacilityZone.valueOf(rTag.getString("targetZone")) : zone;
 
                 BlockPos pos = rTag.contains("pos") ? BlockPos.of(rTag.getLong("pos")) : new BlockPos(gx * 16, 64, gy * 16);
@@ -46,6 +47,7 @@ public class FacilityMapSavedData extends SavedData {
                 );
                 node.hasGenerator = gen;
                 node.isGeneratorBooting = booting;
+                node.showText = showText;
 
                 if (rTag.contains("cameras", Tag.TAG_LIST)) {
                     ListTag camList = rTag.getList("cameras", Tag.TAG_COMPOUND);
@@ -82,6 +84,7 @@ public class FacilityMapSavedData extends SavedData {
             rTag.putInt("gy", node.gridY);
             rTag.putBoolean("gen", node.hasGenerator);
             rTag.putBoolean("booting", node.isGeneratorBooting);
+            rTag.putBoolean("showText", node.showText);
             rTag.putString("targetZone", node.targetZone != null ? node.targetZone.name() : node.zone.name());
             if (node.pos != null) {
                 rTag.putLong("pos", node.pos.asLong());

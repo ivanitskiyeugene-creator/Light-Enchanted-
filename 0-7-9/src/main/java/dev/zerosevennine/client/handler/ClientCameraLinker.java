@@ -56,6 +56,7 @@ public class ClientCameraLinker {
     private static RoomShape roomShape = RoomShape.SQUARE;
     private static int roomRotation = 0;
     private static boolean hasGenerator = false;
+    private static boolean showText = true;
     private static final List<int[]> activePolygon = new ArrayList<>();
     private static final List<BlockPos> linkedCameras = new ArrayList<>();
 
@@ -64,7 +65,7 @@ public class ClientCameraLinker {
     }
 
     public static void enterLinkMode(FacilityZone zone, int gx, int gy, String name,
-                                     RoomShape shape, int rot, boolean hasGen,
+                                     RoomShape shape, int rot, boolean hasGen, boolean showTxt,
                                      List<int[]> polygon, List<BlockPos> cameras) {
         linkingMode = true;
         targetZone = zone;
@@ -74,6 +75,7 @@ public class ClientCameraLinker {
         roomShape = shape != null ? shape : RoomShape.SQUARE;
         roomRotation = rot;
         hasGenerator = hasGen;
+        showText = showTxt;
 
         activePolygon.clear();
         if (polygon != null) {
@@ -113,6 +115,7 @@ public class ClientCameraLinker {
                 roomRotation,
                 targetZone,
                 hasGenerator,
+                showText,
                 linkedCameras,
                 activePolygon
         ));
@@ -124,7 +127,7 @@ public class ClientCameraLinker {
         }
 
         FacilityMapDesignerScreen screen = new FacilityMapDesignerScreen();
-        screen.restoreState(targetZone, targetGx, targetGy, roomName, roomShape, roomRotation, hasGenerator, activePolygon, linkedCameras);
+        screen.restoreState(targetZone, targetGx, targetGy, roomName, roomShape, roomRotation, hasGenerator, showText, activePolygon, linkedCameras);
         mc.setScreen(screen);
     }
 

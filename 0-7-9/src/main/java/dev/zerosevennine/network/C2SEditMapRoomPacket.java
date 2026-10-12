@@ -32,6 +32,7 @@ public class C2SEditMapRoomPacket {
     private final RoomShape roomShape;
     private final int rotation;
     private final boolean hasGenerator;
+    private final boolean showText;
     private final FacilityZone targetZone;
     private final BlockPos cameraPos;
     private final int toGridX;
@@ -42,26 +43,33 @@ public class C2SEditMapRoomPacket {
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos) {
-        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, gridX, gridY, null, null);
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, true, targetZone, cameraPos, gridX, gridY, null, null);
     }
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
                                int toGridX, int toGridY, List<int[]> polygon) {
-        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, cameraPos, toGridX, toGridY, polygon, null);
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, true, targetZone, cameraPos, toGridX, toGridY, polygon, null);
     }
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
                                FacilityZone targetZone, boolean hasGenerator,
                                List<BlockPos> cameras, List<int[]> polygon) {
-        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, targetZone, BlockPos.ZERO, gridX, gridY, polygon, cameras);
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, true, targetZone, BlockPos.ZERO, gridX, gridY, polygon, cameras);
     }
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
-                               boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
+                               FacilityZone targetZone, boolean hasGenerator, boolean showText,
+                               List<BlockPos> cameras, List<int[]> polygon) {
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, showText, targetZone, BlockPos.ZERO, gridX, gridY, polygon, cameras);
+    }
+
+    public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
+                               String roomName, RoomShape roomShape, int rotation,
+                               boolean hasGenerator, boolean showText, FacilityZone targetZone, BlockPos cameraPos,
                                int toGridX, int toGridY, List<int[]> polygon, List<BlockPos> cameras) {
         this.action = action;
         this.zone = zone != null ? zone : FacilityZone.HCZ;
@@ -71,6 +79,7 @@ public class C2SEditMapRoomPacket {
         this.roomShape = roomShape != null ? roomShape : RoomShape.SQUARE;
         this.rotation = rotation;
         this.hasGenerator = hasGenerator;
+        this.showText = showText;
         this.targetZone = targetZone != null ? targetZone : this.zone;
         this.cameraPos = cameraPos != null ? cameraPos : BlockPos.ZERO;
         this.toGridX = toGridX;
@@ -96,6 +105,7 @@ public class C2SEditMapRoomPacket {
         buf.writeEnum(msg.roomShape);
         buf.writeInt(msg.rotation);
         buf.writeBoolean(msg.hasGenerator);
+        buf.writeBoolean(msg.showText);
         buf.writeEnum(msg.targetZone);
         buf.writeBlockPos(msg.cameraPos);
         buf.writeInt(msg.toGridX);
@@ -122,6 +132,7 @@ public class C2SEditMapRoomPacket {
         RoomShape shape = buf.readEnum(RoomShape.class);
         int rot = buf.readInt();
         boolean gen = buf.readBoolean();
+        boolean showTxt = buf.readBoolean();
         FacilityZone targetZone = buf.readEnum(FacilityZone.class);
         BlockPos camPos = buf.readBlockPos();
         int toGx = buf.readInt();
@@ -139,7 +150,7 @@ public class C2SEditMapRoomPacket {
             cams.add(buf.readBlockPos());
         }
 
-        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, targetZone, camPos, toGx, toGy, poly, cams);
+        return new C2SEditMapRoomPacket(action, zone, gx, gy, name, shape, rot, gen, showTxt, targetZone, camPos, toGx, toGy, poly, cams);
     }
 
     public static void handle(C2SEditMapRoomPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -168,6 +179,7 @@ public class C2SEditMapRoomPacket {
                             worldPos, msg.roomName, msg.zone, null, msg.roomShape, msg.rotation, msg.targetZone, msg.gridX, msg.gridY
                     );
                     node.hasGenerator = msg.hasGenerator;
+                    node.showText = msg.showText;
                     node.linkedCameras.addAll(finalCams);
 
                     if (!msg.customPolygon.isEmpty()) {

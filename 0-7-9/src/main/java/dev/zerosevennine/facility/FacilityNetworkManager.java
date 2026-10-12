@@ -31,6 +31,7 @@ public class FacilityNetworkManager {
         public int gridY;
         public boolean hasGenerator;
         public boolean isGeneratorBooting;
+        public boolean showText = true;
         public final List<BlockPos> linkedCameras = new ArrayList<>();
         public final List<int[]> customPolygon = new ArrayList<>();
 
@@ -48,6 +49,7 @@ public class FacilityNetworkManager {
             this.gridY = gridY;
             this.hasGenerator = false;
             this.isGeneratorBooting = false;
+            this.showText = true;
         }
 
         public String getKey() {
@@ -345,6 +347,7 @@ public class FacilityNetworkManager {
             RoomNode node = new RoomNode(n.pos, n.name, n.zone, n.roomType, n.roomShape, n.rotation, n.targetZone, n.gridX, n.gridY);
             node.hasGenerator = n.hasGenerator;
             node.isGeneratorBooting = n.isGeneratorBooting;
+            node.showText = n.showText;
             node.linkedCameras.addAll(n.linkedCameras);
             for (int[] pt : n.customPolygon) {
                 node.customPolygon.add(new int[]{pt[0], pt[1]});
@@ -494,12 +497,14 @@ public class FacilityNetworkManager {
         List<int[]> poly = room.getEffectivePolygon();
         fillPolygonFast(graphics, midX, midY, poly, bgCol, frameCol);
 
-        // Room Name Title
-        String name = room.roomName;
-        if (name != null && !name.trim().isEmpty()) {
-            name = name.trim().toUpperCase();
-            int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
-            renderFormattedRoomTitle(graphics, font, name, midX, midY, textCol);
+        // Room Name Title (when text display is enabled)
+        if (room.showText) {
+            String name = room.roomName;
+            if (name != null && !name.trim().isEmpty()) {
+                name = name.trim().toUpperCase();
+                int textCol = isCurrent ? 0xFF021B14 : 0xFFE0F7FA;
+                renderFormattedRoomTitle(graphics, font, name, midX, midY, textCol);
+            }
         }
 
         // Special Indicators
@@ -511,8 +516,12 @@ public class FacilityNetworkManager {
         }
         if (room.roomShape == RoomShape.CHECKPOINT) {
             String transitLabel = "=> " + (room.targetZone != null ? room.targetZone.name() : "EZ");
+            graphics.pose().pushPose();
+            graphics.pose().translate((float) midX, (float) (midY + 11), 0.0f);
+            graphics.pose().scale(0.6f, 0.6f, 1.0f);
             int tw = font.width(transitLabel);
-            graphics.drawString(font, transitLabel, midX - tw / 2, midY + 11, 0xFFFFCC00, false);
+            graphics.drawString(font, transitLabel, -tw / 2, -4, 0xFFFFCC00, false);
+            graphics.pose().popPose();
         }
         if (isCurrent) {
             graphics.fill(midX - 3, midY + 8, midX + 3, midY + 10, 0xFFFF3333);
@@ -522,23 +531,31 @@ public class FacilityNetworkManager {
     public static void renderFormattedRoomTitle(GuiGraphics graphics, Font font,
                                                 String text, int midX, int midY, int color) {
         if (text == null || text.isEmpty()) return;
+
+        graphics.pose().pushPose();
+        graphics.pose().translate((float) midX, (float) midY, 0.0f);
+        float scale = 0.65f;
+        graphics.pose().scale(scale, scale, 1.0f);
+
         String[] parts = text.split("\\s+");
         if (parts.length == 1) {
             int tw = font.width(text);
-            graphics.drawString(font, text, midX - tw / 2, midY - 4, color, false);
+            graphics.drawString(font, text, -tw / 2, -4, color, false);
         } else if (parts.length == 2) {
             int tw1 = font.width(parts[0]);
             int tw2 = font.width(parts[1]);
-            graphics.drawString(font, parts[0], midX - tw1 / 2, midY - 8, color, false);
-            graphics.drawString(font, parts[1], midX - tw2 / 2, midY + 1, color, false);
+            graphics.drawString(font, parts[0], -tw1 / 2, -9, color, false);
+            graphics.drawString(font, parts[1], -tw2 / 2, 1, color, false);
         } else {
             String l1 = parts[0] + " " + parts[1];
             String l2 = parts[2];
             int tw1 = font.width(l1);
             int tw2 = font.width(l2);
-            graphics.drawString(font, l1, midX - tw1 / 2, midY - 8, color, false);
-            graphics.drawString(font, l2, midX - tw2 / 2, midY + 1, color, false);
+            graphics.drawString(font, l1, -tw1 / 2, -9, color, false);
+            graphics.drawString(font, l2, -tw2 / 2, 1, color, false);
         }
+
+        graphics.pose().popPose();
     }
 
     // High-speed scanline polygon rasterization (Zero ArrayList/Double allocation)

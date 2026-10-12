@@ -100,7 +100,7 @@ public class ModNetwork {
         for (dev.zerosevennine.facility.FacilityNetworkManager.RoomNode node : dev.zerosevennine.facility.FacilityNetworkManager.getRooms().values()) {
             S2CSyncFacilityMapPacket.NodeData nd = new S2CSyncFacilityMapPacket.NodeData(
                     node.pos, node.roomName, node.zone, node.roomType, node.roomShape, node.rotation, node.targetZone,
-                    node.gridX, node.gridY, node.hasGenerator, node.isGeneratorBooting
+                    node.gridX, node.gridY, node.hasGenerator, node.isGeneratorBooting, node.showText
             );
             nd.linkedCameras.addAll(node.linkedCameras);
             for (int[] pt : node.customPolygon) {

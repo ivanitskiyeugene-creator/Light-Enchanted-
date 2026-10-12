@@ -65,6 +65,7 @@ public class FacilityMapDesignerScreen extends Screen {
     private RoomShape selectedShape = RoomShape.STRAIGHT;
     private int selectedRotation = 0;
     private boolean selectedHasGen = false;
+    private boolean selectedShowText = true;
 
     // Freeform Polygon Vertices (local coords, -24 to +24)
     private final List<int[]> activePolygon = new ArrayList<>();
@@ -83,6 +84,7 @@ public class FacilityMapDesignerScreen extends Screen {
     private final List<BlockPos> localLinkedCameras = new ArrayList<>();
 
     private Button genBtn;
+    private Button showTextBtn;
     private Button targetZoneBtn;
     private Button gridModeBtn;
     private Button refToggleBtn;
@@ -95,6 +97,7 @@ public class FacilityMapDesignerScreen extends Screen {
         public RoomShape shape;
         public int rotation;
         public boolean hasGen;
+        public boolean showText = true;
         public FacilityZone targetZone;
         public final List<int[]> polygon = new ArrayList<>();
     }
@@ -229,19 +232,25 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("CHK КПП"), b -> applyPreset(RoomShape.CHECKPOINT))
                 .bounds(panelX + 12 + shapeBtnW * 3, sy, shapeBtnW, pBtnH).build());
 
-        // Generator & Target Zone Toggles
+        // Generator, Show Text & Target Zone Toggles
         sy += 18;
-        int tBtnW = (panelW - 16) / 2;
+        int tBtnW = (panelW - 18) / 3;
         genBtn = Button.builder(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")), b -> {
             selectedHasGen = !selectedHasGen;
             b.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
         }).bounds(panelX + 6, sy, tBtnW, 15).build();
         addRenderableWidget(genBtn);
 
+        showTextBtn = Button.builder(Component.literal("ТЕКСТ: " + (selectedShowText ? "ВКЛ" : "ВЫКЛ")), b -> {
+            selectedShowText = !selectedShowText;
+            b.setMessage(Component.literal("ТЕКСТ: " + (selectedShowText ? "ВКЛ" : "ВЫКЛ")));
+        }).bounds(panelX + 8 + tBtnW, sy, tBtnW, 15).build();
+        addRenderableWidget(showTextBtn);
+
         targetZoneBtn = Button.builder(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")), b -> {
             cycleTargetZone();
             b.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
-        }).bounds(panelX + 8 + tBtnW, sy, tBtnW, 15).build();
+        }).bounds(panelX + 10 + tBtnW * 2, sy, tBtnW, 15).build();
         addRenderableWidget(targetZoneBtn);
 
         // --- CAMERA LINKING TOOLS ---
@@ -292,6 +301,7 @@ public class FacilityMapDesignerScreen extends Screen {
         clipboard.shape = selectedShape;
         clipboard.rotation = selectedRotation;
         clipboard.hasGen = selectedHasGen;
+        clipboard.showText = selectedShowText;
         clipboard.targetZone = selectedTargetZone;
         clipboard.polygon.clear();
         for (int[] pt : activePolygon) {
@@ -308,6 +318,7 @@ public class FacilityMapDesignerScreen extends Screen {
         selectedShape = clipboard.shape;
         selectedRotation = clipboard.rotation;
         selectedHasGen = clipboard.hasGen;
+        selectedShowText = clipboard.showText;
         selectedTargetZone = clipboard.targetZone != null ? clipboard.targetZone : getDefaultTargetZone(currentZone, selectedShape);
         activePolygon.clear();
         for (int[] pt : clipboard.polygon) {
@@ -319,6 +330,9 @@ public class FacilityMapDesignerScreen extends Screen {
         }
         if (genBtn != null) {
             genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }
+        if (showTextBtn != null) {
+            showTextBtn.setMessage(Component.literal("ТЕКСТ: " + (selectedShowText ? "ВКЛ" : "ВЫКЛ")));
         }
         if (targetZoneBtn != null) {
             targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
@@ -333,7 +347,7 @@ public class FacilityMapDesignerScreen extends Screen {
     }
 
     public void restoreState(FacilityZone zone, int gx, int gy, String name,
-                             RoomShape shape, int rot, boolean hasGen,
+                             RoomShape shape, int rot, boolean hasGen, boolean showTxt,
                              List<int[]> polygon, List<BlockPos> cameras) {
         this.currentZone = zone != null ? zone : FacilityZone.HCZ;
         this.selectedGx = gx;
@@ -341,6 +355,7 @@ public class FacilityMapDesignerScreen extends Screen {
         this.selectedShape = shape != null ? shape : RoomShape.SQUARE;
         this.selectedRotation = rot;
         this.selectedHasGen = hasGen;
+        this.selectedShowText = showTxt;
         if (this.nameEdit != null) {
             this.nameEdit.setValue(name != null ? name : ("ROOM " + gx + ":" + gy));
         }
@@ -356,12 +371,18 @@ public class FacilityMapDesignerScreen extends Screen {
                 this.localLinkedCameras.add(p.immutable());
             }
         }
+        if (this.genBtn != null) {
+            this.genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }
+        if (this.showTextBtn != null) {
+            this.showTextBtn.setMessage(Component.literal("ТЕКСТ: " + (selectedShowText ? "ВКЛ" : "ВЫКЛ")));
+        }
     }
 
     private void startInWorldLinkMode() {
         dev.zerosevennine.client.handler.ClientCameraLinker.enterLinkMode(
                 currentZone, selectedGx, selectedGy, nameEdit.getValue(),
-                selectedShape, selectedRotation, selectedHasGen,
+                selectedShape, selectedRotation, selectedHasGen, selectedShowText,
                 activePolygon, localLinkedCameras
         );
         if (this.minecraft != null) {
@@ -401,6 +422,7 @@ public class FacilityMapDesignerScreen extends Screen {
             selectedShape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
             selectedRotation = room.rotation;
             selectedHasGen = room.hasGenerator;
+            selectedShowText = room.showText;
             selectedTargetZone = room.targetZone != null ? room.targetZone : getDefaultTargetZone(currentZone, selectedShape);
             localLinkedCameras.addAll(room.linkedCameras);
 
@@ -416,6 +438,7 @@ public class FacilityMapDesignerScreen extends Screen {
             selectedShape = RoomShape.STRAIGHT;
             selectedRotation = 0;
             selectedHasGen = false;
+            selectedShowText = true;
             selectedTargetZone = getDefaultTargetZone(currentZone, selectedShape);
             activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
         }
@@ -423,6 +446,9 @@ public class FacilityMapDesignerScreen extends Screen {
         selectedVertexIndex = 0;
         if (genBtn != null) {
             genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }
+        if (showTextBtn != null) {
+            showTextBtn.setMessage(Component.literal("ТЕКСТ: " + (selectedShowText ? "ВКЛ" : "ВЫКЛ")));
         }
         if (targetZoneBtn != null) {
             targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
@@ -537,7 +563,7 @@ public class FacilityMapDesignerScreen extends Screen {
         ModNetwork.CHANNEL.sendToServer(new C2SEditMapRoomPacket(
                 C2SEditMapRoomPacket.Action.PLACE_OR_UPDATE,
                 currentZone, selectedGx, selectedGy, name, selectedShape, selectedRotation,
-                selectedHasGen, selectedTargetZone, primaryCam, selectedGx, selectedGy, activePolygon
+                selectedHasGen, selectedShowText, selectedTargetZone, primaryCam, selectedGx, selectedGy, activePolygon, localLinkedCameras
         ));
 
         // Optimistically update locally
@@ -545,6 +571,7 @@ public class FacilityMapDesignerScreen extends Screen {
                 new BlockPos(selectedGx * 16, 64, selectedGy * 16), name, currentZone, null, selectedShape, selectedRotation, selectedTargetZone, selectedGx, selectedGy
         );
         node.hasGenerator = selectedHasGen;
+        node.showText = selectedShowText;
         node.linkedCameras.addAll(localLinkedCameras);
         node.customPolygon.clear();
         for (int[] pt : activePolygon) {

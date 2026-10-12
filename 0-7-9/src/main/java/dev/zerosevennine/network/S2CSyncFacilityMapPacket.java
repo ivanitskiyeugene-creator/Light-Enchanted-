@@ -25,12 +25,13 @@ public class S2CSyncFacilityMapPacket {
         public final int gridY;
         public final boolean hasGenerator;
         public final boolean isGeneratorBooting;
+        public final boolean showText;
         public final List<BlockPos> linkedCameras = new ArrayList<>();
         public final List<int[]> customPolygon = new ArrayList<>();
 
         public NodeData(BlockPos pos, String name, FacilityZone zone,
                         FacilityMapNodeBlockEntity.RoomType roomType, RoomShape roomShape, int rotation,
-                        FacilityZone targetZone, int gridX, int gridY, boolean hasGenerator, boolean isGeneratorBooting) {
+                        FacilityZone targetZone, int gridX, int gridY, boolean hasGenerator, boolean isGeneratorBooting, boolean showText) {
             this.pos = pos;
             this.name = name;
             this.zone = zone;
@@ -42,6 +43,7 @@ public class S2CSyncFacilityMapPacket {
             this.gridY = gridY;
             this.hasGenerator = hasGenerator;
             this.isGeneratorBooting = isGeneratorBooting;
+            this.showText = showText;
         }
 
         public void write(FriendlyByteBuf buf) {
@@ -56,6 +58,7 @@ public class S2CSyncFacilityMapPacket {
             buf.writeInt(gridY);
             buf.writeBoolean(hasGenerator);
             buf.writeBoolean(isGeneratorBooting);
+            buf.writeBoolean(showText);
 
             buf.writeInt(linkedCameras.size());
             for (BlockPos cp : linkedCameras) {
@@ -81,7 +84,8 @@ public class S2CSyncFacilityMapPacket {
             int gy = buf.readInt();
             boolean gen = buf.readBoolean();
             boolean booting = buf.readBoolean();
-            NodeData data = new NodeData(pos, name, zone, roomType, roomShape, rot, targetZone, gx, gy, gen, booting);
+            boolean showText = buf.readBoolean();
+            NodeData data = new NodeData(pos, name, zone, roomType, roomShape, rot, targetZone, gx, gy, gen, booting, showText);
 
             int camCount = buf.readInt();
             for (int i = 0; i < camCount; i++) {
