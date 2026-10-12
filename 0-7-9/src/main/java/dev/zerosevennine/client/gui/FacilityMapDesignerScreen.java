@@ -2,6 +2,7 @@ package dev.zerosevennine.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
+import dev.zerosevennine.client.handler.ClientCameraLinker;
 import dev.zerosevennine.facility.FacilityMapImageParser;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
@@ -327,7 +328,7 @@ public class FacilityMapDesignerScreen extends Screen {
         this.nameEdit.setValue(p.defaultName);
 
         this.activePolygon.clear();
-        List<int[]> pts = FacilityNetworkManager.createShapePolygon(p.shape, p.defaultRotation);
+        List<int[]> pts = FacilityNetworkManager.generateDefaultVertices(p.shape, p.defaultRotation);
         for (int[] pt : pts) {
             this.activePolygon.add(new int[]{pt[0], pt[1]});
         }
@@ -446,7 +447,7 @@ public class FacilityMapDesignerScreen extends Screen {
 
     private void refreshAvailableCameras() {
         availableCameras.clear();
-        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getAllCameras().entrySet()) {
+        for (Map.Entry<BlockPos, CameraBlockEntity> entry : FacilityNetworkManager.getCameras().entrySet()) {
             if (entry.getValue().getZone() == currentZone) {
                 availableCameras.add(entry.getKey());
             }
@@ -523,7 +524,7 @@ public class FacilityMapDesignerScreen extends Screen {
             targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
         }
         this.activePolygon.clear();
-        List<int[]> defaultPts = FacilityNetworkManager.createShapePolygon(shape, selectedRotation);
+        List<int[]> defaultPts = FacilityNetworkManager.generateDefaultVertices(shape, selectedRotation);
         for (int[] pt : defaultPts) {
             this.activePolygon.add(new int[]{pt[0], pt[1]});
         }

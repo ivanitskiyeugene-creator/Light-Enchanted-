@@ -188,7 +188,15 @@ public class FacilityMapImageParser {
                 int finalGy = gy - centerGy;
 
                 FacilityNetworkManager.RoomNode node = new FacilityNetworkManager.RoomNode(
-                        finalGx, finalGy, zone, shape, rot, name, false, null);
+                        new BlockPos(finalGx * 16, 64, finalGy * 16),
+                        name,
+                        zone,
+                        dev.zerosevennine.blockentity.FacilityMapNodeBlockEntity.RoomType.STANDARD,
+                        shape,
+                        rot,
+                        zone,
+                        finalGx,
+                        finalGy);
                 parsedRooms.add(node);
             }
         }
