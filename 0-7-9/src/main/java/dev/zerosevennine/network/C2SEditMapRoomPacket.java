@@ -69,6 +69,13 @@ public class C2SEditMapRoomPacket {
 
     public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
                                String roomName, RoomShape roomShape, int rotation,
+                               boolean hasGenerator, FacilityZone targetZone, BlockPos cameraPos,
+                               int toGridX, int toGridY, List<int[]> polygon, List<BlockPos> cameras) {
+        this(action, zone, gridX, gridY, roomName, roomShape, rotation, hasGenerator, true, targetZone, cameraPos, toGridX, toGridY, polygon, cameras);
+    }
+
+    public C2SEditMapRoomPacket(Action action, FacilityZone zone, int gridX, int gridY,
+                               String roomName, RoomShape roomShape, int rotation,
                                boolean hasGenerator, boolean showText, FacilityZone targetZone, BlockPos cameraPos,
                                int toGridX, int toGridY, List<int[]> polygon, List<BlockPos> cameras) {
         this.action = action;
