@@ -815,7 +815,7 @@ public class FacilityMapDesignerScreen extends Screen {
             }
         }
 
-        // 3. Render All Rooms in Current Zone
+        // 3. Render All Rooms in Current Zone using Unified Exact Renderer
         List<FacilityNetworkManager.RoomNode> zoneRooms = FacilityNetworkManager.getRoomsInZone(currentZone);
         for (FacilityNetworkManager.RoomNode r : zoneRooms) {
             int rx = centerX + r.gridX * CELL_SIZE;
@@ -823,24 +823,10 @@ public class FacilityMapDesignerScreen extends Screen {
 
             if (rx + CELL_SIZE >= canvasX && rx <= canvasX + canvasW && ry + CELL_SIZE >= canvasY && ry <= canvasY + canvasH) {
                 boolean isSelected = (r.gridX == selectedGx && r.gridY == selectedGy);
-                int bgCol = isSelected ? 0xFF1D78B2 : 0xFF125884;
-                int frameCol = isSelected ? 0xFF00FFFF : 0xFF186494;
-                int scanlineCol = 0x2200E5FF;
-
                 int midX = rx + CELL_SIZE / 2;
                 int midY = ry + CELL_SIZE / 2;
 
-                List<int[]> poly = r.getEffectivePolygon();
-                FacilityNetworkManager.fillPolygonWithScanlines(graphics, midX, midY, poly, bgCol, scanlineCol, frameCol);
-
-                renderFormattedTitle(graphics, font, r.roomName, midX, midY, 0xFFE0F7FA);
-
-                if (r.hasGenerator) {
-                    graphics.fill(midX - 2, midY - 12, midX + 2, midY - 10, 0xFFFFCC00);
-                }
-                if (!r.linkedCameras.isEmpty()) {
-                    graphics.fill(midX - 2, midY + 10, midX + 2, midY + 12, 0xFF00FF88);
-                }
+                FacilityNetworkManager.renderRoomNode(graphics, font, midX, midY, r, isSelected, isSelected, true);
             }
         }
 
@@ -881,7 +867,7 @@ public class FacilityMapDesignerScreen extends Screen {
         int prevOriginX = prevX + prevW / 2;
         int prevOriginY = prevY + prevH / 2;
 
-        FacilityNetworkManager.fillPolygonWithScanlines(graphics, prevOriginX, prevOriginY, activePolygon, 0xFF1D78B2, 0x2200E5FF, 0xFF00FFFF);
+        FacilityNetworkManager.fillPolygonFast(graphics, prevOriginX, prevOriginY, activePolygon, 0xFF1D78B2, 0xFF00FFFF);
 
         for (int i = 0; i < activePolygon.size(); i++) {
             int[] pt = activePolygon.get(i);
@@ -904,23 +890,5 @@ public class FacilityMapDesignerScreen extends Screen {
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
-    }
-
-    private void renderFormattedTitle(GuiGraphics graphics, Font font, String text, int midX, int midY, int color) {
-        if (text == null || text.trim().isEmpty()) return;
-        text = text.trim();
-        String[] parts = text.split("\\s+");
-        if (parts.length == 1) {
-            int tw = font.width(text);
-            graphics.drawString(font, text, midX - tw / 2, midY - 4, color, false);
-        } else if (parts.length == 2) {
-            int tw1 = font.width(parts[0]);
-            int tw2 = font.width(parts[1]);
-            graphics.drawString(font, parts[0], midX - tw1 / 2, midY - 8, color, false);
-            graphics.drawString(font, parts[1], midX - tw2 / 2, midY + 1, color, false);
-        } else {
-            int tw = font.width(parts[0]);
-            graphics.drawString(font, parts[0], midX - tw / 2, midY - 4, color, false);
-        }
     }
 }
