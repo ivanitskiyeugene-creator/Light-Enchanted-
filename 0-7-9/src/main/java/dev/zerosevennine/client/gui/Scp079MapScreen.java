@@ -28,11 +28,11 @@ import java.util.List;
 public class Scp079MapScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation("zero_seven_nine", "textures/gui/scanlines.png");
 
-    public static final int CELL_STEP_X = 26;
-    public static final int CELL_STEP_Y = 20;
-    public static final int NODE_W = 20;
-    public static final int NODE_H = 14;
-    public static final int ARM_W = 6;
+    public static final int CELL_STEP_X = 72;
+    public static final int CELL_STEP_Y = 54;
+    public static final int NODE_W = 54;
+    public static final int NODE_H = 38;
+    public static final int ARM_W = 16;
 
     private double panX = 0;
     private double panY = 0;
@@ -77,26 +77,27 @@ public class Scp079MapScreen extends Screen {
             }
         }
 
+        // Unrestricted mouse movement mode (infinite panning without screen edge blocking)
         if (this.minecraft != null && this.minecraft.getWindow() != null) {
-            GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
+            GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
         }
     }
 
     public static int getZoneOffsetX(FacilityZone zone) {
         return switch (zone) {
-            case LCZ -> -140;
-            case HCZ -> -140;
-            case EZ -> 140;
-            case SURFACE -> 140;
+            case LCZ -> -320;
+            case HCZ -> -320;
+            case EZ -> 320;
+            case SURFACE -> 320;
         };
     }
 
     public static int getZoneOffsetY(FacilityZone zone) {
         return switch (zone) {
-            case LCZ -> 120;
-            case HCZ -> -60;
-            case EZ -> -60;
-            case SURFACE -> -240;
+            case LCZ -> 280;
+            case HCZ -> -140;
+            case EZ -> -140;
+            case SURFACE -> -560;
         };
     }
 
@@ -209,11 +210,13 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public void mouseMoved(double mouseX, double mouseY) {
-        if (lastMouseX >= 0 && lastMouseY >= 0) {
+        if (lastMouseX != -1 && lastMouseY != -1) {
             double dx = mouseX - lastMouseX;
             double dy = mouseY - lastMouseY;
-            panX -= dx * 1.2;
-            panY -= dy * 1.2;
+            if (Math.abs(dx) < 400 && Math.abs(dy) < 400) {
+                panX -= dx * 1.5;
+                panY -= dy * 1.5;
+            }
         }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -221,24 +224,13 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX -= dragX * 1.2;
-        panY -= dragY * 1.2;
+        panX -= dragX * 1.5;
+        panY -= dragY * 1.5;
         return true;
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (lastMouseX >= 0 && lastMouseY >= 0) {
-            double dx = mouseX - lastMouseX;
-            double dy = mouseY - lastMouseY;
-            if (dx != 0 || dy != 0) {
-                panX -= dx * 1.2;
-                panY -= dy * 1.2;
-            }
-        }
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-
         int cx = width / 2;
         int cy = height / 2;
 
@@ -448,7 +440,7 @@ public class Scp079MapScreen extends Screen {
         }
 
         focusedRoom = null;
-        double closestDistSq = 18.0 * 18.0;
+        double closestDistSq = 42.0 * 42.0;
 
         for (FacilityZone zone : FacilityZone.values()) {
             boolean isCurrentZone = (zone == activeZone);
@@ -647,14 +639,14 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
 
                 // Double airlock gate indicator bars
-                graphics.fill(midX - 4, y + 1, midX - 3, y + h - 1, 0xFFFFCC00);
-                graphics.fill(midX + 3, y + 1, midX + 4, y + h - 1, 0xFFFFCC00);
+                graphics.fill(midX - 12, y + 2, midX - 10, y + h - 2, 0xFFFFCC00);
+                graphics.fill(midX + 10, y + 2, midX + 12, y + h - 2, 0xFFFFCC00);
             }
             case END_ROOM, ELEVATOR, CHECKPOINT -> {
-                int rx = x + 2;
-                int ry = y + 2;
-                int rw = w - 4;
-                int rh = h - 4;
+                int rx = x + 4;
+                int ry = y + 4;
+                int rw = w - 8;
+                int rh = h - 8;
                 fillWithScanlines(graphics, rx, ry, rx + rw, ry + rh, bgCol, scanlineCol);
                 graphics.fill(rx, ry, rx + rw, ry + 1, frameCol);
                 graphics.fill(rx, ry + rh - 1, rx + rw, ry + rh, frameCol);
@@ -662,7 +654,7 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(rx + rw - 1, ry, rx + rw, ry + rh, frameCol);
 
                 if (shape == RoomShape.ELEVATOR || shape == RoomShape.CHECKPOINT) {
-                    graphics.fill(midX - 2, midY - 1, midX + 2, midY + 1, 0xFFFF4444);
+                    graphics.fill(midX - 4, midY - 2, midX + 4, midY + 2, 0xFFFF4444);
                 }
             }
             default -> { // SQUARE Hub
@@ -685,7 +677,7 @@ public class Scp079MapScreen extends Screen {
 
         // If player active camera: render small green camera dot
         if (isCurrent) {
-            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF00FF88);
+            graphics.fill(midX - 3, midY - 3, midX + 3, midY + 3, 0xFF00FF88);
         }
     }
 
