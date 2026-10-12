@@ -117,15 +117,8 @@ public class Scp079MapScreen extends Screen {
         }
 
         if (keyCode == GLFW.GLFW_KEY_SPACE) {
-            if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
-                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
-                if (focusedRoom.zone != viewingZone) {
-                    ClientCameraHandler.startZoneTransition(viewingZone, focusedRoom.zone, targetPos);
-                }
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
-                this.onClose();
-                return true;
-            }
+            handleRoomClick();
+            return true;
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -134,17 +127,60 @@ public class Scp079MapScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            if (focusedRoom != null && !focusedRoom.linkedCameras.isEmpty()) {
-                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
-                if (focusedRoom.zone != viewingZone) {
-                    ClientCameraHandler.startZoneTransition(viewingZone, focusedRoom.zone, targetPos);
-                }
-                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
-                this.onClose();
-                return true;
-            }
+            handleRoomClick();
+            return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private FacilityZone getDefaultDestination(FacilityNetworkManager.RoomNode room) {
+        if (room.targetZone != null && room.targetZone != room.zone) return room.targetZone;
+        if (room.roomShape == RoomShape.CHECKPOINT) {
+            return room.zone == FacilityZone.HCZ ? FacilityZone.EZ : (room.zone == FacilityZone.EZ ? FacilityZone.HCZ : room.zone);
+        }
+        if (room.roomShape == RoomShape.ELEVATOR) {
+            if (room.zone == FacilityZone.LCZ) return FacilityZone.HCZ;
+            if (room.zone == FacilityZone.HCZ) return FacilityZone.LCZ;
+            if (room.zone == FacilityZone.EZ) return FacilityZone.SURFACE;
+            if (room.zone == FacilityZone.SURFACE) return FacilityZone.EZ;
+        }
+        return room.zone;
+    }
+
+    private void handleRoomClick() {
+        if (focusedRoom == null) return;
+
+        boolean isTransit = (focusedRoom.targetZone != focusedRoom.zone ||
+                             focusedRoom.roomShape == RoomShape.ELEVATOR ||
+                             focusedRoom.roomShape == RoomShape.CHECKPOINT);
+
+        if (isTransit) {
+            FacilityZone destZone = getDefaultDestination(focusedRoom);
+            if (destZone == viewingZone) return;
+
+            int cost = (destZone == FacilityZone.SURFACE || focusedRoom.zone == FacilityZone.SURFACE) ? 20 : 10;
+            if (ClientCameraHandler.ap < cost) {
+                return; // Insufficient AP
+            }
+
+            BlockPos targetCam = FacilityNetworkManager.findTransitCamera(focusedRoom, destZone);
+            if (targetCam != null) {
+                ClientCameraHandler.startZoneTransition(viewingZone, destZone, targetCam);
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetCam));
+                this.viewingZone = destZone;
+                FacilityNetworkManager.RoomNode destRoom = FacilityNetworkManager.findRoomForCamera(targetCam);
+                if (destRoom != null) {
+                    this.panX = -destRoom.gridX * 72;
+                    this.panY = -destRoom.gridY * 54;
+                }
+            }
+        } else {
+            if (!focusedRoom.linkedCameras.isEmpty()) {
+                BlockPos targetPos = focusedRoom.linkedCameras.get(0);
+                ModNetwork.CHANNEL.sendToServer(new C2SSwitchCameraPacket(targetPos));
+                this.onClose();
+            }
+        }
     }
 
     @Override
@@ -326,8 +362,24 @@ public class Scp079MapScreen extends Screen {
         graphics.fill(cx - 2, cy - 2, cx + 2, cy + 2, col);
 
         if (focusedRoom != null) {
-            String prompt = "[LMB / SPACE] SWITCH CAMERA" + (!focusedRoom.linkedCameras.isEmpty() ? "" : " (NO CAMERA)");
-            graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, 0xFFE0F7FA, true);
+            boolean isTransit = (focusedRoom.targetZone != focusedRoom.zone ||
+                                 focusedRoom.roomShape == RoomShape.ELEVATOR ||
+                                 focusedRoom.roomShape == RoomShape.CHECKPOINT);
+
+            if (isTransit) {
+                FacilityZone destZone = getDefaultDestination(focusedRoom);
+                int cost = (destZone == FacilityZone.SURFACE || focusedRoom.zone == FacilityZone.SURFACE) ? 20 : 10;
+                boolean canAfford = ClientCameraHandler.ap >= cost;
+                String typeName = (focusedRoom.roomShape == RoomShape.ELEVATOR) ? "ЛИФТ" : "КПП";
+                String prompt = "[LMB / SPACE] " + typeName + " -> " + destZone.name() + " (" + cost + " AP)";
+                int promptCol = canAfford ? 0xFFFFCC00 : 0xFFFF4444;
+                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, promptCol, true);
+            } else {
+                String prompt = !focusedRoom.linkedCameras.isEmpty() ?
+                        "[LMB / SPACE] КАМЕРА: " + focusedRoom.roomName :
+                        "[ " + focusedRoom.roomName + " ] (НЕТ КАМЕРЫ)";
+                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, 0xFFE0F7FA, true);
+            }
         }
     }
 
@@ -365,8 +417,12 @@ public class Scp079MapScreen extends Screen {
         int rot = Math.floorMod(room.rotation, 4);
 
         // Authentic SCP:SL Room Colors
+        boolean isTransit = (room.targetZone != room.zone ||
+                             room.roomShape == RoomShape.ELEVATOR ||
+                             room.roomShape == RoomShape.CHECKPOINT);
+
         int bgCol = isCurrent ? 0xFF00C882 : (isFocused ? 0xFF1D78B2 : 0xFF125884);
-        int frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF186494);
+        int frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : (isTransit ? 0xFFFFCC00 : 0xFF186494));
         int scanlineCol = isCurrent ? 0x22FFFFFF : 0x1A00E5FF;
 
         if (room.isGeneratorBooting) {
@@ -584,6 +640,12 @@ public class Scp079MapScreen extends Screen {
                 int tw = font.width(line1);
                 graphics.drawString(font, line1, midX - (tw / 2), midY - 4, textCol, false);
             }
+        }
+
+        if (isTransit) {
+            FacilityZone dest = getDefaultDestination(room);
+            String transitLabel = (room.roomShape == RoomShape.ELEVATOR ? "▲▼ " : "⮂ ") + dest.name();
+            graphics.drawString(font, transitLabel, midX - (font.width(transitLabel) / 2), midY + 9, 0xFFFFCC00, false);
         }
 
         // If active camera: draw small red camera symbol

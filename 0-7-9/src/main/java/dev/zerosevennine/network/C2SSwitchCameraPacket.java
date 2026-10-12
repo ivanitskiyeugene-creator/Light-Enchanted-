@@ -94,14 +94,14 @@ public class C2SSwitchCameraPacket {
                     FacilityZone targetZone = targetCam != null ? targetCam.getZone() : currentZone;
 
                     boolean isCrossZone = (targetZone != currentZone);
-                    // Map navigation within same zone is 0 AP (FREE). Cross-zone transition (Elevators/Checkpoints) is 10 AP. WASD is 2 AP.
-                    float cost = isWasd ? 2.0f : (isCrossZone ? 10.0f : 0.0f);
+                    // Map navigation within same zone is 0 AP (FREE). Checkpoint transition is 10 AP. Surface transition is 20 AP. WASD is 2 AP.
+                    float cost = isWasd ? 2.0f : (isCrossZone ? (targetZone == FacilityZone.SURFACE || currentZone == FacilityZone.SURFACE ? 20.0f : 10.0f) : 0.0f);
 
                     if (session.spendAp(cost)) {
                         Scp079PlayerManager.switchCamera(player, targetPos);
                         if (isCrossZone) {
                             player.level().playSound(null, player.blockPosition(), dev.zerosevennine.init.ModSounds.ZONE_DIAL_TONE.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
-                            session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-10 AP)", 0x00E5FF, player.level().getGameTime());
+                            session.addLog("TRANSFERRED TO " + targetZone.getCode() + " (-" + (int)cost + " AP)", 0x00E5FF, player.level().getGameTime());
                         } else {
                             player.level().playSound(null, player.blockPosition(), dev.zerosevennine.init.ModSounds.CAMERA_SWITCH.get(), SoundSource.PLAYERS, 0.8f, 1.0f);
                         }

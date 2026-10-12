@@ -187,6 +187,31 @@ public class FacilityNetworkManager {
         return null;
     }
 
+    public static BlockPos findTransitCamera(RoomNode sourceRoom, FacilityZone destinationZone) {
+        if (destinationZone == null) return null;
+
+        // 1. Try matching room name or transit shape in destination zone
+        if (sourceRoom != null) {
+            for (RoomNode destRoom : getRoomsInZone(destinationZone)) {
+                if (destRoom.targetZone == sourceRoom.zone || destRoom.roomShape == sourceRoom.roomShape) {
+                    if (!destRoom.linkedCameras.isEmpty()) {
+                        return destRoom.linkedCameras.get(0);
+                    }
+                }
+            }
+        }
+
+        // 2. Any room in destination zone with linked cameras
+        for (RoomNode destRoom : getRoomsInZone(destinationZone)) {
+            if (!destRoom.linkedCameras.isEmpty()) {
+                return destRoom.linkedCameras.get(0);
+            }
+        }
+
+        // 3. Fallback: Any camera registered in destination zone
+        return findCameraInZone(destinationZone);
+    }
+
     public static Map<Direction, BlockPos> getDynamicWasdMap(BlockPos currentPos) {
         Map<Direction, BlockPos> map = new EnumMap<>(Direction.class);
         if (currentPos == null) return map;

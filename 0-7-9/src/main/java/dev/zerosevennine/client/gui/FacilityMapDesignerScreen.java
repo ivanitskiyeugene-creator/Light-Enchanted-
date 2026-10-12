@@ -79,7 +79,9 @@ public class FacilityMapDesignerScreen extends Screen {
     private final List<BlockPos> localLinkedCameras = new ArrayList<>();
 
     private Button genBtn;
+    private Button targetZoneBtn;
     private Button gridModeBtn;
+    private FacilityZone selectedTargetZone = FacilityZone.HCZ;
 
     // Clipboard for Room Copy & Paste (Ctrl+C / Ctrl+V)
     public static class RoomClipboard {
@@ -87,6 +89,7 @@ public class FacilityMapDesignerScreen extends Screen {
         public RoomShape shape;
         public int rotation;
         public boolean hasGen;
+        public FacilityZone targetZone;
         public final List<int[]> polygon = new ArrayList<>();
     }
     private static RoomClipboard clipboard = null;
@@ -199,13 +202,20 @@ public class FacilityMapDesignerScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("CHK КПП"), b -> applyPreset(RoomShape.CHECKPOINT))
                 .bounds(panelX + 12 + shapeBtnW * 3, sy, shapeBtnW, pBtnH).build());
 
-        // Generator Toggle
+        // Generator & Target Zone Toggles
         sy += 18;
-        genBtn = Button.builder(Component.literal("ГЕНЕРАТОР: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")), b -> {
+        int tBtnW = (panelW - 16) / 2;
+        genBtn = Button.builder(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")), b -> {
             selectedHasGen = !selectedHasGen;
-            b.setMessage(Component.literal("ГЕНЕРАТОР: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
-        }).bounds(panelX + 6, sy, panelW - 12, 15).build();
+            b.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }).bounds(panelX + 6, sy, tBtnW, 15).build();
         addRenderableWidget(genBtn);
+
+        targetZoneBtn = Button.builder(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")), b -> {
+            cycleTargetZone();
+            b.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
+        }).bounds(panelX + 8 + tBtnW, sy, tBtnW, 15).build();
+        addRenderableWidget(targetZoneBtn);
 
         // --- CAMERA LINKING TOOLS ---
         sy += 17;
@@ -243,6 +253,7 @@ public class FacilityMapDesignerScreen extends Screen {
         clipboard.shape = selectedShape;
         clipboard.rotation = selectedRotation;
         clipboard.hasGen = selectedHasGen;
+        clipboard.targetZone = selectedTargetZone;
         clipboard.polygon.clear();
         for (int[] pt : activePolygon) {
             clipboard.polygon.add(new int[]{pt[0], pt[1]});
@@ -258,6 +269,7 @@ public class FacilityMapDesignerScreen extends Screen {
         selectedShape = clipboard.shape;
         selectedRotation = clipboard.rotation;
         selectedHasGen = clipboard.hasGen;
+        selectedTargetZone = clipboard.targetZone != null ? clipboard.targetZone : getDefaultTargetZone(currentZone, selectedShape);
         activePolygon.clear();
         for (int[] pt : clipboard.polygon) {
             activePolygon.add(new int[]{pt[0], pt[1]});
@@ -267,7 +279,10 @@ public class FacilityMapDesignerScreen extends Screen {
             nameEdit.setValue(clipboard.roomName);
         }
         if (genBtn != null) {
-            genBtn.setMessage(Component.literal("ГЕНЕРАТОР: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+            genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+        }
+        if (targetZoneBtn != null) {
+            targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
         }
         placeOrUpdateRoom();
         showNotice("ВСТАВЛЕНО В [" + selectedGx + ", " + selectedGy + "] (Ctrl+V)");
@@ -365,6 +380,7 @@ public class FacilityMapDesignerScreen extends Screen {
             selectedShape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
             selectedRotation = room.rotation;
             selectedHasGen = room.hasGenerator;
+            selectedTargetZone = room.targetZone != null ? room.targetZone : getDefaultTargetZone(currentZone, selectedShape);
             localLinkedCameras.addAll(room.linkedCameras);
 
             if (!room.customPolygon.isEmpty()) {
@@ -379,17 +395,48 @@ public class FacilityMapDesignerScreen extends Screen {
             selectedShape = RoomShape.STRAIGHT;
             selectedRotation = 0;
             selectedHasGen = false;
+            selectedTargetZone = getDefaultTargetZone(currentZone, selectedShape);
             activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(selectedShape, selectedRotation));
         }
 
         selectedVertexIndex = 0;
         if (genBtn != null) {
-            genBtn.setMessage(Component.literal("ГЕНЕРАТОР: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
+            genBtn.setMessage(Component.literal("ГЕН: " + (selectedHasGen ? "ВКЛ" : "ВЫКЛ")));
         }
+        if (targetZoneBtn != null) {
+            targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
+        }
+    }
+
+    private void cycleTargetZone() {
+        FacilityZone[] zones = FacilityZone.values();
+        int next = (selectedTargetZone.ordinal() + 1) % (zones.length + 1);
+        if (next == zones.length) {
+            selectedTargetZone = currentZone;
+        } else {
+            selectedTargetZone = zones[next];
+        }
+    }
+
+    private FacilityZone getDefaultTargetZone(FacilityZone zone, RoomShape shape) {
+        if (shape == RoomShape.CHECKPOINT) {
+            return zone == FacilityZone.HCZ ? FacilityZone.EZ : (zone == FacilityZone.EZ ? FacilityZone.HCZ : zone);
+        }
+        if (shape == RoomShape.ELEVATOR) {
+            if (zone == FacilityZone.LCZ) return FacilityZone.HCZ;
+            if (zone == FacilityZone.HCZ) return FacilityZone.LCZ;
+            if (zone == FacilityZone.EZ) return FacilityZone.SURFACE;
+            if (zone == FacilityZone.SURFACE) return FacilityZone.EZ;
+        }
+        return zone;
     }
 
     private void applyPreset(RoomShape shape) {
         this.selectedShape = shape;
+        this.selectedTargetZone = getDefaultTargetZone(currentZone, shape);
+        if (targetZoneBtn != null) {
+            targetZoneBtn.setMessage(Component.literal("ЦЕЛЬ: " + (selectedTargetZone != currentZone ? selectedTargetZone.name() : "НЕТ")));
+        }
         activePolygon.clear();
         activePolygon.addAll(FacilityNetworkManager.generateDefaultVertices(shape, selectedRotation));
         selectedVertexIndex = 0;
@@ -469,12 +516,12 @@ public class FacilityMapDesignerScreen extends Screen {
         ModNetwork.CHANNEL.sendToServer(new C2SEditMapRoomPacket(
                 C2SEditMapRoomPacket.Action.PLACE_OR_UPDATE,
                 currentZone, selectedGx, selectedGy, name, selectedShape, selectedRotation,
-                selectedHasGen, currentZone, primaryCam, selectedGx, selectedGy, activePolygon
+                selectedHasGen, selectedTargetZone, primaryCam, selectedGx, selectedGy, activePolygon
         ));
 
         // Optimistically update locally
         FacilityNetworkManager.RoomNode node = new FacilityNetworkManager.RoomNode(
-                new BlockPos(selectedGx * 16, 64, selectedGy * 16), name, currentZone, null, selectedShape, selectedRotation, currentZone, selectedGx, selectedGy
+                new BlockPos(selectedGx * 16, 64, selectedGy * 16), name, currentZone, null, selectedShape, selectedRotation, selectedTargetZone, selectedGx, selectedGy
         );
         node.hasGenerator = selectedHasGen;
         node.linkedCameras.addAll(localLinkedCameras);
