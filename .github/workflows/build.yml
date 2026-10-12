@@ -55,6 +55,16 @@ jobs:
             exit 1
           }
 
+      - name: Build SECRET LAB: CUBED (SLC)
+        shell: bash
+        run: |
+          cd slc
+          gradle build --no-daemon --console=plain > ../slc_build_output.txt 2>&1 || {
+            echo "SLC Gradle build failed — publishing error digest"
+            python3 ../.github/scripts/gradle_error_digest.py ../slc_build_output.txt
+            exit 1
+          }
+
       - name: Upload Light Enchanted jar
         uses: actions/upload-artifact@v4
         if: success()
@@ -79,17 +89,26 @@ jobs:
           path: 0-7-9/build/libs/*.jar
           if-no-files-found: error
 
+      - name: Upload SLC jar
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: slc-jar
+          path: slc/build/libs/*.jar
+          if-no-files-found: error
+
       - name: Publish to GitHub Releases
         if: success() && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "latest-build"
-          name: "Latest Build (0-7-9, Snow - SCPied, Light Enchanted)"
+          name: "Latest Build (SLC, 0-7-9, Snow - SCPied, Light Enchanted)"
           body: |
             Continuous build from commit `${{ github.sha }}` on branch `${{ github.ref_name }}`.
             
             ### Included Mod Jars:
-            - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod.
+            - **SECRET LAB: CUBED (SLC)** (`slc-*.jar`) — Round engine, roles, CASSIE announcer & SCP-939 mimicry.
+            - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod & CCTV shaders.
             - **Snow - SCPied** (`snow_scpied-*.jar`) — Dynamic snow accumulation & physical footprints/blood.
             - **Light Enchanted** (`lightenchanted-*.jar`) — Volumetric lighting & Simple Ray Tracing (STR).
           draft: false
@@ -98,5 +117,6 @@ jobs:
             build/libs/*.jar
             snow-scpied/build/libs/*.jar
             0-7-9/build/libs/*.jar
+            slc/build/libs/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
