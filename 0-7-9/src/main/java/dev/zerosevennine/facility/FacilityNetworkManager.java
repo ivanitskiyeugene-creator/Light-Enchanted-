@@ -148,19 +148,52 @@ public class FacilityNetworkManager {
         Map<Direction, BlockPos> map = new EnumMap<>(Direction.class);
         if (currentCamPos == null) return map;
 
-        CameraBlockEntity currentCam = getCamera(currentCamPos);
-        RoomNode currentRoom = findRoomForCamera(currentCamPos);
-
-        FacilityZone zone = currentCam != null ? currentCam.getZone() : (currentRoom != null ? currentRoom.zone : FacilityZone.HCZ);
-        int curGx = currentRoom != null ? currentRoom.gridX : 0;
-        int curGy = currentRoom != null ? currentRoom.gridY : 0;
-
-        map.put(Direction.NORTH, findNearestCameraInDirection(zone, curGx, curGy, 0, -1));
-        map.put(Direction.SOUTH, findNearestCameraInDirection(zone, curGx, curGy, 0, 1));
-        map.put(Direction.WEST, findNearestCameraInDirection(zone, curGx, curGy, -1, 0));
-        map.put(Direction.EAST, findNearestCameraInDirection(zone, curGx, curGy, 1, 0));
+        map.put(Direction.NORTH, findNextCamera(currentCamPos, Direction.NORTH));
+        map.put(Direction.SOUTH, findNextCamera(currentCamPos, Direction.SOUTH));
+        map.put(Direction.WEST, findNextCamera(currentCamPos, Direction.WEST));
+        map.put(Direction.EAST, findNextCamera(currentCamPos, Direction.EAST));
 
         return map;
+    }
+
+    public static BlockPos findNextCamera(BlockPos currentPos, Direction direction) {
+        if (currentPos == null || direction == null) return null;
+
+        RoomNode currentRoom = findRoomForCamera(currentPos);
+        if (currentRoom != null) {
+            int dx = 0;
+            int dy = 0;
+            switch (direction) {
+                case NORTH -> dy = -1;
+                case SOUTH -> dy = 1;
+                case WEST -> dx = -1;
+                case EAST -> dx = 1;
+                default -> {}
+            }
+
+            // 1. Scan neighbor cells in grid direction up to 8 steps away
+            for (int step = 1; step <= 8; step++) {
+                RoomNode neighborRoom = getRoomAt(currentRoom.zone, currentRoom.gridX + dx * step, currentRoom.gridY + dy * step);
+                if (neighborRoom != null && !neighborRoom.linkedCameras.isEmpty()) {
+                    return neighborRoom.linkedCameras.get(0);
+                }
+            }
+
+            // 2. If current room has multiple cameras, cycle to next camera in room
+            if (currentRoom.linkedCameras.size() > 1) {
+                int idx = currentRoom.linkedCameras.indexOf(currentPos);
+                if (idx >= 0) {
+                    if (direction == Direction.NORTH || direction == Direction.EAST) {
+                        int nextIdx = (idx + 1) % currentRoom.linkedCameras.size();
+                        if (nextIdx != idx) return currentRoom.linkedCameras.get(nextIdx);
+                    } else if (direction == Direction.SOUTH || direction == Direction.WEST) {
+                        int nextIdx = (idx - 1 + currentRoom.linkedCameras.size()) % currentRoom.linkedCameras.size();
+                        if (nextIdx != idx) return currentRoom.linkedCameras.get(nextIdx);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static BlockPos findNearestCameraInDirection(FacilityZone zone, int startGx, int startGy, int dx, int dy) {
@@ -215,7 +248,7 @@ public class FacilityNetworkManager {
                     for (BlockPos camPos : room.linkedCameras) {
                         CameraBlockEntity cbe = getCamera(camPos);
                         if (cbe != null) {
-                            cbe.setNeighbor(dirs[i], neighborCam);
+                            cbe.setWasdNeighbor(dirs[i], neighborCam);
                         }
                     }
                 }
