@@ -28,6 +28,12 @@ import java.util.List;
 public class Scp079MapScreen extends Screen {
     private static final ResourceLocation SCANLINES = new ResourceLocation("zero_seven_nine", "textures/gui/scanlines.png");
 
+    public static final int CELL_STEP_X = 26;
+    public static final int CELL_STEP_Y = 20;
+    public static final int NODE_W = 20;
+    public static final int NODE_H = 14;
+    public static final int ARM_W = 6;
+
     private double panX = 0;
     private double panY = 0;
     private FacilityNetworkManager.RoomNode focusedRoom = null;
@@ -61,8 +67,8 @@ public class Scp079MapScreen extends Screen {
                 this.viewingZone = r.zone;
                 int zox = getZoneOffsetX(r.zone);
                 int zoy = getZoneOffsetY(r.zone);
-                this.panX = -(zox + r.gridX * 72);
-                this.panY = -(zoy + r.gridY * 54);
+                this.panX = -(zox + r.gridX * CELL_STEP_X);
+                this.panY = -(zoy + r.gridY * CELL_STEP_Y);
             } else {
                 int zox = getZoneOffsetX(this.viewingZone);
                 int zoy = getZoneOffsetY(this.viewingZone);
@@ -78,19 +84,19 @@ public class Scp079MapScreen extends Screen {
 
     public static int getZoneOffsetX(FacilityZone zone) {
         return switch (zone) {
-            case LCZ -> -320;
-            case HCZ -> -320;
-            case EZ -> 320;
-            case SURFACE -> 320;
+            case LCZ -> -140;
+            case HCZ -> -140;
+            case EZ -> 140;
+            case SURFACE -> 140;
         };
     }
 
     public static int getZoneOffsetY(FacilityZone zone) {
         return switch (zone) {
-            case LCZ -> 280;
-            case HCZ -> -140;
-            case EZ -> -140;
-            case SURFACE -> -560;
+            case LCZ -> 120;
+            case HCZ -> -60;
+            case EZ -> -60;
+            case SURFACE -> -240;
         };
     }
 
@@ -206,8 +212,8 @@ public class Scp079MapScreen extends Screen {
         if (lastMouseX >= 0 && lastMouseY >= 0) {
             double dx = mouseX - lastMouseX;
             double dy = mouseY - lastMouseY;
-            panX -= dx * 1.5;
-            panY -= dy * 1.5;
+            panX -= dx * 1.2;
+            panY -= dy * 1.2;
         }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -215,8 +221,8 @@ public class Scp079MapScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        panX -= dragX * 1.5;
-        panY -= dragY * 1.5;
+        panX -= dragX * 1.2;
+        panY -= dragY * 1.2;
         return true;
     }
 
@@ -226,8 +232,8 @@ public class Scp079MapScreen extends Screen {
             double dx = mouseX - lastMouseX;
             double dy = mouseY - lastMouseY;
             if (dx != 0 || dy != 0) {
-                panX -= dx * 1.5;
-                panY -= dy * 1.5;
+                panX -= dx * 1.2;
+                panY -= dy * 1.2;
             }
         }
         lastMouseX = mouseX;
@@ -236,7 +242,7 @@ public class Scp079MapScreen extends Screen {
         int cx = width / 2;
         int cy = height / 2;
 
-        // Dark CRT Blue Background
+        // Dark CRT Background
         graphics.fill(0, 0, width, height, 0xFF020712);
 
         // CRT Scanline Raster
@@ -248,16 +254,16 @@ public class Scp079MapScreen extends Screen {
 
         Font font = this.font;
 
-        // 1. Vector Schematic Map (Strictly isolated for current zone)
+        // 1. Vector Schematic Map (Strictly isolated for facility rooms)
         renderSchematicMap(graphics, font, cx, cy);
 
-        // 2. Top Center Zone Title
+        // 2. Top Center Zone Title (Strictly clean English zone name)
         renderTopZoneHeader(graphics, font);
 
         // 3. Top Left Lifeform Status Counters
         renderLeftLifeformCounters(graphics, font);
 
-        // 4. Bottom Left Event Log Feed
+        // 4. Bottom Left Ephemeral Event Log Feed
         renderBottomLeftLog(graphics, font);
 
         // 5. Bottom Right Access Tier & AP Bars
@@ -276,10 +282,16 @@ public class Scp079MapScreen extends Screen {
             if (activeCam != null) activeZone = activeCam.getZone();
         }
 
-        String title = "ГЛОБАЛЬНАЯ СХЕМА СТАНЦИИ SITE-02 // ТЕКУЩИЙ СЕКТОР: " + activeZone.name();
+        String title = switch (activeZone) {
+            case LCZ -> "LIGHT CONTAINMENT ZONE";
+            case HCZ -> "HEAVY CONTAINMENT ZONE";
+            case EZ -> "ENTRANCE ZONE";
+            case SURFACE -> "SURFACE LEVEL";
+        };
+
         int tw = font.width(title);
         int tx = (width - tw) / 2;
-        graphics.drawString(font, title, tx, 22, 0xFF42A5F5, true);
+        graphics.drawString(font, title, tx, 18, 0xFFE0F7FA, true);
     }
 
     private void renderLeftLifeformCounters(GuiGraphics graphics, Font font) {
@@ -308,56 +320,80 @@ public class Scp079MapScreen extends Screen {
         }
 
         int lx = 24;
-        int ly = 22;
+        int ly = 18;
 
-        graphics.drawString(font, "ВСЕГО ФОРМ ЖИЗНИ: " + Math.max(1, totalLifeforms), lx, ly, 0xFFE0F7FA, true);
-        graphics.drawString(font, "ЦЕЛИ: " + Math.max(1, targets), lx, ly + 11, 0xFFE0F7FA, true);
-        graphics.drawString(font, "SCP ОБЪЕКТЫ: " + scps, lx, ly + 22, 0xFFE0F7FA, true);
-        graphics.drawString(font, "ГРАЖДАНСКИЙ: " + Math.max(1, civilians), lx, ly + 33, 0xFF90CAF9, false);
-        graphics.drawString(font, "ВОЕННЫЙ: " + military, lx, ly + 44, 0xFF90CAF9, false);
+        graphics.drawString(font, "TOTAL LIFEFORMS: " + Math.max(1, totalLifeforms), lx, ly, 0xFFE0F7FA, true);
+        graphics.drawString(font, "TARGETS: " + Math.max(1, targets), lx, ly + 11, 0xFFE0F7FA, true);
+        graphics.drawString(font, "SCPS: " + scps, lx, ly + 22, 0xFFE0F7FA, true);
+        graphics.drawString(font, "CIVILIANS: " + Math.max(1, civilians), lx, ly + 33, 0xFF80DEEA, false);
+        graphics.drawString(font, "MILITARY: " + military, lx, ly + 44, 0xFF80DEEA, false);
+
+        // Active / Hovered Room Name below counters (Top-Left)
+        String activeRoomName = null;
+        if (focusedRoom != null) {
+            activeRoomName = focusedRoom.roomName;
+        } else if (ClientCameraHandler.activeCameraPos != null) {
+            FacilityNetworkManager.RoomNode cur = FacilityNetworkManager.findRoomForCamera(ClientCameraHandler.activeCameraPos);
+            if (cur != null) activeRoomName = cur.roomName;
+        }
+
+        if (activeRoomName != null && !activeRoomName.trim().isEmpty()) {
+            graphics.drawString(font, "> " + activeRoomName.toUpperCase(), lx, ly + 62, 0xFF00FF88, true);
+        }
     }
 
     private void renderBottomLeftLog(GuiGraphics graphics, Font font) {
-        int ly = height - 90;
-        int lx = 24;
-
-        graphics.drawString(font, "УРОВЕНЬ ДОСТУПА " + ClientCameraHandler.tier + " - РАЗБЛОКИРОВАН", lx, ly, 0xFF42A5F5, true);
-        graphics.drawString(font, "- ЭНЕРГИЯ лимит: " + (int) ClientCameraHandler.maxAp, lx, ly + 11, 0xFF64B5F6, false);
-        graphics.drawString(font, "- ИЗОЛЯЦИЯ доступна [F] / [G]", lx, ly + 22, 0xFF64B5F6, false);
-
+        long now = System.currentTimeMillis();
         List<Scp079Session.LogEntry> logs = ClientCameraHandler.logs;
-        int maxShow = Math.min(3, logs.size());
-        for (int i = 0; i < maxShow; i++) {
-            Scp079Session.LogEntry e = logs.get(logs.size() - 1 - i);
-            graphics.drawString(font, "> " + e.message, lx, ly + 35 + (i * 11), 0xFF81D4FA, false);
+        if (logs.isEmpty()) return;
+
+        int ly = height - 28;
+        int lx = 24;
+        int drawn = 0;
+
+        for (int i = logs.size() - 1; i >= 0 && drawn < 5; i--) {
+            Scp079Session.LogEntry e = logs.get(i);
+            long age = now - e.timestampMs;
+            if (age > 4500) continue; // Expired after 4.5 seconds
+
+            float alpha = 1.0f;
+            if (age > 3200) {
+                alpha = 1.0f - ((float) (age - 3200) / 1300.0f);
+            }
+            int a = (int) (Math.max(0.0f, Math.min(1.0f, alpha)) * 255.0f);
+            if (a <= 5) continue;
+
+            int col = (a << 24) | (e.colorRgb & 0x00FFFFFF);
+            graphics.drawString(font, "> " + e.message, lx, ly - (drawn * 11), col, false);
+            drawn++;
         }
     }
 
     private void renderBottomRightResources(GuiGraphics graphics, Font font) {
-        int barW = 140;
-        int barH = 12;
+        int barW = 142;
+        int barH = 10;
         int rx = width - 24 - barW;
-        int ry = height - 60;
+        int ry = height - 52;
 
         // Tier
-        String tierTxt = "УРОВЕНЬ ДОСТУПА " + ClientCameraHandler.tier;
+        String tierTxt = "ACCESS TIER " + ClientCameraHandler.tier;
         graphics.drawString(font, tierTxt, rx + (barW - font.width(tierTxt)) / 2, ry - 22, 0xFFE0F7FA, true);
 
         // EXP Bar
-        String expTxt = "ОПЫТ " + ClientCameraHandler.exp + " / " + ClientCameraHandler.nextExp;
+        String expTxt = "EXP " + ClientCameraHandler.exp + " / " + ClientCameraHandler.nextExp;
         renderFramedBar(graphics, font, rx, ry - 11, barW, barH, (float) ClientCameraHandler.exp / Math.max(1, ClientCameraHandler.nextExp), expTxt);
 
         // AP Bar
-        String apTitle = "ВСПОМОГАТ. ЭНЕРГИЯ";
-        graphics.drawString(font, apTitle, rx + (barW - font.width(apTitle)) / 2, ry + 3, 0xFFE0F7FA, true);
+        String apTitle = "AUXILIARY POWER (AP)";
+        graphics.drawString(font, apTitle, rx + (barW - font.width(apTitle)) / 2, ry + 2, 0xFFE0F7FA, true);
 
         String apTxt = (int) ClientCameraHandler.ap + " / " + (int) ClientCameraHandler.maxAp;
-        renderFramedBar(graphics, font, rx, ry + 14, barW, barH, ClientCameraHandler.ap / Math.max(1.0f, ClientCameraHandler.maxAp), apTxt);
+        renderFramedBar(graphics, font, rx, ry + 13, barW, barH, ClientCameraHandler.ap / Math.max(1.0f, ClientCameraHandler.maxAp), apTxt);
     }
 
     private void renderFramedBar(GuiGraphics graphics, Font font, int x, int y, int w, int h, float ratio, String label) {
         ratio = Math.max(0.0f, Math.min(1.0f, ratio));
-        graphics.fill(x, y, x + w, y + h, 0xAA020712);
+        graphics.fill(x, y, x + w, y + h, 0x88000000);
 
         int fillW = (int) ((w - 2) * ratio);
         if (fillW > 0) {
@@ -391,15 +427,15 @@ public class Scp079MapScreen extends Screen {
 
             if (focusedRoom.zone == activeZone) {
                 String prompt = !focusedRoom.linkedCameras.isEmpty() ?
-                        "[LMB / SPACE] " + focusedRoom.roomName + " (0 AP)" :
-                        "[ " + focusedRoom.roomName + " ] (НЕТ КАМЕРЫ)";
-                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, 0xFFE0F7FA, true);
+                        "[LMB / SPACE] " + focusedRoom.roomName.toUpperCase() + " (0 AP)" :
+                        "[ " + focusedRoom.roomName.toUpperCase() + " ] (NO CAMERA)";
+                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 14, 0xFFE0F7FA, true);
             } else {
                 String prompt = !focusedRoom.linkedCameras.isEmpty() ?
-                        "[LMB / SPACE] " + focusedRoom.zone.name() + ": " + focusedRoom.roomName + " (" + cost + " AP)" :
-                        "[ " + focusedRoom.zone.name() + ": " + focusedRoom.roomName + " ] (" + cost + " AP)";
+                        "[LMB / SPACE] " + focusedRoom.zone.name() + ": " + focusedRoom.roomName.toUpperCase() + " (" + cost + " AP)" :
+                        "[ " + focusedRoom.zone.name() + ": " + focusedRoom.roomName.toUpperCase() + " ] (" + cost + " AP)";
                 int promptCol = canAfford ? 0xFFFFCC00 : 0xFFFF4444;
-                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 22, promptCol, true);
+                graphics.drawString(font, prompt, cx - (font.width(prompt) / 2), cy + 14, promptCol, true);
             }
         }
     }
@@ -411,34 +447,20 @@ public class Scp079MapScreen extends Screen {
             if (activeCam != null) activeZone = activeCam.getZone();
         }
 
-        renderSectorConduits(graphics, font, cx, cy);
-
         focusedRoom = null;
-        double closestDistSq = 42.0 * 42.0;
+        double closestDistSq = 18.0 * 18.0;
 
         for (FacilityZone zone : FacilityZone.values()) {
             boolean isCurrentZone = (zone == activeZone);
             int zoneOx = getZoneOffsetX(zone);
             int zoneOy = getZoneOffsetY(zone);
 
-            // Sector Title Banner
-            int sX = cx + (int) panX + zoneOx - 28;
-            int sY = cy + (int) panY + zoneOy - 70;
-            String sectorTitle = switch (zone) {
-                case LCZ -> "[ SECTOR 01 // LIGHT CONTAINMENT ZONE (LCZ) ]";
-                case HCZ -> "[ SECTOR 02 // HEAVY CONTAINMENT ZONE (HCZ) ]";
-                case EZ -> "[ SECTOR 03 // ENTRANCE ZONE (EZ) ]";
-                case SURFACE -> "[ SECTOR 04 // SURFACE LEVEL (SURFACE) ]";
-            };
-            int sCol = isCurrentZone ? 0xFF00E5FF : 0x5500E5FF;
-            graphics.drawString(font, sectorTitle, sX, sY, sCol, false);
-
             List<FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRoomsInZone(zone);
             for (FacilityNetworkManager.RoomNode room : rooms) {
-                int nodeW = 54;
-                int nodeH = 38;
-                int nodeX = cx + (int) panX + zoneOx + (room.gridX * 72) - (nodeW / 2);
-                int nodeY = cy + (int) panY + zoneOy + (room.gridY * 54) - (nodeH / 2);
+                int nodeW = NODE_W;
+                int nodeH = NODE_H;
+                int nodeX = cx + (int) panX + zoneOx + (room.gridX * CELL_STEP_X) - (nodeW / 2);
+                int nodeY = cy + (int) panY + zoneOy + (room.gridY * CELL_STEP_Y) - (nodeH / 2);
 
                 int cellCenterX = nodeX + (nodeW / 2);
                 int cellCenterY = nodeY + (nodeH / 2);
@@ -458,38 +480,6 @@ public class Scp079MapScreen extends Screen {
         }
     }
 
-    private void renderSectorConduits(GuiGraphics graphics, Font font, int cx, int cy) {
-        int hczX = cx + (int) panX + getZoneOffsetX(FacilityZone.HCZ);
-        int hczY = cy + (int) panY + getZoneOffsetY(FacilityZone.HCZ);
-
-        int lczX = cx + (int) panX + getZoneOffsetX(FacilityZone.LCZ);
-        int lczY = cy + (int) panY + getZoneOffsetY(FacilityZone.LCZ);
-
-        int ezX = cx + (int) panX + getZoneOffsetX(FacilityZone.EZ);
-        int ezY = cy + (int) panY + getZoneOffsetY(FacilityZone.EZ);
-
-        int surX = cx + (int) panX + getZoneOffsetX(FacilityZone.SURFACE);
-        int surY = cy + (int) panY + getZoneOffsetY(FacilityZone.SURFACE);
-
-        // 1. LCZ <---> HCZ Elevator Shaft (Vertical connection)
-        for (int y = hczY + 40; y < lczY - 40; y += 8) {
-            graphics.fill(hczX - 1, y, hczX + 1, y + 4, 0x3300E5FF);
-        }
-        graphics.drawString(font, "▲ ELEVATOR SHAFTS A / B ▼", hczX - 68, (hczY + lczY) / 2 - 4, 0x4481D4FA, false);
-
-        // 2. HCZ <---> EZ Checkpoint Gates (Horizontal connection)
-        for (int x = hczX + 60; x < ezX - 60; x += 8) {
-            graphics.fill(x, hczY - 1, x + 4, hczY + 1, 0x3300E5FF);
-        }
-        graphics.drawString(font, "◄ CHECKPOINTS A / B ►", (hczX + ezX) / 2 - 58, hczY - 12, 0x4481D4FA, false);
-
-        // 3. EZ <---> SURFACE Elevators (Vertical connection)
-        for (int y = surY + 40; y < ezY - 40; y += 8) {
-            graphics.fill(ezX - 1, y, ezX + 1, y + 4, 0x3300E5FF);
-        }
-        graphics.drawString(font, "▲ GATE A / B ELEVATORS ▼", ezX - 68, (surY + ezY) / 2 - 4, 0x4481D4FA, false);
-    }
-
     private void renderScpSlRoom(GuiGraphics graphics, Font font, int x, int y, int w, int h,
                                  FacilityNetworkManager.RoomNode room, boolean isCurrent, boolean isFocused, boolean isCurrentZone) {
         RoomShape shape = room.roomShape != null ? room.roomShape : RoomShape.SQUARE;
@@ -504,8 +494,8 @@ public class Scp079MapScreen extends Screen {
         int scanlineCol;
 
         if (isCurrentZone) {
-            bgCol = isCurrent ? 0xFF00C882 : (isFocused ? 0xFF1D78B2 : 0xFF125884);
-            frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF186494);
+            bgCol = isCurrent ? 0xFF00A86B : (isFocused ? 0xFF125884 : 0xFF072A42);
+            frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF1D8CB2);
             scanlineCol = isCurrent ? 0x22FFFFFF : 0x1A00E5FF;
 
             if (room.isGeneratorBooting) {
@@ -515,14 +505,14 @@ public class Scp079MapScreen extends Screen {
             }
         } else {
             // Fog of War for foreign zones
-            bgCol = isFocused ? 0xFF1A3850 : 0xFF081826;
+            bgCol = isFocused ? 0xFF1A3850 : 0xFF081420;
             frameCol = isFocused ? 0xFFFFCC00 : 0xFF0E3854;
             scanlineCol = 0x0A00E5FF;
         }
 
         int midX = x + (w / 2);
         int midY = y + (h / 2);
-        int armW = 16;
+        int armW = ARM_W;
 
         if (!room.customPolygon.isEmpty()) {
             FacilityNetworkManager.fillPolygonWithScanlines(graphics, midX, midY, room.customPolygon, bgCol, scanlineCol, frameCol);
@@ -566,7 +556,7 @@ public class Scp079MapScreen extends Screen {
                     fillWithScanlines(graphics, x, y, x + armW, y + h, bgCol, scanlineCol);
                     fillWithScanlines(graphics, x + armW, midY - armW / 2, x + w, midY + armW / 2, bgCol, scanlineCol);
                     graphics.fill(x, y, x + 1, y + h, frameCol);
-                    graphics.fill(x, y, x + armW, y + 1, frameCol);
+                    graphics.fill(x, y + armW, y + 1, frameCol);
                     graphics.fill(x, y + h - 1, x + armW, y + h, frameCol);
                     graphics.fill(x + w - 1, midY - armW / 2, x + w, midY + armW / 2, frameCol);
                     graphics.fill(x + armW, midY - armW / 2, x + w, midY - armW / 2 + 1, frameCol);
@@ -657,14 +647,14 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(x + w - 1, y, x + w, y + h, frameCol);
 
                 // Double airlock gate indicator bars
-                graphics.fill(midX - 12, y + 2, midX - 10, y + h - 2, 0xFFFFCC00);
-                graphics.fill(midX + 10, y + 2, midX + 12, y + h - 2, 0xFFFFCC00);
+                graphics.fill(midX - 4, y + 1, midX - 3, y + h - 1, 0xFFFFCC00);
+                graphics.fill(midX + 3, y + 1, midX + 4, y + h - 1, 0xFFFFCC00);
             }
             case END_ROOM, ELEVATOR, CHECKPOINT -> {
-                int rx = x + 4;
-                int ry = y + 4;
-                int rw = w - 8;
-                int rh = h - 8;
+                int rx = x + 2;
+                int ry = y + 2;
+                int rw = w - 4;
+                int rh = h - 4;
                 fillWithScanlines(graphics, rx, ry, rx + rw, ry + rh, bgCol, scanlineCol);
                 graphics.fill(rx, ry, rx + rw, ry + 1, frameCol);
                 graphics.fill(rx, ry + rh - 1, rx + rw, ry + rh, frameCol);
@@ -672,7 +662,7 @@ public class Scp079MapScreen extends Screen {
                 graphics.fill(rx + rw - 1, ry, rx + rw, ry + rh, frameCol);
 
                 if (shape == RoomShape.ELEVATOR || shape == RoomShape.CHECKPOINT) {
-                    graphics.fill(midX - 4, midY + 2, midX + 4, midY + 4, 0xFFFF4444);
+                    graphics.fill(midX - 2, midY - 1, midX + 2, midY + 1, 0xFFFF4444);
                 }
             }
             default -> { // SQUARE Hub
@@ -685,61 +675,17 @@ public class Scp079MapScreen extends Screen {
             }
         }
 
-        // Clean compact Room Title Text centered inside Room
-        String name = room.roomName;
-        if (name != null && !name.trim().isEmpty()) {
-            name = name.trim();
-            int textCol = isCurrent ? 0xFF021B14 : (isCurrentZone ? 0xFFE0F7FA : 0x8890CAF9);
-
-            String[] parts = name.split("\\s+");
-            String line1 = "";
-            String line2 = "";
-
-            if (parts.length == 1) {
-                if (name.length() > 8) {
-                    line1 = name.substring(0, 7);
-                    line2 = name.substring(7);
-                    if (line2.length() > 7) line2 = line2.substring(0, 6) + ".";
-                } else {
-                    line1 = name;
-                }
-            } else if (parts.length == 2) {
-                line1 = parts[0];
-                line2 = parts[1];
-                if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
-                if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
-            } else {
-                line1 = parts[0];
-                StringBuilder sb = new StringBuilder();
-                for (int i = 1; i < parts.length; i++) {
-                    if (sb.length() > 0) sb.append(" ");
-                    sb.append(parts[i]);
-                }
-                line2 = sb.toString();
-                if (line1.length() > 8) line1 = line1.substring(0, 7) + ".";
-                if (line2.length() > 8) line2 = line2.substring(0, 7) + ".";
-            }
-
-            if (!line2.isEmpty()) {
-                int tw1 = font.width(line1);
-                int tw2 = font.width(line2);
-                graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, textCol, false);
-                graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, textCol, false);
-            } else {
-                int tw = font.width(line1);
-                graphics.drawString(font, line1, midX - (tw / 2), midY - 4, textCol, false);
-            }
-        }
-
+        // Minimalist Directional Transition Marker
         if (isTransit) {
             FacilityZone dest = getDefaultDestination(room);
-            String transitLabel = (room.roomShape == RoomShape.ELEVATOR ? "▲▼ " : "⮂ ") + dest.name();
-            graphics.drawString(font, transitLabel, midX - (font.width(transitLabel) / 2), midY + 9, 0xFFFFCC00, false);
+            String transitLabel = (room.roomShape == RoomShape.ELEVATOR ? "▲ " : "=> ") + dest.name();
+            int tlw = font.width(transitLabel);
+            graphics.drawString(font, transitLabel, midX - (tlw / 2), y + h + 2, 0xFFFFCC00, false);
         }
 
-        // If active camera: draw small red camera symbol
+        // If player active camera: render small green camera dot
         if (isCurrent) {
-            graphics.fill(midX - 3, midY + 6, midX + 3, midY + 8, 0xFFFF3333);
+            graphics.fill(midX - 2, midY - 2, midX + 2, midY + 2, 0xFF00FF88);
         }
     }
 

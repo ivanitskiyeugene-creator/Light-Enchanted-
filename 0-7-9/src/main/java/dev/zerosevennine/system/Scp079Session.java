@@ -16,12 +16,18 @@ public class Scp079Session {
     public static class LogEntry {
         public String message;
         public int colorRgb;
-        public long tickCreated;
+        public long timestampMs;
 
-        public LogEntry(String message, int colorRgb, long tickCreated) {
+        public LogEntry(String message, int colorRgb) {
             this.message = message;
             this.colorRgb = colorRgb;
-            this.tickCreated = tickCreated;
+            this.timestampMs = System.currentTimeMillis();
+        }
+
+        public LogEntry(String message, int colorRgb, long timestampMs) {
+            this.message = message;
+            this.colorRgb = colorRgb;
+            this.timestampMs = timestampMs;
         }
     }
 

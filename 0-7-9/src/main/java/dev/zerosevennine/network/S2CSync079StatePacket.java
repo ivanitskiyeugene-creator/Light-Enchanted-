@@ -73,7 +73,7 @@ public class S2CSync079StatePacket {
         for (int i = 0; i < logCount; i++) {
             String m = buf.readUtf();
             int c = buf.readInt();
-            logs.add(new Scp079Session.LogEntry(m, c, 0));
+            logs.add(new Scp079Session.LogEntry(m, c, System.currentTimeMillis()));
         }
 
         return new S2CSync079StatePacket(active, camPos, tier, exp, nextExp, ap, maxAp, apRegen, breachScanner, logs);

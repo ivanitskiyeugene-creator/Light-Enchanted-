@@ -219,7 +219,22 @@ public class ClientCameraHandler {
         maxAp = mAp;
         apRegen = regen;
         breachScannerActive = breachScanner;
-        logs = l;
+
+        long now = System.currentTimeMillis();
+        List<Scp079Session.LogEntry> updatedLogs = new ArrayList<>();
+        if (l != null) {
+            for (Scp079Session.LogEntry newEntry : l) {
+                long existingTime = now;
+                for (Scp079Session.LogEntry oldEntry : logs) {
+                    if (oldEntry.message.equals(newEntry.message) && oldEntry.colorRgb == newEntry.colorRgb) {
+                        existingTime = oldEntry.timestampMs;
+                        break;
+                    }
+                }
+                updatedLogs.add(new Scp079Session.LogEntry(newEntry.message, newEntry.colorRgb, existingTime));
+            }
+        }
+        logs = updatedLogs;
 
         if (active && (!hasInitialAngles || cameraChanged || !wasIn079)) {
             updateInitialCameraAngles();

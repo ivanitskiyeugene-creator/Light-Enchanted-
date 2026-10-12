@@ -5,6 +5,7 @@ import dev.zerosevennine.ZeroSevenNine;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
+import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,6 +13,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -63,6 +65,9 @@ public class Scp079CameraOverlay {
 
         // 8. Bottom-Right Resource Panel: Access Tier, EXP Bar, Auxiliary Power Bar
         renderBottomRightResources(graphics, font, width, height);
+
+        // 9. Bottom-Left Ephemeral Notifications (fading to 0 alpha after 3-5 seconds)
+        renderBottomLeftNotifications(graphics, font, height);
     }
 
     private static void renderInterZoneTransition(GuiGraphics graphics, Font font, int width, int height, Minecraft mc) {
@@ -229,7 +234,7 @@ public class Scp079CameraOverlay {
             cam = cbe;
         }
 
-        String roomName = cam != null ? cam.getCameraName() : "HCZ THREE-WAY";
+        String roomName = cam != null ? cam.getCameraName() : "FACILITY FEED";
         int lx = 32;
         int ly = 28;
 
@@ -328,12 +333,39 @@ public class Scp079CameraOverlay {
         renderProgressBar(graphics, font, rx, ry - 11, barW, barH, (float) ClientCameraHandler.exp / Math.max(1, ClientCameraHandler.nextExp), expTxt);
 
         // 3. Auxiliary Power Title
-        String apTitle = "AUXILIARY POWER";
+        String apTitle = "AUXILIARY POWER (AP)";
         graphics.drawString(font, apTitle, rx + (barW - font.width(apTitle)) / 2, ry + 2, TEXT_COLOR, true);
 
         // 4. Auxiliary Power Bar
         String apTxt = (int) ClientCameraHandler.ap + " / " + (int) ClientCameraHandler.maxAp;
         renderProgressBar(graphics, font, rx, ry + 13, barW, barH, ClientCameraHandler.ap / Math.max(1.0f, ClientCameraHandler.maxAp), apTxt);
+    }
+
+    private static void renderBottomLeftNotifications(GuiGraphics graphics, Font font, int height) {
+        long now = System.currentTimeMillis();
+        List<Scp079Session.LogEntry> logs = ClientCameraHandler.logs;
+        if (logs.isEmpty()) return;
+
+        int ly = height - 28;
+        int lx = 32;
+        int drawn = 0;
+
+        for (int i = logs.size() - 1; i >= 0 && drawn < 5; i--) {
+            Scp079Session.LogEntry e = logs.get(i);
+            long age = now - e.timestampMs;
+            if (age > 4500) continue; // Expired after 4.5 seconds
+
+            float alpha = 1.0f;
+            if (age > 3200) {
+                alpha = 1.0f - ((float) (age - 3200) / 1300.0f);
+            }
+            int a = (int) (Math.max(0.0f, Math.min(1.0f, alpha)) * 255.0f);
+            if (a <= 5) continue;
+
+            int col = (a << 24) | (e.colorRgb & 0x00FFFFFF);
+            graphics.drawString(font, "> " + e.message, lx, ly - (drawn * 11), col, false);
+            drawn++;
+        }
     }
 
     private static void renderProgressBar(GuiGraphics graphics, Font font, int x, int y, int w, int h, float ratio, String centerText) {
