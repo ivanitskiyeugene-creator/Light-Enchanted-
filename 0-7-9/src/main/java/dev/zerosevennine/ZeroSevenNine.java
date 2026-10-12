@@ -44,4 +44,18 @@ public class ZeroSevenNine {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         Scp079Commands.register(event.getDispatcher());
     }
+
+    @SubscribeEvent
+    public void onServerStarting(net.minecraftforge.event.server.ServerStartingEvent event) {
+        if (event.getServer() != null && event.getServer().overworld() != null) {
+            dev.zerosevennine.facility.FacilityMapSavedData.get(event.getServer().overworld());
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerLoggedIn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            ModNetwork.sendFacilityMapToClient(player);
+        }
+    }
 }

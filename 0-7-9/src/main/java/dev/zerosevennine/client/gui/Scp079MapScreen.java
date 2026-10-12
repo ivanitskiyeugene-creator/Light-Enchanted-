@@ -6,6 +6,7 @@ import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.facility.FacilityZone;
 import dev.zerosevennine.facility.RoomShape;
+import dev.zerosevennine.network.C2SRequestMapSyncPacket;
 import dev.zerosevennine.network.C2SSwitchCameraPacket;
 import dev.zerosevennine.network.ModNetwork;
 import dev.zerosevennine.system.Scp079Session;
@@ -45,7 +46,7 @@ public class Scp079MapScreen extends Screen {
     private FacilityZone viewingZone = FacilityZone.HCZ;
 
     public Scp079MapScreen() {
-        super(Component.literal("Tactical Facility Map"));
+        super(Component.literal("Тактическая карта комплекса"));
     }
 
     @Override
@@ -55,6 +56,9 @@ public class Scp079MapScreen extends Screen {
         this.focusedRoom = null;
         this.lastMouseX = -1;
         this.lastMouseY = -1;
+
+        // Immediately request fresh map data from server
+        ModNetwork.CHANNEL.sendToServer(new C2SRequestMapSyncPacket());
 
         // Determine active zone from current camera
         if (ClientCameraHandler.activeCameraPos != null) {
@@ -77,7 +81,7 @@ public class Scp079MapScreen extends Screen {
             }
         }
 
-        // Unrestricted mouse movement mode (infinite panning without screen edge blocking)
+        // Unrestricted raw mouse motion (never hits screen edges)
         if (this.minecraft != null && this.minecraft.getWindow() != null) {
             GLFW.glfwSetInputMode(this.minecraft.getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
         }
@@ -234,7 +238,7 @@ public class Scp079MapScreen extends Screen {
         int cx = width / 2;
         int cy = height / 2;
 
-        // Dark CRT Background
+        // Dark CRT Blue Background
         graphics.fill(0, 0, width, height, 0xFF020712);
 
         // CRT Scanline Raster
@@ -246,10 +250,10 @@ public class Scp079MapScreen extends Screen {
 
         Font font = this.font;
 
-        // 1. Vector Schematic Map (Strictly isolated for facility rooms, zone title floating above zone)
+        // 1. Vector Schematic Map (Zone titles hover naturally above their respective room clusters)
         renderSchematicMap(graphics, font, cx, cy);
 
-        // 2. Top Left Lifeform Status Counters
+        // 2. Top Left Lifeform Status Counters (Authentic Russian translation)
         renderLeftLifeformCounters(graphics, font);
 
         // 3. Bottom Left Ephemeral Event Log Feed
@@ -258,7 +262,7 @@ public class Scp079MapScreen extends Screen {
         // 4. Bottom Right Access Tier & AP Bars
         renderBottomRightResources(graphics, font);
 
-        // 5. Fixed Screen Center Reticle
+        // 5. Center Reticle
         renderCenterReticle(graphics, font, cx, cy);
 
         super.render(graphics, mouseX, mouseY, partialTick);
@@ -295,8 +299,10 @@ public class Scp079MapScreen extends Screen {
         graphics.drawString(font, "ВСЕГО ФОРМ ЖИЗНИ: " + Math.max(1, totalLifeforms), lx, ly, 0xFFE0F7FA, true);
         graphics.drawString(font, "ЦЕЛИ: " + Math.max(1, targets), lx, ly + 11, 0xFFE0F7FA, true);
         graphics.drawString(font, "SCP ОБЪЕКТЫ: " + scps, lx, ly + 22, 0xFFE0F7FA, true);
-        graphics.drawString(font, "ГРАЖДАНСКИЙ: " + Math.max(1, civilians), lx, ly + 33, 0xFF80DEEA, false);
-        graphics.drawString(font, "ВОЕННЫЙ: " + military, lx, ly + 44, 0xFF80DEEA, false);
+        graphics.drawString(font, "СИЛЫ ФОНДА: " + military, lx, ly + 33, 0xFF81D4FA, false);
+        graphics.drawString(font, "ПОВСТАНЦЫ ХАОСА: 0", lx, ly + 44, 0xFF81D4FA, false);
+        graphics.drawString(font, "НАУЧНЫЕ СОТРУДНИКИ: " + (civilians / 2), lx, ly + 55, 0xFF81D4FA, false);
+        graphics.drawString(font, "ПЕРСОНАЛ КЛАССА D: " + Math.max(1, civilians - (civilians / 2)), lx, ly + 66, 0xFF81D4FA, false);
 
         // Active / Hovered Room Name below counters (Top-Left)
         String activeRoomName = null;
@@ -308,7 +314,7 @@ public class Scp079MapScreen extends Screen {
         }
 
         if (activeRoomName != null && !activeRoomName.trim().isEmpty()) {
-            graphics.drawString(font, "> " + activeRoomName.toUpperCase(), lx, ly + 62, 0xFF00FF88, true);
+            graphics.drawString(font, "> " + activeRoomName.toUpperCase(), lx, ly + 84, 0xFF00FF88, true);
         }
     }
 
@@ -341,11 +347,11 @@ public class Scp079MapScreen extends Screen {
 
     private void renderBottomRightResources(GuiGraphics graphics, Font font) {
         int barW = 142;
-        int barH = 10;
+        int barH = 11;
         int rx = width - 24 - barW;
         int ry = height - 52;
 
-        // Tier
+        // Tier Title
         String tierTxt = "УРОВЕНЬ ДОСТУПА " + ClientCameraHandler.tier;
         graphics.drawString(font, tierTxt, rx + (barW - font.width(tierTxt)) / 2, ry - 22, 0xFFE0F7FA, true);
 
@@ -353,10 +359,11 @@ public class Scp079MapScreen extends Screen {
         String expTxt = "ОПЫТ " + ClientCameraHandler.exp + " / " + ClientCameraHandler.nextExp;
         renderFramedBar(graphics, font, rx, ry - 11, barW, barH, (float) ClientCameraHandler.exp / Math.max(1, ClientCameraHandler.nextExp), expTxt);
 
-        // AP Bar
+        // AP Bar Title
         String apTitle = "ВСПОМОГАТ. ЭНЕРГИЯ";
         graphics.drawString(font, apTitle, rx + (barW - font.width(apTitle)) / 2, ry + 2, 0xFFE0F7FA, true);
 
+        // AP Bar
         String apTxt = (int) ClientCameraHandler.ap + " / " + (int) ClientCameraHandler.maxAp;
         renderFramedBar(graphics, font, rx, ry + 13, barW, barH, ClientCameraHandler.ap / Math.max(1.0f, ClientCameraHandler.maxAp), apTxt);
     }
@@ -426,23 +433,44 @@ public class Scp079MapScreen extends Screen {
             int zoneOy = getZoneOffsetY(zone);
 
             List<FacilityNetworkManager.RoomNode> rooms = FacilityNetworkManager.getRoomsInZone(zone);
-            if (rooms.isEmpty()) continue;
 
-            // Calculate zone bounding box to render the zone title directly above its rooms
-            int minX = Integer.MAX_VALUE;
-            int maxX = Integer.MIN_VALUE;
-            int minY = Integer.MAX_VALUE;
+            // Calculate Bounding Box of rooms to position Floating Zone Title directly above
+            int minGx = 0, maxGx = 0, minGy = 0;
+            if (!rooms.isEmpty()) {
+                minGx = Integer.MAX_VALUE;
+                maxGx = Integer.MIN_VALUE;
+                minGy = Integer.MAX_VALUE;
+                for (FacilityNetworkManager.RoomNode r : rooms) {
+                    if (r.gridX < minGx) minGx = r.gridX;
+                    if (r.gridX > maxGx) maxGx = r.gridX;
+                    if (r.gridY < minGy) minGy = r.gridY;
+                }
+            }
 
+            // Floating Zone Header moving with zone schematics
+            int titleCenterX = cx + (int) panX + zoneOx + (((minGx + maxGx) * CELL_STEP_X) / 2);
+            int titleY = cy + (int) panY + zoneOy + (minGy * CELL_STEP_Y) - (NODE_H / 2) - 24;
+
+            String zoneTitle = switch (zone) {
+                case LCZ -> "ЗОНА ЛЁГКОГО СОДЕРЖАНИЯ";
+                case HCZ -> "ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ";
+                case EZ -> "ВХОДНАЯ ЗОНА";
+                case SURFACE -> "ЗОНА ПОВЕРХНОСТИ";
+            };
+
+            int titleCol = isCurrentZone ? 0xFF29B6F6 : 0x5529B6F6;
+            int tw = font.width(zoneTitle);
+            graphics.drawString(font, zoneTitle, titleCenterX - (tw / 2), titleY, titleCol, true);
+
+            // Render all rooms in zone
             for (FacilityNetworkManager.RoomNode room : rooms) {
-                int nodeX = cx + (int) panX + zoneOx + (room.gridX * CELL_STEP_X) - (NODE_W / 2);
-                int nodeY = cy + (int) panY + zoneOy + (room.gridY * CELL_STEP_Y) - (NODE_H / 2);
+                int nodeW = NODE_W;
+                int nodeH = NODE_H;
+                int nodeX = cx + (int) panX + zoneOx + (room.gridX * CELL_STEP_X) - (nodeW / 2);
+                int nodeY = cy + (int) panY + zoneOy + (room.gridY * CELL_STEP_Y) - (nodeH / 2);
 
-                if (nodeX < minX) minX = nodeX;
-                if (nodeX + NODE_W > maxX) maxX = nodeX + NODE_W;
-                if (nodeY < minY) minY = nodeY;
-
-                int cellCenterX = nodeX + (NODE_W / 2);
-                int cellCenterY = nodeY + (NODE_H / 2);
+                int cellCenterX = nodeX + (nodeW / 2);
+                int cellCenterY = nodeY + (nodeH / 2);
 
                 double distSq = (cellCenterX - cx) * (cellCenterX - cx) + (cellCenterY - cy) * (cellCenterY - cy);
 
@@ -454,23 +482,8 @@ public class Scp079MapScreen extends Screen {
                 boolean isCurrent = (ClientCameraHandler.activeCameraPos != null && room.linkedCameras.contains(ClientCameraHandler.activeCameraPos));
                 boolean isFocused = (room == focusedRoom);
 
-                renderScpSlRoom(graphics, font, nodeX, nodeY, NODE_W, NODE_H, room, isCurrent, isFocused, isCurrentZone);
+                renderScpSlRoom(graphics, font, nodeX, nodeY, nodeW, nodeH, room, isCurrent, isFocused, isCurrentZone);
             }
-
-            // Authentic Zone Header floating directly above the zone rooms in schematic space
-            String zoneTitle = switch (zone) {
-                case LCZ -> "ЗОНА ЛЁГКОГО СОДЕРЖАНИЯ";
-                case HCZ -> "ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ";
-                case EZ -> "ВХОДНАЯ ЗОНА";
-                case SURFACE -> "ПОВЕРХНОСТЬ";
-            };
-
-            int titleW = font.width(zoneTitle);
-            int zoneCenterX = (minX + maxX) / 2;
-            int titleY = minY - 28;
-            int titleCol = isCurrentZone ? 0xFF42A5F5 : 0x5542A5F5;
-
-            graphics.drawString(font, zoneTitle, zoneCenterX - (titleW / 2), titleY, titleCol, true);
         }
     }
 
@@ -488,8 +501,8 @@ public class Scp079MapScreen extends Screen {
         int scanlineCol;
 
         if (isCurrentZone) {
-            bgCol = isCurrent ? 0xFF00A86B : (isFocused ? 0xFF125884 : 0xFF072A42);
-            frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF1D8CB2);
+            bgCol = isCurrent ? 0xFF00C882 : (isFocused ? 0xFF1D78B2 : 0xFF125884);
+            frameCol = isCurrent ? 0xFF00FFB0 : (isFocused ? 0xFFFFFFFF : 0xFF186494);
             scanlineCol = isCurrent ? 0x22FFFFFF : 0x1A00E5FF;
 
             if (room.isGeneratorBooting) {
@@ -652,11 +665,14 @@ public class Scp079MapScreen extends Screen {
                 fillWithScanlines(graphics, rx, ry, rx + rw, ry + rh, bgCol, scanlineCol);
                 graphics.fill(rx, ry, rx + rw, ry + 1, frameCol);
                 graphics.fill(rx, ry + rh - 1, rx + rw, ry + rh, frameCol);
-                graphics.fill(rx, ry, rx + 1, ry + rh, frameCol);
+                graphics.fill(rx, ry + 1, rx + 1, ry + rh, frameCol);
                 graphics.fill(rx + rw - 1, ry, rx + rw, ry + rh, frameCol);
 
-                if (shape == RoomShape.ELEVATOR || shape == RoomShape.CHECKPOINT) {
-                    graphics.fill(midX - 4, midY - 2, midX + 4, midY + 2, 0xFFFF4444);
+                if (shape == RoomShape.ELEVATOR) {
+                    // Elevator arrow indicator
+                    graphics.drawString(font, "▲", midX - 3, midY - 12, 0xFF00FF88, false);
+                } else if (shape == RoomShape.CHECKPOINT) {
+                    graphics.fill(midX - 8, midY - 2, midX + 8, midY + 2, 0xFFFFCC00);
                 }
             }
             default -> { // SQUARE Hub
@@ -669,7 +685,7 @@ public class Scp079MapScreen extends Screen {
             }
         }
 
-        // Clean authentic Room Name Text centered inside Room Box
+        // Clean Room Title centered inside Room Outline Box (1:1 with authentic SCP:SL screenshot)
         String name = room.roomName;
         if (name != null && !name.trim().isEmpty()) {
             name = name.trim().toUpperCase();
@@ -685,26 +701,14 @@ public class Scp079MapScreen extends Screen {
                 graphics.drawString(font, parts[0], midX - (tw1 / 2), midY - 8, textCol, false);
                 graphics.drawString(font, parts[1], midX - (tw2 / 2), midY + 1, textCol, false);
             } else {
-                String line1 = parts[0];
-                String line2 = parts[1] + " " + parts[2];
-                int tw1 = font.width(line1);
-                int tw2 = font.width(line2);
-                graphics.drawString(font, line1, midX - (tw1 / 2), midY - 8, textCol, false);
-                graphics.drawString(font, line2, midX - (tw2 / 2), midY + 1, textCol, false);
+                int tw = font.width(parts[0]);
+                graphics.drawString(font, parts[0], midX - (tw / 2), midY - 4, textCol, false);
             }
         }
 
-        // Minimalist Directional Transition Marker
-        if (isTransit) {
-            FacilityZone dest = getDefaultDestination(room);
-            String transitLabel = (room.roomShape == RoomShape.ELEVATOR ? "▲ " : "=> ") + dest.name();
-            int tlw = font.width(transitLabel);
-            graphics.drawString(font, transitLabel, midX - (tlw / 2), y + h + 2, 0xFFFFCC00, false);
-        }
-
-        // If player active camera: render small green camera dot
+        // If player active camera: render small bright red camera indicator dot
         if (isCurrent) {
-            graphics.fill(midX - 3, midY - 3, midX + 3, midY + 3, 0xFF00FF88);
+            graphics.fill(midX - 3, midY + 8, midX + 3, midY + 10, 0xFFFF3333);
         }
     }
 
