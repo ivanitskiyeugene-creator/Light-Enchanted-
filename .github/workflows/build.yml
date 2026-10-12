@@ -55,7 +55,7 @@ jobs:
             exit 1
           }
 
-      - name: Build SECRET LAB: CUBED (SLC)
+      - name: "Build SECRET LAB: CUBED (SLC)"
         shell: bash
         run: |
           cd slc
