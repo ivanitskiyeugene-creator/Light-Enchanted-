@@ -244,7 +244,7 @@ public class FacilityMapAutoBuilder {
                     C2SEditMapRoomPacket.Action.PLACE_OR_UPDATE,
                     node.zone, node.gridX, node.gridY, node.roomName,
                     node.roomShape, node.rotation, node.hasGenerator,
-                    node.targetZone, node.customPolygon, node.linkedCameras
+                    node.targetZone, null, node.gridX, node.gridY, node.customPolygon, node.linkedCameras
             ));
         }
     }
