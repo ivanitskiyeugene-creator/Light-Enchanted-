@@ -102,15 +102,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "latest-build"
-          name: "Latest Build (SLC, 0-7-9, Snow - SCPied, Light Enchanted)"
+          name: "Latest Build"
           body: |
             Continuous build from commit `${{ github.sha }}` on branch `${{ github.ref_name }}`.
             
             ### Included Mod Jars:
-            - **SECRET LAB: CUBED (SLC)** (`slc-*.jar`) — Round engine, roles, CASSIE announcer & SCP-939 mimicry.
-            - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod & CCTV shaders.
-            - **Snow - SCPied** (`snow_scpied-*.jar`) — Dynamic snow accumulation & physical footprints/blood.
-            - **Light Enchanted** (`lightenchanted-*.jar`) — Volumetric lighting & Simple Ray Tracing (STR).
+            - **SECRET LAB - CUBED** (`slc-*.jar`) — Round engine, roles, CASSIE announcer and SCP-939 mimicry.
+            - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod and CCTV shaders.
+            - **Snow - SCPied** (`snow_scpied-*.jar`) — Dynamic snow accumulation and physical footprints/blood.
+            - **Light Enchanted** (`lightenchanted-*.jar`) — Volumetric lighting and Simple Ray Tracing (STR).
           draft: false
           prerelease: false
           files: |
