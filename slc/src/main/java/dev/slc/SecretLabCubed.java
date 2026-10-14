@@ -2,7 +2,17 @@ package dev.slc;
 
 import dev.slc.command.SlcCommands;
 import dev.slc.config.SlcConfig;
+import dev.slc.init.ModBlockEntities;
+import dev.slc.init.ModBlocks;
+import dev.slc.init.ModCreativeTabs;
+import dev.slc.init.ModItems;
+import dev.slc.init.ModSounds;
 import dev.slc.round.RoundEngine;
+import dev.slc.round.RoundState;
+import dev.slc.zone.SpatialZoneManager;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
@@ -25,6 +35,13 @@ public class SecretLabCubed {
 
     public SecretLabCubed() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        ModBlocks.BLOCKS.register(modEventBus);
+        ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
+        ModItems.ITEMS.register(modEventBus);
+        ModSounds.SOUNDS.register(modEventBus);
+        ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+
         modEventBus.addListener(this::commonSetup);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SlcConfig.COMMON_SPEC);
@@ -33,7 +50,7 @@ public class SecretLabCubed {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
-        LOGGER.info("[SLC] SECRET LAB: CUBED Round Orchestrator initialized.");
+        LOGGER.info("[SLC] SECRET LAB: CUBED Round Orchestrator & Elevator System initialized.");
     }
 
     @SubscribeEvent
@@ -52,6 +69,23 @@ public class SecretLabCubed {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             RoundEngine.tick();
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerTick(TickEvent.PlayerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END && !event.player.level().isClientSide && event.player instanceof ServerPlayer serverPlayer) {
+            if (RoundEngine.getState() == RoundState.IN_PROGRESS && serverPlayer.gameMode.getGameModeForPlayer() != GameType.SPECTATOR) {
+                // Check surface escape zone
+                if (serverPlayer.tickCount % 20 == 0) {
+                    SpatialZoneManager zoneMgr = SpatialZoneManager.get(serverPlayer.serverLevel());
+                    AABB escapeZone = zoneMgr.getEscapeZone();
+                    if (escapeZone != null && escapeZone.contains(serverPlayer.position())) {
+                        boolean isTied = false; // Tied status integration
+                        RoundEngine.handlePlayerEscape(serverPlayer, isTied);
+                    }
+                }
+            }
         }
     }
 

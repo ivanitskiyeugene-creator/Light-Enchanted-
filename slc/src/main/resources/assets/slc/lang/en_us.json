@@ -1,5 +1,11 @@
 {
   "mod.slc.name": "SECRET LAB: CUBED",
+  "itemGroup.slc.slc_tab": "SECRET LAB: CUBED",
+  "block.slc.elevator_button": "Elevator Call Button",
+  "item.slc.elevator_button": "Elevator Call Button",
+  "item.slc.spatial_marker_wand": "Spatial Marker Tool",
+  "item.slc.elevator_linker": "Elevator Linker",
+  "subtitles.slc.elevator_moving": "Elevator Moving",
   "team.slc.class_d": "Class-D Personnel",
   "team.slc.scientists": "Scientists",
   "team.slc.foundation": "Mobile Task Force",

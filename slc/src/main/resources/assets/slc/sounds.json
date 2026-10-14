@@ -1,0 +1,9 @@
+{
+  "elevator_moving": {
+    "category": "block",
+    "subtitle": "subtitles.slc.elevator_moving",
+    "sounds": [
+      "slc:elevator_moving"
+    ]
+  }
+}

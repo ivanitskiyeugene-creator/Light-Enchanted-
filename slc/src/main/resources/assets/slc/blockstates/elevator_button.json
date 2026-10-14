@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "slc:block/elevator_button" },
+    "facing=south": { "model": "slc:block/elevator_button", "y": 180 },
+    "facing=west":  { "model": "slc:block/elevator_button", "y": 270 },
+    "facing=east":  { "model": "slc:block/elevator_button", "y": 90 }
+  }
+}

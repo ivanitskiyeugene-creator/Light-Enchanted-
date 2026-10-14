@@ -1,5 +1,11 @@
 {
   "mod.slc.name": "SECRET LAB: CUBED",
+  "itemGroup.slc.slc_tab": "SECRET LAB: CUBED",
+  "block.slc.elevator_button": "Кнопка Вызова Лифта",
+  "item.slc.elevator_button": "Кнопка Вызова Лифта",
+  "item.slc.spatial_marker_wand": "Инструмент Разметки Зон",
+  "item.slc.elevator_linker": "Связчик Лифтов (Linker)",
+  "subtitles.slc.elevator_moving": "Движение лифта",
   "team.slc.class_d": "Персонал Класса D",
   "team.slc.scientists": "Научный Персонал",
   "team.slc.foundation": "Мобильная Опергруппа",

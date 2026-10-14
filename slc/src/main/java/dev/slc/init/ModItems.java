@@ -1,0 +1,24 @@
+package dev.slc.init;
+
+import dev.slc.SecretLabCubed;
+import dev.slc.item.ElevatorLinkerItem;
+import dev.slc.item.SpatialMarkerWandItem;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
+
+public class ModItems {
+    public static final DeferredRegister<Item> ITEMS =
+            DeferredRegister.create(ForgeRegistries.ITEMS, SecretLabCubed.MOD_ID);
+
+    public static final RegistryObject<Item> ELEVATOR_BUTTON = ITEMS.register("elevator_button",
+            () -> new BlockItem(ModBlocks.ELEVATOR_BUTTON.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> SPATIAL_MARKER_WAND = ITEMS.register("spatial_marker_wand",
+            () -> new SpatialMarkerWandItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> ELEVATOR_LINKER = ITEMS.register("elevator_linker",
+            () -> new ElevatorLinkerItem(new Item.Properties().stacksTo(1)));
+}
