@@ -172,15 +172,65 @@ public class RoundEngine {
                 roundElapsedTicks++;
                 DecontaminationManager.tick(roundElapsedTicks);
                 AlphaWarheadManager.tick();
+                if (roundElapsedTicks % 10 == 0) {
+                    syncSpectatorData();
+                }
                 checkWinConditions();
             }
             case WARHEAD_DETONATING -> {
                 roundElapsedTicks++;
                 AlphaWarheadManager.tick();
+                if (roundElapsedTicks % 10 == 0) {
+                    syncSpectatorData();
+                }
                 checkWinConditions();
             }
             default -> {}
         }
+    }
+
+    private static void syncSpectatorData() {
+        if (server == null) return;
+        List<dev.slc.spectator.SpectatorTargetInfo> targets = new ArrayList<>();
+        int aliveMtf = 0;
+        int aliveChaos = 0;
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.isAlive() && player.gameMode.getGameModeForPlayer() != GameType.SPECTATOR) {
+                Role role = getPlayerRole(player.getUUID());
+                if (role != Role.SPECTATOR) {
+                    float hp = player.getHealth();
+                    float maxHp = (float) role.getMaxHealth();
+                    float maxHs = (float) role.getMaxHumeShield();
+                    float hs = maxHs > 0 ? maxHs * (hp / maxHp) : 0f;
+
+                    targets.add(new dev.slc.spectator.SpectatorTargetInfo(
+                            player.getUUID(),
+                            player.getScoreboardName(),
+                            role,
+                            hp,
+                            maxHp,
+                            hs,
+                            maxHs
+                    ));
+
+                    if (role.getTeam() == Team.FOUNDATION_FORCES || role.getTeam() == Team.SCIENTISTS) {
+                        aliveMtf++;
+                    } else if (role.getTeam() == Team.CHAOS_INSURGENCY || role.getTeam() == Team.CLASS_D_PERSONNEL) {
+                        aliveChaos++;
+                    }
+                }
+            }
+        }
+
+        float mtfTokens = Math.max(0.1f, aliveMtf + freeScientistEscapes * 2.0f);
+        float chaosTokens = Math.max(0.1f, aliveChaos + freeClassDEscapes * 2.0f);
+        float total = mtfTokens + chaosTokens;
+        float mtfRatio = mtfTokens / total;
+        float chaosRatio = chaosTokens / total;
+
+        dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncRoundStatePacket(state, roundElapsedTicks, mtfRatio, chaosRatio));
+        dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncSpectatorDataPacket(targets));
     }
 
     private static void assignInitialRoles() {

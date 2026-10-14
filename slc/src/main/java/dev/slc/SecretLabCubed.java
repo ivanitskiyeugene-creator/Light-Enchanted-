@@ -50,6 +50,7 @@ public class SecretLabCubed {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        event.enqueueWork(dev.slc.network.ModNetwork::register);
         LOGGER.info("[SLC] SECRET LAB: CUBED Round Orchestrator & Elevator System initialized.");
     }
 
