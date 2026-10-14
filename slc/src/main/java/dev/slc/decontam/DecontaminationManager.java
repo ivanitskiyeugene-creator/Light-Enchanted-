@@ -3,7 +3,7 @@ package dev.slc.decontam;
 import dev.slc.cassie.CassieVoiceEngine;
 
 public class DecontaminationManager {
-    public static final int DECONTAM_TIME_SECONDS = 11 * 60; // 11 Minutes standard
+    public static final int DECONTAM_TIME_SECONDS = 11 * 60 + 45; // 11 Minutes 45 Seconds exact
     private static boolean active = false;
     private static int elapsedSeconds = 0;
 
@@ -28,7 +28,7 @@ public class DecontaminationManager {
         } else if (remaining == 5 * 60) {
             CassieVoiceEngine.broadcast("LIGHT CONTAINMENT ZONE DECONTAMINATION IN T MINUS 5 MINUTES", 0x3498DB);
         } else if (remaining == 60) {
-            CassieVoiceEngine.broadcast("LIGHT CONTAINMENT ZONE DECONTAMINATION IN T MINUS 1 MINUTE . ALL CHECKPOINTS OPENING", 0xE67E22);
+            CassieVoiceEngine.broadcast("LIGHT CONTAINMENT ZONE DECONTAMINATION IN T MINUS 1 MINUTE . ALL CHECKPOINTS PERMANENTLY OPEN", 0xE67E22);
         } else if (remaining == 30) {
             CassieVoiceEngine.broadcast("LIGHT CONTAINMENT ZONE DECONTAMINATION IN T MINUS 30 SECONDS", 0xE74C3C);
         } else if (remaining <= 0) {
