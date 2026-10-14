@@ -41,7 +41,6 @@ public class InventoryLimitHandler {
 
         if (filledSlots >= MAX_SLOTS && !canMerge) {
             event.setCanceled(true);
-            player.displayClientMessage(Component.literal("§c[Инвентарь] Карманы переполнены! (Максимум: " + MAX_SLOTS + " предметов)"), true);
         }
     }
 }

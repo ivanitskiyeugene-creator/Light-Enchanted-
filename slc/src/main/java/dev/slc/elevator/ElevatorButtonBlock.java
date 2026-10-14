@@ -75,17 +75,7 @@ public class ElevatorButtonBlock extends Block implements EntityBlock {
 
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof ElevatorButtonBlockEntity elevator) {
-            if (elevator.getLinkedPos() == null) {
-                player.displayClientMessage(Component.literal("§c[Лифт] Эта кнопка не привязана к целевому лифту! Используйте Elevator Linker."), true);
-                return InteractionResult.CONSUME;
-            }
-
-            boolean triggered = elevator.triggerElevator();
-            if (triggered) {
-                player.displayClientMessage(Component.literal("§a[Лифт] Лифт вызван! Двери закрываются..."), true);
-            } else {
-                player.displayClientMessage(Component.literal("§e[Лифт] Лифт уже в пути или занят."), true);
-            }
+            elevator.triggerElevator();
         }
 
         return InteractionResult.CONSUME;
