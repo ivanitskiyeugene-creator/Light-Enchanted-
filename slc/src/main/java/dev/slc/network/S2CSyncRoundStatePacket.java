@@ -1,6 +1,7 @@
 package dev.slc.network;
 
 import dev.slc.client.ClientRoundCache;
+import dev.slc.role.Role;
 import dev.slc.round.RoundState;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
@@ -12,12 +13,14 @@ public class S2CSyncRoundStatePacket {
     private final int roundElapsedTicks;
     private final float mtfInfluence;
     private final float chaosInfluence;
+    private final Role assignedRole;
 
-    public S2CSyncRoundStatePacket(RoundState state, int roundElapsedTicks, float mtfInfluence, float chaosInfluence) {
+    public S2CSyncRoundStatePacket(RoundState state, int roundElapsedTicks, float mtfInfluence, float chaosInfluence, Role assignedRole) {
         this.state = state;
         this.roundElapsedTicks = roundElapsedTicks;
         this.mtfInfluence = mtfInfluence;
         this.chaosInfluence = chaosInfluence;
+        this.assignedRole = assignedRole;
     }
 
     public static void encode(S2CSyncRoundStatePacket msg, FriendlyByteBuf buf) {
@@ -25,6 +28,7 @@ public class S2CSyncRoundStatePacket {
         buf.writeInt(msg.roundElapsedTicks);
         buf.writeFloat(msg.mtfInfluence);
         buf.writeFloat(msg.chaosInfluence);
+        buf.writeEnum(msg.assignedRole);
     }
 
     public static S2CSyncRoundStatePacket decode(FriendlyByteBuf buf) {
@@ -32,7 +36,8 @@ public class S2CSyncRoundStatePacket {
         int ticks = buf.readInt();
         float mtf = buf.readFloat();
         float chaos = buf.readFloat();
-        return new S2CSyncRoundStatePacket(state, ticks, mtf, chaos);
+        Role role = buf.readEnum(Role.class);
+        return new S2CSyncRoundStatePacket(state, ticks, mtf, chaos, role);
     }
 
     public static void handle(S2CSyncRoundStatePacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -40,6 +45,7 @@ public class S2CSyncRoundStatePacket {
             ClientRoundCache.setRoundState(msg.state);
             ClientRoundCache.setRoundElapsedTicks(msg.roundElapsedTicks);
             ClientRoundCache.setInfluence(msg.mtfInfluence, msg.chaosInfluence);
+            ClientRoundCache.updateLocalRole(msg.assignedRole);
         });
         ctx.get().setPacketHandled(true);
     }

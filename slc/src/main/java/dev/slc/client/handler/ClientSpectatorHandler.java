@@ -76,6 +76,8 @@ public class ClientSpectatorHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
 
+        ClientRoundCache.tickRoleIntro();
+
         if (!ClientRoundCache.isRoundActive() || !mc.player.isSpectator()) {
             if (mc.getCameraEntity() != mc.player) {
                 mc.setCameraEntity(mc.player);

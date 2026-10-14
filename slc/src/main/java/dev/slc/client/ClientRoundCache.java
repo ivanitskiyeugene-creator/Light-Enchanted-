@@ -1,5 +1,6 @@
 package dev.slc.client;
 
+import dev.slc.role.Role;
 import dev.slc.round.RoundState;
 import dev.slc.spectator.SpectatorTargetInfo;
 
@@ -12,6 +13,9 @@ public class ClientRoundCache {
     private static float mtfInfluence = 0.5f;
     private static float chaosInfluence = 0.5f;
     private static final List<SpectatorTargetInfo> alivePlayers = new ArrayList<>();
+
+    private static Role localRole = Role.SPECTATOR;
+    private static int roleIntroTicks = 0;
 
     private static int spectateIndex = 0;
     private static boolean freecamMode = false;
@@ -49,6 +53,29 @@ public class ClientRoundCache {
     public static void setInfluence(float mtf, float chaos) {
         mtfInfluence = mtf;
         chaosInfluence = chaos;
+    }
+
+    public static Role getLocalRole() {
+        return localRole;
+    }
+
+    public static void updateLocalRole(Role role) {
+        if (role != null && role != localRole) {
+            localRole = role;
+            if (role != Role.SPECTATOR && isRoundActive()) {
+                roleIntroTicks = 140; // 7 seconds intro popup
+            }
+        }
+    }
+
+    public static int getRoleIntroTicks() {
+        return roleIntroTicks;
+    }
+
+    public static void tickRoleIntro() {
+        if (roleIntroTicks > 0) {
+            roleIntroTicks--;
+        }
     }
 
     public static List<SpectatorTargetInfo> getAlivePlayers() {

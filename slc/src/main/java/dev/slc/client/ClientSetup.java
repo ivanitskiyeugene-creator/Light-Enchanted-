@@ -1,6 +1,7 @@
 package dev.slc.client;
 
 import dev.slc.SecretLabCubed;
+import dev.slc.client.gui.RoleIntroOverlay;
 import dev.slc.client.gui.SpectatorHudOverlay;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
@@ -19,5 +20,6 @@ public class ClientSetup {
     @SubscribeEvent
     public static void onRegisterOverlays(RegisterGuiOverlaysEvent event) {
         event.registerAboveAll("spectator_hud", SpectatorHudOverlay.INSTANCE);
+        event.registerAboveAll("role_intro", RoleIntroOverlay.INSTANCE);
     }
 }

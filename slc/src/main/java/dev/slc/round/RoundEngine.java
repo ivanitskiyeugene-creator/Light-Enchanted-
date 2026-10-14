@@ -215,7 +215,10 @@ public class RoundEngine {
         float mtfRatio = mtfTokens / total;
         float chaosRatio = chaosTokens / total;
 
-        dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncRoundStatePacket(state, roundElapsedTicks, mtfRatio, chaosRatio));
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            Role r = getPlayerRole(player.getUUID());
+            dev.slc.network.ModNetwork.sendToPlayer(new dev.slc.network.S2CSyncRoundStatePacket(state, roundElapsedTicks, mtfRatio, chaosRatio, r), player);
+        }
         dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncSpectatorDataPacket(targets));
     }
 
