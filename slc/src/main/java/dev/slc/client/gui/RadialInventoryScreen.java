@@ -156,10 +156,11 @@ public class RadialInventoryScreen extends Screen {
                 selectSlotAndClose(hoveredSlot);
                 return true;
             } else if (button == 1) {
-                // RMB drops item
-                Player player = Minecraft.getInstance().player;
-                if (player != null) {
-                    player.drop(false);
+                // RMB drops selected item
+                if (Minecraft.getInstance().player != null) {
+                    Minecraft.getInstance().player.getInventory().selected = hoveredSlot;
+                    ModNetwork.CHANNEL.sendToServer(new C2SSelectInventorySlotPacket(hoveredSlot));
+                    Minecraft.getInstance().player.drop(false);
                 }
             }
         }
