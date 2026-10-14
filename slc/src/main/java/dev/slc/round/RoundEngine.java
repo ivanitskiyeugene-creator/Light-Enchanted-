@@ -12,6 +12,10 @@ import net.minecraft.world.level.GameType;
 
 import java.util.*;
 
+/**
+ * Core round lifecycle manager implementing canonical 1:1 SCP:SL (14.2+)
+ * victory conditions, team tracking, and civilian escape calculations.
+ */
 public class RoundEngine {
     private static MinecraftServer server = null;
     private static RoundState state = RoundState.WAITING_FOR_PLAYERS;
@@ -20,12 +24,22 @@ public class RoundEngine {
     private static int roundElapsedTicks = 0;
     private static final Map<UUID, Role> playerRoles = new HashMap<>();
 
+    // Escape counters strictly following SL 14.2 canon (only untied civilians score points)
+    private static int freeScientistEscapes = 0;
+    private static int freeClassDEscapes = 0;
+    private static int tiedScientistEscapes = 0;
+    private static int tiedClassDEscapes = 0;
+
     public static void init(MinecraftServer s) {
         server = s;
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
         roundElapsedTicks = 0;
         playerRoles.clear();
+        freeScientistEscapes = 0;
+        freeClassDEscapes = 0;
+        tiedScientistEscapes = 0;
+        tiedClassDEscapes = 0;
         DecontaminationManager.reset();
         AlphaWarheadManager.reset();
     }
@@ -53,6 +67,53 @@ public class RoundEngine {
         applyRoleToPlayer(player, role);
     }
 
+    public static int getFreeScientistEscapes() {
+        return freeScientistEscapes;
+    }
+
+    public static int getFreeClassDEscapes() {
+        return freeClassDEscapes;
+    }
+
+    public static int getTiedScientistEscapes() {
+        return tiedScientistEscapes;
+    }
+
+    public static int getTiedClassDEscapes() {
+        return tiedClassDEscapes;
+    }
+
+    /**
+     * Triggered when a player enters the surface escape zone.
+     * Tied civilians change team and grant tickets, but do NOT count as civilian points for their original team.
+     */
+    public static void handlePlayerEscape(ServerPlayer player, boolean isTied) {
+        if (player == null) return;
+        Role currentRole = getPlayerRole(player.getUUID());
+
+        if (currentRole == Role.CLASS_D) {
+            if (isTied) {
+                tiedClassDEscapes++;
+                setPlayerRole(player, Role.MTF_PRIVATE);
+                player.sendSystemMessage(Component.literal("§9[Побег] Вы успешно эвакуированы охраной Фонда и зачислены как Рядовой МОГ!"));
+            } else {
+                freeClassDEscapes++;
+                setPlayerRole(player, Role.CHAOS_CONSCRIPT);
+                player.sendSystemMessage(Component.literal("§a[Побег] Вы успешно сбежали и вступили в ряды Повстанцев Хаоса!"));
+            }
+        } else if (currentRole == Role.SCIENTIST) {
+            if (isTied) {
+                tiedScientistEscapes++;
+                setPlayerRole(player, Role.CHAOS_CONSCRIPT);
+                player.sendSystemMessage(Component.literal("§2[Побег] Вы захвачены Повстанцами Хаоса и перевербованы!"));
+            } else {
+                freeScientistEscapes++;
+                setPlayerRole(player, Role.MTF_SPECIALIST);
+                player.sendSystemMessage(Component.literal("§b[Побег] Вы успешно спаслись и мобилизованы как Специалист МОГ!"));
+            }
+        }
+    }
+
     public static void startRoundCountdown(int seconds) {
         state = RoundState.LOBBY_COUNTDOWN;
         countdownTicks = seconds * 20;
@@ -62,6 +123,10 @@ public class RoundEngine {
     public static void forceStartRound() {
         state = RoundState.IN_PROGRESS;
         roundElapsedTicks = 0;
+        freeScientistEscapes = 0;
+        freeClassDEscapes = 0;
+        tiedScientistEscapes = 0;
+        tiedClassDEscapes = 0;
         assignInitialRoles();
         DecontaminationManager.startTimer();
         CassieVoiceEngine.broadcast("FACILITY OPERATING NORMALLY . ALL STATIONS AT FULL BREACH READINESS", 0x2ECC71);
@@ -71,13 +136,16 @@ public class RoundEngine {
         state = RoundState.ROUND_ENDED;
         String winMsg = winningTeam != null ?
                 "РАУНД ОКОНЧЕН! ПОБЕДА: " + winningTeam.getDisplayName().toUpperCase() :
-                "РАУНД ОКОНЧЕН! НИЧЬЯ";
+                "РАУНД ОКОНЧЕН! НИЧЬЯ (STALEMATE)";
 
         CassieVoiceEngine.broadcast(winMsg, winningTeam != null ? winningTeam.getColorRgb() : 0xFFFFFF);
 
         if (server != null) {
+            String statsMsg = String.format("§7[Итоги раунда] Сбежало Учёных: §b%d §7| Сбежало D-Класса: §6%d",
+                    freeScientistEscapes, freeClassDEscapes);
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 p.displayClientMessage(Component.literal("§6§l[SLC] §e" + winMsg), true);
+                p.sendSystemMessage(Component.literal(statsMsg));
             }
         }
     }
@@ -165,8 +233,13 @@ public class RoundEngine {
         player.sendSystemMessage(Component.literal(msg));
     }
 
+    /**
+     * Canonical SCP:SL 14.2 Victory Conditions evaluator.
+     * Round ends when opposing factions are no longer locked in active human combat.
+     * Victory is mathematically determined by comparing free scientist escapes, free Class-D escapes, and alive SCPs.
+     */
     private static void checkWinConditions() {
-        if (server == null || roundElapsedTicks < 200) return; // Warmup grace period
+        if (server == null || roundElapsedTicks < 200) return; // Warmup grace period (10 seconds)
 
         int aliveClassD = 0;
         int aliveScientists = 0;
@@ -188,19 +261,45 @@ public class RoundEngine {
             }
         }
 
-        int humanForces = aliveClassD + aliveScientists + aliveFoundation + aliveChaos;
+        int aliveFoundationFaction = aliveFoundation + aliveScientists;
+        int aliveChaosFaction = aliveChaos + aliveClassD;
+        int totalAliveHumans = aliveFoundationFaction + aliveChaosFaction;
 
-        // SCP Win: All humans neutralized
-        if (aliveScps > 0 && humanForces == 0) {
+        // Is the round ready to end?
+        // Round ends when:
+        // 1. All humans are dead.
+        // 2. Foundation faction is wiped out and Chaos faction is wiped out (0 vs 0).
+        // 3. Foundation and Chaos cannot fight because one side is 0, and remaining side has no uncontained civilians in conflict.
+        boolean roundShouldEnd = false;
+
+        if (totalAliveHumans == 0) {
+            // Everyone dead or only SCPs alive
+            roundShouldEnd = true;
+        } else if (aliveFoundationFaction > 0 && aliveChaosFaction == 0 && aliveScps == 0) {
+            // Only Foundation alive, all threats dead
+            roundShouldEnd = true;
+        } else if (aliveChaosFaction > 0 && aliveFoundationFaction == 0 && aliveScps == 0) {
+            // Only Chaos alive, all Foundation dead
+            roundShouldEnd = true;
+        } else if (aliveFoundationFaction == 0 && aliveChaosFaction == 0) {
+            roundShouldEnd = true;
+        }
+
+        if (!roundShouldEnd) return;
+
+        // Evaluate victory winner mathematically based on official SL 14.2 rules
+        if (aliveScps > (freeScientistEscapes + freeClassDEscapes) && aliveScps > 0) {
+            // SCP Victory: alive primary SCPs strictly exceed total civilian escapes
             endRound(Team.SCP_OBJECTS);
-        }
-        // Foundation Win: All SCPs and Chaos eliminated, Scientists saved
-        else if (aliveScps == 0 && aliveChaos == 0 && aliveClassD == 0 && (aliveFoundation > 0 || aliveScientists > 0)) {
+        } else if (freeScientistEscapes > freeClassDEscapes) {
+            // Foundation Victory: Scientist escapes strictly exceed Class-D escapes
             endRound(Team.FOUNDATION_FORCES);
-        }
-        // Chaos Win: All SCPs and Foundation eliminated, Class-D saved
-        else if (aliveScps == 0 && aliveFoundation == 0 && aliveScientists == 0 && (aliveChaos > 0 || aliveClassD > 0)) {
+        } else if (freeClassDEscapes > freeScientistEscapes) {
+            // Chaos Victory: Class-D escapes strictly exceed Scientist escapes
             endRound(Team.CHAOS_INSURGENCY);
+        } else {
+            // Stalemate: equal civilian escapes (0:0, 1:1, etc.) or mutually assured destruction
+            endRound(null);
         }
     }
 }
