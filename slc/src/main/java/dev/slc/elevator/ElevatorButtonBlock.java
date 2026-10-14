@@ -28,11 +28,11 @@ import org.jetbrains.annotations.Nullable;
 public class ElevatorButtonBlock extends Block implements EntityBlock {
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
 
-    // Voxel shapes attached to walls (3 to 13 on X/Z, 2 to 14 on Y, 2 pixels thick)
-    private static final VoxelShape SHAPE_NORTH = Block.box(3.0, 2.0, 14.0, 13.0, 14.0, 16.0);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(3.0, 2.0, 0.0, 13.0, 14.0, 2.0);
-    private static final VoxelShape SHAPE_WEST  = Block.box(14.0, 2.0, 3.0, 16.0, 14.0, 13.0);
-    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 2.0, 3.0, 2.0, 14.0, 13.0);
+    // Voxel shapes attached flush to walls (4 to 12 on X/Z, 2 to 14 on Y, 1.2 pixels thick)
+    private static final VoxelShape SHAPE_NORTH = Block.box(3.5, 2.0, 14.8, 12.5, 14.0, 16.0);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(3.5, 2.0, 0.0, 12.5, 14.0, 1.2);
+    private static final VoxelShape SHAPE_WEST  = Block.box(14.8, 2.0, 3.5, 16.0, 14.0, 12.5);
+    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 2.0, 3.5, 1.2, 14.0, 12.5);
 
     public ElevatorButtonBlock(Properties properties) {
         super(properties);
@@ -49,7 +49,7 @@ public class ElevatorButtonBlock extends Block implements EntityBlock {
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         Direction clicked = context.getClickedFace();
         if (clicked.getAxis().isHorizontal()) {
-            return this.defaultBlockState().setValue(FACING, clicked.getOpposite());
+            return this.defaultBlockState().setValue(FACING, clicked);
         }
         return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
     }
