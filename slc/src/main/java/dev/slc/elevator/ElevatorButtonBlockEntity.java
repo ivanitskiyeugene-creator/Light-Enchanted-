@@ -4,16 +4,21 @@ import dev.slc.init.ModBlockEntities;
 import dev.slc.init.ModSounds;
 import dev.slc.zone.SpatialZoneManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 
 import java.util.List;
@@ -53,21 +58,28 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         if (state != ElevatorState.IDLE) return false;
         if (linkedPos == null) return false;
 
-        BlockEntity targetBe = level.getBlockEntity(linkedPos);
-        if (!(targetBe instanceof ElevatorButtonBlockEntity targetElevator)) return false;
-        if (targetElevator.getState() != ElevatorState.IDLE) return false;
+        ServerLevel serverLevel = (ServerLevel) level;
+
+        // Force-load target chunk so cross-zone / cross-floor elevators always work
+        serverLevel.getChunkSource().getChunk(linkedPos.getX() >> 4, linkedPos.getZ() >> 4, ChunkStatus.FULL, true);
+
+        // Immediate tactile click sound
+        serverLevel.playSound(null, worldPosition, SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.BLOCKS, 1.0f, 1.2f);
 
         // Step 1: Start door closing sequence
         this.state = ElevatorState.CLOSING_DOORS;
         this.timerTicks = 30; // 1.5 seconds door closing
         this.redstoneEmit = false;
 
-        targetElevator.state = ElevatorState.CLOSING_DOORS;
-        targetElevator.timerTicks = 30;
-        targetElevator.redstoneEmit = false;
+        BlockEntity targetBe = serverLevel.getBlockEntity(linkedPos);
+        if (targetBe instanceof ElevatorButtonBlockEntity targetElevator) {
+            targetElevator.state = ElevatorState.CLOSING_DOORS;
+            targetElevator.timerTicks = 30;
+            targetElevator.redstoneEmit = false;
+            targetElevator.updateState();
+        }
 
         updateState();
-        targetElevator.updateState();
         return true;
     }
 
@@ -81,6 +93,9 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                         be.state = ElevatorState.MOVING;
                         be.timerTicks = 80; // 4.0 seconds movement
                         level.playSound(null, pos, ModSounds.ELEVATOR_MOVING.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+                        if (be.linkedPos != null) {
+                            level.playSound(null, be.linkedPos, ModSounds.ELEVATOR_MOVING.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+                        }
                         be.updateState();
                     }
                     case MOVING -> {
@@ -117,21 +132,35 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     }
 
     private void performTeleportation(ServerLevel level, BlockPos srcPos, BlockPos dstPos) {
+        // Ensure destination chunk is loaded
+        level.getChunkSource().getChunk(dstPos.getX() >> 4, dstPos.getZ() >> 4, ChunkStatus.FULL, true);
+
         SpatialZoneManager zoneMgr = SpatialZoneManager.get(level);
         AABB srcCabin = zoneMgr.getElevatorCabin(srcPos);
         AABB dstCabin = zoneMgr.getElevatorCabin(dstPos);
 
+        Direction srcFacing = getBlockState().hasProperty(ElevatorButtonBlock.FACING) ?
+                getBlockState().getValue(ElevatorButtonBlock.FACING) : Direction.NORTH;
+
         if (srcCabin == null) {
-            // Default 3x3x4 cabin centered 2 blocks in front of the button
-            srcCabin = new AABB(srcPos).inflate(2.0, 2.0, 2.0);
-        }
-        if (dstCabin == null) {
-            dstCabin = new AABB(dstPos).inflate(2.0, 2.0, 2.0);
+            // Default cabin 4x3x4 blocks extending in front of the button
+            BlockPos srcCenter = srcPos.relative(srcFacing, 2);
+            srcCabin = new AABB(srcCenter.getX() - 2.0, srcPos.getY() - 1.0, srcCenter.getZ() - 2.0,
+                    srcCenter.getX() + 2.0, srcPos.getY() + 3.0, srcCenter.getZ() + 2.0);
         }
 
-        double dx = (dstCabin.minX + dstCabin.maxX) / 2.0 - (srcCabin.minX + srcCabin.maxX) / 2.0;
+        if (dstCabin == null) {
+            BlockState dstState = level.getBlockState(dstPos);
+            Direction dstFacing = dstState.hasProperty(ElevatorButtonBlock.FACING) ?
+                    dstState.getValue(ElevatorButtonBlock.FACING) : Direction.NORTH;
+            BlockPos dstCenter = dstPos.relative(dstFacing, 2);
+            dstCabin = new AABB(dstCenter.getX() - 2.0, dstPos.getY() - 1.0, dstCenter.getZ() - 2.0,
+                    dstCenter.getX() + 2.0, dstPos.getY() + 3.0, dstCenter.getZ() + 2.0);
+        }
+
+        double dx = ((dstCabin.minX + dstCabin.maxX) / 2.0) - ((srcCabin.minX + srcCabin.maxX) / 2.0);
         double dy = dstCabin.minY - srcCabin.minY;
-        double dz = (dstCabin.minZ + dstCabin.maxZ) / 2.0 - (srcCabin.minZ + srcCabin.maxZ) / 2.0;
+        double dz = ((dstCabin.minZ + dstCabin.maxZ) / 2.0) - ((srcCabin.minZ + srcCabin.maxZ) / 2.0);
 
         List<Entity> entities = level.getEntities(null, srcCabin);
         for (Entity entity : entities) {
@@ -139,7 +168,12 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
             double targetY = entity.getY() + dy;
             double targetZ = entity.getZ() + dz;
 
-            entity.teleportTo(targetX, targetY, targetZ);
+            if (entity instanceof ServerPlayer player) {
+                player.connection.teleport(targetX, targetY, targetZ, player.getYRot(), player.getXRot());
+                player.resetFallDistance();
+            } else {
+                entity.teleportTo(targetX, targetY, targetZ);
+            }
         }
     }
 
