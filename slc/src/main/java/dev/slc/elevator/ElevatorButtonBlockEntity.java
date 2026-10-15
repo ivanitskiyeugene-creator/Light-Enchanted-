@@ -50,6 +50,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         this.hasCabin = hasCabin;
         // Doors only open on the floor where the cabin physically is!
         this.redstoneEmit = (this.state == ElevatorState.IDLE || this.state == ElevatorState.OPENING_DOORS) && this.hasCabin;
+        syncPanelGlow();
         updateState();
     }
 
@@ -85,11 +86,13 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         this.state = ElevatorState.CLOSING_DOORS;
         this.timerTicks = 30; // 1.5 seconds door closing
         this.redstoneEmit = false;
+        this.syncPanelGlow(); // panel goes dark: cabin is leaving
 
         if (targetElevator != null) {
             targetElevator.state = ElevatorState.CLOSING_DOORS;
             targetElevator.timerTicks = 30;
             targetElevator.redstoneEmit = false;
+            targetElevator.syncPanelGlow();
             targetElevator.updateState();
         }
 
@@ -98,6 +101,10 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState blockState, ElevatorButtonBlockEntity be) {
+        if (be.needsInitialSync) {
+            be.needsInitialSync = false;
+            be.syncPanelGlow();
+        }
         if (be.timerTicks > 0) {
             be.timerTicks--;
 
@@ -126,6 +133,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                             be.state = ElevatorState.OPENING_DOORS;
                             be.timerTicks = 30;
                             be.redstoneEmit = currentIsDest; // ONLY open doors on the floor where cabin arrived!
+                            be.syncPanelGlow(); // arrival panel lights up mint
                             be.updateState();
 
                             BlockEntity targetBe = serverLevel.getBlockEntity(be.linkedPos);
@@ -134,6 +142,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                                 targetElevator.state = ElevatorState.OPENING_DOORS;
                                 targetElevator.timerTicks = 30;
                                 targetElevator.redstoneEmit = !currentIsDest; // ONLY open doors if cabin is here
+                                targetElevator.syncPanelGlow();
                                 targetElevator.updateState();
                             }
                         }
@@ -141,11 +150,13 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                     case OPENING_DOORS -> {
                         be.state = ElevatorState.COOLDOWN;
                         be.timerTicks = 40; // 2.0 seconds cooldown
+                        be.syncPanelGlow();
                         be.updateState();
                     }
                     case COOLDOWN -> {
                         be.state = ElevatorState.IDLE;
                         be.redstoneEmit = be.hasCabin; // Keep doors open only if cabin is here
+                        be.syncPanelGlow();
                         be.updateState();
                     }
                     default -> {}
@@ -204,6 +215,27 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         if (level != null && !level.isClientSide) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
+        }
+    }
+
+    private boolean needsInitialSync = true;
+
+    /** Panel is lit (mint glow + pulsing node) only while the cabin physically rests at THIS floor.
+     * During closing/moving both panels go dark and blink red, so the animation shows the trip. */
+    private boolean isPanelLit() {
+        return hasCabin && (state == ElevatorState.IDLE
+                || state == ElevatorState.OPENING_DOORS
+                || state == ElevatorState.COOLDOWN);
+    }
+
+    /** Applies the visual ACTIVE blockstate property so the correct model/animation renders. */
+    public void syncPanelGlow() {
+        if (level == null || level.isClientSide) return;
+        BlockState st = level.getBlockState(worldPosition);
+        if (st.getBlock() instanceof ElevatorButtonBlock
+                && st.hasProperty(ElevatorButtonBlock.ACTIVE)
+                && st.getValue(ElevatorButtonBlock.ACTIVE) != isPanelLit()) {
+            level.setBlock(worldPosition, st.setValue(ElevatorButtonBlock.ACTIVE, isPanelLit()), 3);
         }
     }
 

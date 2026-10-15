@@ -1,0 +1,22 @@
+{
+  "credit": "SECRET LAB: CUBED (SLC) 1:1 Authentic SCP:SL Elevator Panel (cabin AWAY / no power glow)",
+  "textures": {
+    "particle": "slc:block/elevator_button_off",
+    "texture": "slc:block/elevator_button_off"
+  },
+  "elements": [
+    {
+      "name": "flush_panel",
+      "from": [4.5, 2.5, 14.8],
+      "to": [11.5, 13.5, 16.0],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#texture" },
+        "east":  { "uv": [14, 0, 16, 16], "texture": "#texture" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#texture" },
+        "west":  { "uv": [0, 0, 2, 16], "texture": "#texture" },
+        "up":    { "uv": [0, 0, 16, 2], "texture": "#texture" },
+        "down":  { "uv": [0, 14, 16, 16], "texture": "#texture" }
+      }
+    }
+  ]
+}

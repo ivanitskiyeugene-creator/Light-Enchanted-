@@ -1,6 +1,7 @@
 import struct
 import zlib
 import os
+import math
 
 def create_png(width, height, pixel_data):
     def chunk(chunk_type, data):
@@ -17,122 +18,195 @@ def create_png(width, height, pixel_data):
     ihdr = struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', compressed) + chunk(b'IEND', b'')
 
-def generate_exact_sl_button():
-    W, H = 16, 16
-    pixels = bytearray(W * H * 4)
 
-    # Palette matching the left reference in screenshot 1:1
-    FRAME_DARK  = (28, 32, 38, 255)
-    FRAME_LIGHT = (55, 62, 72, 255)
-    FRAME_BEVEL = (80, 90, 102, 255)
-    RIVET_BRIGHT= (225, 235, 245, 255)
-    RIVET_SHADOW= (140, 150, 165, 255)
-    SCREEN_BG   = (10, 12, 16, 255)
+FRAME_COUNT = 8
+W_FRAME = 16
+H_FRAME = 16
 
-    # Bright cyan/mint neon glow matching left image
-    NEON_MINT   = (165, 245, 215, 255)
-    NEON_CYAN   = (0, 225, 255, 255)
-    NEON_CORE   = (240, 255, 255, 255)
-    NEON_DEEP   = (20, 160, 210, 255)
+# ---------------- PALETTE (1:1 with SCP:SL reference screenshot) ----------------
+PLATE       = (22, 26, 32, 255)      # inner dark face
+FRAME       = (30, 35, 41, 255)      # outer bezel base
+BEVEL_HI    = (74, 82, 92, 255)      # top/left bevel highlight
+BEVEL_LO    = (19, 22, 27, 255)      # bottom/right bevel shadow
+TAB_METAL   = (96, 106, 116, 255)    # small top-right corner tab
 
-    def set_px(x, y, color):
-        if 0 <= x < W and 0 <= y < H:
-            idx = (y * W + x) * 4
-            pixels[idx:idx+4] = bytes(color)
+# ACTIVE (cabin at this floor) - bright mint/cyan glow
+STRIP_CORE   = (230, 255, 246, 255)  # white-mint bar core
+STRIP_HALO   = (92, 224, 190, 255)   # cyan halo row
+STRIP_BLEED  = (24, 62, 55, 255)     # faint glow bleed onto plate
+LINE_GLOW    = (74, 226, 196, 255)   # zigzag route lines
+LINE_BLEED   = (26, 84, 74, 255)     # line glow bleed
+NODE_DIM     = (110, 235, 205, 255)  # filled node (dimmer pulse end)
+NODE_BRIGHT  = (245, 255, 250, 255)  # filled node (bright pulse end)
+NODE_BLEED   = (30, 95, 84, 255)
 
-    # 1. Base dark frame with beveled edges
-    for y in range(H):
-        for x in range(W):
-            if (x == 0 and (y == 0 or y == 15)) or (x == 15 and (y == 0 or y == 15)):
-                continue
-            set_px(x, y, FRAME_DARK)
+# OFF (cabin on the other floor / moving) - dark + red warning blink
+OFF_STRIP_A  = (40, 45, 51, 255)
+OFF_STRIP_B  = (34, 39, 45, 255)
+OFF_LINE     = (62, 68, 75, 255)
+RED_BRIGHT   = (255, 82, 70, 255)
+RED_DIM      = (92, 32, 29, 255)
+RED_BLEED    = (66, 22, 21, 255)
 
-    # Top/Left highlight bevel
+
+def draw_base(pixels, off=False):
+    def px(x, y, c):
+        if 0 <= x < 16 and 0 <= y < 16:
+            i = (y * 16 + x) * 4
+            pixels[i:i+4] = bytes(c)
+
+    # Outer frame
+    for y in range(16):
+        for x in range(16):
+            px(x, y, FRAME)
     for x in range(1, 15):
-        set_px(x, 0, FRAME_BEVEL)
+        px(x, 0, BEVEL_HI)
     for y in range(1, 15):
-        set_px(0, y, FRAME_BEVEL)
-
-    # Bottom/Right shadow bevel
+        px(0, y, BEVEL_HI)
     for x in range(1, 15):
-        set_px(x, 15, (16, 18, 22, 255))
+        px(x, 15, BEVEL_LO)
     for y in range(1, 15):
-        set_px(15, y, (16, 18, 22, 255))
+        px(15, y, BEVEL_LO)
+    # Top-right corner metal tab (reference detail)
+    px(14, 0, TAB_METAL)
+    px(15, 0, TAB_METAL)
+    px(15, 1, TAB_METAL)
 
-    # 2. Four Bright Corner Rivets
-    set_px(1, 1, RIVET_BRIGHT)
-    set_px(2, 1, RIVET_SHADOW)
-    set_px(1, 2, RIVET_SHADOW)
+    # Inner plate
+    for y in range(1, 15):
+        for x in range(1, 15):
+            px(x, y, PLATE)
 
-    set_px(14, 1, RIVET_BRIGHT)
-    set_px(13, 1, RIVET_SHADOW)
-    set_px(14, 2, RIVET_SHADOW)
+    # ---- Top light strip (y=2..3) ----
+    # ---- Bottom light strip (y=13..14) ----
 
-    set_px(1, 14, RIVET_BRIGHT)
-    set_px(2, 14, RIVET_SHADOW)
-    set_px(1, 13, RIVET_SHADOW)
+def draw_strips(pixels, k=1.0, off=False):
+    def px(x, y, c):
+        i = (y * 16 + x) * 4
+        pixels[i:i+4] = bytes(c)
 
-    set_px(14, 14, RIVET_BRIGHT)
-    set_px(13, 14, RIVET_SHADOW)
-    set_px(14, 13, RIVET_SHADOW)
+    def lerp(a, b, t):
+        return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(4))
 
-    # 3. Inner Screen Background
-    for y in range(3, 13):
+    for row_top, row_core, row_bleed_a, row_bleed_b in ((2, 3, 1, 4), (14, 13, 15, 12)):
+        if off:
+            halo, core = OFF_STRIP_B, OFF_STRIP_A
+        else:
+            halo = lerp(STRIP_HALO, tuple(int(v * 1.06) if i < 3 else v for i, v in enumerate(STRIP_HALO)), k)
+            core = STRIP_CORE
         for x in range(2, 14):
-            set_px(x, y, SCREEN_BG)
+            px(x, row_top, halo)
+            px(x, row_core, core)
+        # Rounded end caps (dimmer)
+        ph = lerp(halo, PLATE, 0.45) if not off else lerp(OFF_STRIP_B, PLATE, 0.35)
+        pc = lerp(core, PLATE, 0.45) if not off else lerp(OFF_STRIP_A, PLATE, 0.35)
+        px(2, row_top, ph); px(13, row_top, ph)
+        px(2, row_core, pc); px(13, row_core, pc)
+        # Glow bleed only when active
+        if not off:
+            bleed = lerp(STRIP_BLEED, PLATE, 1.0 - k)
+            if row_bleed_a == 1 or row_bleed_a == 15:
+                pass  # frame row, keep clean
+            else:
+                for x in range(3, 13):
+                    px(x, row_bleed_a, bleed)
+            for x in range(3, 13):
+                px(x, row_bleed_b, lerp(STRIP_BLEED, PLATE, 1.0 - k))
 
-    # 4. Top Neon Light Strip (Bright Mint/Cyan)
-    for x in range(3, 13):
-        set_px(x, 2, NEON_CYAN)
-    for x in range(4, 12):
-        set_px(x, 2, NEON_MINT)
 
-    # 5. Bottom Neon Light Strip (Bright Mint/Cyan)
-    for x in range(3, 13):
-        set_px(x, 13, NEON_CYAN)
-    for x in range(4, 12):
-        set_px(x, 13, NEON_MINT)
+def hollow_node(pixels, x0, y0, color):
+    def px(x, y, c):
+        i = (y * 16 + x) * 4
+        pixels[i:i+4] = bytes(c)
+    for x in range(x0, x0 + 3):
+        px(x, y0, color)
+        px(x, y0 + 2, color)
+    px(x0, y0 + 1, color)
+    px(x0 + 2, y0 + 1, color)
 
-    # 6. Elevator Schematic Diagram (Matching Left Reference 1:1)
-    # Top Cabin Node (Bright filled square)
-    for y in range(4, 7):
-        for x in range(7, 10):
-            set_px(x, y, NEON_CYAN)
-    set_px(8, 5, NEON_CORE)
-    set_px(7, 5, NEON_MINT)
-    set_px(9, 5, NEON_MINT)
+def filled_node(pixels, x0, y0, color, bleed):
+    def px(x, y, c):
+        i = (y * 16 + x) * 4
+        pixels[i:i+4] = bytes(c)
+    for dy in (-1, 3):
+        for x in range(x0, x0 + 3):
+            px(x, y0 + dy, bleed)
+    for dx in (-1, 3):
+        for y in range(y0, y0 + 3):
+            px(x0 + dx, y, bleed)
+    for y in range(y0, y0 + 3):
+        for x in range(x0, x0 + 3):
+            px(x, y, color)
 
-    # Connecting vertical bus lines
-    set_px(9, 7, NEON_CYAN)
-    set_px(9, 8, NEON_CYAN)
-    set_px(8, 8, NEON_CYAN)
-    set_px(7, 8, NEON_CYAN)
-    set_px(7, 9, NEON_CYAN)
+def draw_route(pixels, off=False):
+    def px(x, y, c):
+        i = (y * 16 + x) * 4
+        pixels[i:i+4] = bytes(c)
+    line = OFF_LINE if off else LINE_GLOW
+    # Staircase A: top node -> bottom of filled (10,7),(9,8),(8,8),(7,9)
+    for (x, y) in ((10, 7), (9, 8), (8, 8), (7, 9)):
+        px(x, y, line)
+    # Staircase B: filled bottom -> top of bottom node (7,10),(8,11),(9,11),(10,12)
+    for (x, y) in ((7, 10), (8, 11), (9, 11), (10, 12)):
+        px(x, y, line)
+    # Hollow nodes
+    hollow_node(pixels, 11, 4, line)    # top node
+    hollow_node(pixels, 11, 10, line)   # bottom node
 
-    # Bottom Cabin Node (Bright hollow outline square)
-    for x in range(5, 9):
-        set_px(x, 9, NEON_CYAN)
-        set_px(x, 11, NEON_CYAN)
-    set_px(5, 10, NEON_CYAN)
-    set_px(8, 10, NEON_CYAN)
 
-    # 7. Right Side Tab
-    set_px(15, 6, FRAME_BEVEL)
-    set_px(15, 7, RIVET_BRIGHT)
-    set_px(15, 8, RIVET_SHADOW)
-    set_px(15, 9, FRAME_BEVEL)
+def gen_frames(active=True):
+    """Generate FRAME_COUNT frames stacked vertically."""
+    all_pixels = bytearray(16 * (16 * FRAME_COUNT) * 4)
+    for f in range(FRAME_COUNT):
+        phase = 2.0 * math.pi * f / FRAME_COUNT
+        k = 0.5 + 0.5 * math.sin(phase)
+        frame = bytearray(16 * 16 * 4)
+        draw_base(frame, off=not active)
+        draw_strips(frame, k=0.85 + 0.15 * k, off=not active)
+        draw_route(frame, off=not active)
+        def lerp(a, b, t):
+            return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(4))
+        if active:
+            # Pulsing filled node at middle-left (YOU ARE HERE / cabin here)
+            filled_node(frame, 4, 7, lerp(NODE_DIM, NODE_BRIGHT, k), NODE_BLEED)
+        else:
+            # Blinking red warning node at top (cabin is up there / moving)
+            filled_node(frame, 11, 4, lerp(RED_DIM, RED_BRIGHT, k), lerp(PLATE, RED_BLEED, k))
+        # copy into strip
+        for y in range(16):
+            for x in range(16):
+                s = (y * 16 + x) * 4
+                d = ((f * 16 + y) * 16 + x) * 4
+                all_pixels[d:d+4] = frame[s:s+4]
+    return all_pixels
 
-    return create_png(W, H, pixels)
+
+def gen_item_icon():
+    """Static 16x16 icon for inventory (active look, mid pulse)."""
+    frame = bytearray(16 * 16 * 4)
+    draw_base(frame)
+    draw_strips(frame, k=1.0)
+    draw_route(frame)
+    filled_node(frame, 4, 7, NODE_BRIGHT, NODE_BLEED)
+    return frame
+
 
 if __name__ == '__main__':
     base_tex_dir = 'slc/src/main/resources/assets/slc/textures'
     os.makedirs(f'{base_tex_dir}/block', exist_ok=True)
     os.makedirs(f'{base_tex_dir}/item', exist_ok=True)
 
-    tex = generate_exact_sl_button()
     with open(f'{base_tex_dir}/block/elevator_button.png', 'wb') as f:
-        f.write(tex)
-    with open(f'{base_tex_dir}/item/elevator_button.png', 'wb') as f:
-        f.write(tex)
+        f.write(create_png(16, 16 * FRAME_COUNT, gen_frames(active=True)))
+    with open(f'{base_tex_dir}/block/elevator_button.png.mcmeta', 'w') as f:
+        f.write('{\n  "animation": {\n    "frametime": 4,\n    "interpolate": true\n  }\n}\n')
 
-    print("Exact SL button texture generated.")
+    with open(f'{base_tex_dir}/block/elevator_button_off.png', 'wb') as f:
+        f.write(create_png(16, 16 * FRAME_COUNT, gen_frames(active=False)))
+    with open(f'{base_tex_dir}/block/elevator_button_off.png.mcmeta', 'w') as f:
+        f.write('{\n  "animation": {\n    "frametime": 4,\n    "interpolate": true\n  }\n}\n')
+
+    with open(f'{base_tex_dir}/item/elevator_button.png', 'wb') as f:
+        f.write(create_png(16, 16, gen_item_icon()))
+
+    print("SL elevator panel textures generated: ACTIVE (pulsing), OFF (red blink), static item icon.")
