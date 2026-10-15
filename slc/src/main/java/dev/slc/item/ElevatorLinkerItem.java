@@ -58,7 +58,10 @@ public class ElevatorLinkerItem extends Item {
             BlockEntity srcBe = level.getBlockEntity(srcPos);
             if (srcBe instanceof ElevatorButtonBlockEntity srcElevator) {
                 srcElevator.setLinkedPos(clickedPos);
+                srcElevator.setHasCabin(true); // Initial cabin floor (doors open)
+
                 currentElevator.setLinkedPos(srcPos);
+                currentElevator.setHasCabin(false); // Other floor (doors closed)
 
                 if (context.getPlayer() != null) {
                     context.getPlayer().displayClientMessage(Component.literal("§a[Linker] §lЛифты успешно связаны! §7(" + srcPos.toShortString() + " <--> " + clickedPos.toShortString() + ")"), false);
