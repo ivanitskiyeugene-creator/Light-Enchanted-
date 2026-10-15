@@ -18,15 +18,14 @@ def create_png(width, height, pixel_data):
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', compressed) + chunk(b'IEND', b'')
 
 
-FRAMES = 8  # 4 frames: box at bottom node (lift down) -> 4 frames: box at top node (lift up)
-
 # ---------------- PALETTE (sampled from user's exact reference screenshot) ----------------
-FACE       = (14, 16, 20, 255)       # recessed black inner face
-BEVEL_HI   = (58, 62, 70, 255)       # top bevel edge
-BEVEL_MID  = (42, 46, 53, 255)       # left/right bevel edge
-BEVEL_LO   = (24, 27, 32, 255)       # bottom bevel edge
-CORNER_CUT = (26, 28, 33, 255)       # chamfered corner shadow
-BLUE       = (64, 118, 204, 255)     # flat azure blue for strips + route + solid box
+FACE       = (14, 16, 20, 255)
+SCREEN     = (9, 11, 15, 255)        # recessed dark screen behind the live diagram
+BEVEL_HI   = (58, 62, 70, 255)
+BEVEL_MID  = (42, 46, 53, 255)
+BEVEL_LO   = (24, 27, 32, 255)
+CORNER_CUT = (26, 28, 33, 255)
+BLUE       = (64, 118, 204, 255)
 
 
 def _px(px, x, y, c):
@@ -35,95 +34,52 @@ def _px(px, x, y, c):
         px[i:i+4] = bytes(c)
 
 
-def draw_base(f):
+def draw_plate(f):
     for y in range(16):
         for x in range(16):
             _px(f, x, y, FACE)
-    # Outer bevel frame (1 px ring)
+    # Screen recess
+    for y in range(3, 13):
+        for x in range(1, 15):
+            _px(f, x, y, SCREEN)
+    # Bevel frame
     for x in range(16):
         _px(f, x, 0, BEVEL_HI)
         _px(f, x, 15, BEVEL_LO)
     for y in range(16):
         _px(f, 0, y, BEVEL_MID)
         _px(f, 15, y, BEVEL_MID)
-    # Chamfered corners (3-px staircase cuts)
-    for (cx, cy) in ((0, 0), (15, 0), (0, 15), (15, 15)):
-        pass
-    cuts = [(0, 0), (1, 0), (0, 1),
-            (15, 0), (14, 0), (15, 1),
-            (0, 15), (1, 15), (0, 14),
-            (15, 15), (14, 15), (15, 14)]
-    for (x, y) in cuts:
+    # Chamfered corners
+    for (x, y) in [(0, 0), (1, 0), (0, 1),
+                   (15, 0), (14, 0), (15, 1),
+                   (0, 15), (1, 15), (0, 14),
+                   (15, 15), (14, 15), (15, 14)]:
         _px(f, x, y, CORNER_CUT)
-
-
-def draw_strips(f):
-    # Top and bottom blue light bars (flat, 1 row, inset from bevel)
+    # Blue light bars (top & bottom)
     for x in range(3, 13):
         _px(f, x, 2, BLUE)
         _px(f, x, 13, BLUE)
 
 
-def hollow_node(f, x0, y0):
-    # 4x4 outline (1 px thick), hollow center
-    for x in range(x0, x0 + 4):
-        _px(f, x, y0, BLUE)
-        _px(f, x, y0 + 3, BLUE)
-    for y in range(y0, y0 + 4):
-        _px(f, x0, y, BLUE)
-        _px(f, x0 + 3, y, BLUE)
-
-
-def solid_box(f, x0, y0):
-    for y in range(y0, y0 + 4):
-        for x in range(x0, x0 + 4):
-            _px(f, x, y, BLUE)
-
-
-def draw_route(f):
-    # Right-angle route on the right side: top node -> right -> down -> left -> bottom node
-    _px(f, 9, 4, BLUE)   # horizontal out of top node
+def draw_static_diagram(f):
+    """Inventory icon only: static route + hollow top node + solid box at bottom."""
+    # Right-angle route: top node -> right -> down -> left -> bottom node
+    _px(f, 9, 4, BLUE)
     _px(f, 10, 4, BLUE)
-    for y in range(5, 11):  # vertical drop x=10
+    for y in range(5, 11):
         _px(f, 10, y, BLUE)
-    _px(f, 9, 10, BLUE)  # horizontal into bottom node
-
-
-def gen_strip():
-    pixels = bytearray(16 * (16 * FRAMES) * 4)
-    for fi in range(FRAMES):
-        f = bytearray(16 * 16 * 4)
-        draw_base(f)
-        draw_strips(f)
-        draw_route(f)
-        # Hollow nodes at BOTH ends (top & bottom)
-        hollow_node(f, 5, 3)
-        hollow_node(f, 5, 9)
-        # The "where is the lift" FILLED BOX alternates between nodes
-        if fi < FRAMES // 2:
-            solid_box(f, 5, 9)   # lift at bottom floor
-        else:
-            solid_box(f, 5, 3)   # lift at top floor
-        for y in range(16):
-            for x in range(16):
-                s = (y * 16 + x) * 4
-                d = ((fi * 16 + y) * 16 + x) * 4
-                pixels[d:d+4] = f[s:s+4]
-    return pixels
-
-
-def gen_item_icon():
-    f = bytearray(16 * 16 * 4)
-    draw_base(f)
-    draw_strips(f)
-    draw_route(f)
-    hollow_node(f, 5, 3)
-    solid_box(f, 5, 9)
-    return f
-
-
-def write_animated(mcmeta):
-    return '{\n  "animation": {\n    "frametime": 6,\n    "interpolate": false\n  }\n}\n'
+    _px(f, 9, 10, BLUE)
+    # Hollow top node (4x4 outline)
+    for x in range(5, 9):
+        _px(f, x, 3, BLUE)
+        _px(f, x, 6, BLUE)
+    for y in range(3, 7):
+        _px(f, 5, y, BLUE)
+        _px(f, 8, y, BLUE)
+    # Solid box at the bottom node (lift position)
+    for y in range(9, 13):
+        for x in range(5, 9):
+            _px(f, x, y, BLUE)
 
 
 if __name__ == '__main__':
@@ -131,12 +87,15 @@ if __name__ == '__main__':
     os.makedirs(f'{base}/block', exist_ok=True)
     os.makedirs(f'{base}/item', exist_ok=True)
 
+    block_f = bytearray(16 * 16 * 4)
+    draw_plate(block_f)
     with open(f'{base}/block/elevator_button.png', 'wb') as fp:
-        fp.write(create_png(16, 16 * FRAMES, gen_strip()))
-    with open(f'{base}/block/elevator_button.png.mcmeta', 'w') as fp:
-        fp.write('{\n  "animation": {\n    "frametime": 6,\n    "interpolate": false\n  }\n}\n')
+        fp.write(create_png(16, 16, block_f))
 
+    item_f = bytearray(16 * 16 * 4)
+    draw_plate(item_f)
+    draw_static_diagram(item_f)
     with open(f'{base}/item/elevator_button.png', 'wb') as fp:
-        fp.write(create_png(16, 16, gen_item_icon()))
+        fp.write(create_png(16, 16, item_f))
 
-    print("Exact-reference elevator panel texture generated (blue bars, right-angle route, animating solid box).")
+    print("Static panel textures written (block = plate+bars, item = +static diagram). BER draws the live diagram in-world.")

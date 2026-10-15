@@ -1,6 +1,7 @@
 {
-  "parent": "minecraft:item/generated",
+  "parent": "slc:block/elevator_button",
   "textures": {
-    "layer0": "slc:item/elevator_button"
+    "particle": "slc:item/elevator_button",
+    "texture": "slc:item/elevator_button"
   }
 }

@@ -28,11 +28,11 @@ import org.jetbrains.annotations.Nullable;
 public class ElevatorButtonBlock extends Block implements EntityBlock {
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
 
-    // Voxel shapes matching compact panel (4.5 to 11.5 on X/Z, 2.5 to 13.5 on Y, 1.2 thick)
-    private static final VoxelShape SHAPE_NORTH = Block.box(4.5, 2.5, 14.8, 11.5, 13.5, 16.0);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(4.5, 2.5, 0.0, 11.5, 13.5, 1.2);
-    private static final VoxelShape SHAPE_WEST  = Block.box(14.8, 2.5, 4.5, 16.0, 13.5, 11.5);
-    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 2.5, 4.5, 1.2, 13.5, 11.5);
+    // Voxel shapes matching the 3D panel plate (4 to 12 on X/Z, 2 to 14 on Y, 1.6 thick)
+    private static final VoxelShape SHAPE_NORTH = Block.box(4.0, 2.0, 14.4, 12.0, 14.0, 16.0);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(4.0, 2.0, 0.0, 12.0, 14.0, 1.6);
+    private static final VoxelShape SHAPE_WEST  = Block.box(14.4, 2.0, 4.0, 16.0, 14.0, 12.0);
+    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 2.0, 4.0, 1.6, 14.0, 12.0);
 
     public ElevatorButtonBlock(Properties properties) {
         super(properties);
@@ -71,11 +71,15 @@ public class ElevatorButtonBlock extends Block implements EntityBlock {
 
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        // Holding the linker? Prioritize network linking over calling the lift.
+        if (player.getItemInHand(hand).getItem() instanceof dev.slc.item.ElevatorLinkerItem) {
+            return InteractionResult.PASS;
+        }
         if (level.isClientSide) return InteractionResult.SUCCESS;
 
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof ElevatorButtonBlockEntity elevator) {
-            elevator.triggerElevator();
+            elevator.onPressed();
         }
 
         return InteractionResult.CONSUME;
@@ -109,9 +113,10 @@ public class ElevatorButtonBlock extends Block implements EntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null : (lvl, p, st, be) -> {
+        // Ticked on BOTH sides: server drives the machine, client mirrors timers for smooth panel animation
+        return (lvl, p, st, be) -> {
             if (be instanceof ElevatorButtonBlockEntity elevator) {
-                ElevatorButtonBlockEntity.serverTick(lvl, p, st, elevator);
+                ElevatorButtonBlockEntity.tick(lvl, p, st, elevator);
             }
         };
     }

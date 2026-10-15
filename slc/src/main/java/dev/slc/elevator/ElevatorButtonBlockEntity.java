@@ -6,6 +6,8 @@ import dev.slc.zone.SpatialZoneManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -20,138 +22,204 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Elevator call/entry button. Any number of these blocks form ONE elevator network:
+ * floor call buttons (exterior) + an optional button INSIDE the cabin (interior flag).
+ * All members mirror the same state machine so every panel renders the same live cabin
+ * position (see ElevatorButtonRenderer).
+ */
 public class ElevatorButtonBlockEntity extends BlockEntity {
-    private BlockPos linkedPos = null;
+    public static final int CLOSE_TICKS = 30;
+    public static final int OPEN_TICKS = 30;
+    public static final int COOLDOWN_TICKS = 40;
+    public static final int TRAVEL_BASE_TICKS = 60;
+
+    private final List<BlockPos> members = new ArrayList<>();
+    private final List<Boolean> memberInterior = new ArrayList<>();
+    private boolean interior = false;      // TRUE if THIS button lives inside the cabin
+    private int cabinFloor = 0;            // index into exterior floors sorted by Y (asc)
+    private int srcFloor = 0;
+    private int dstFloor = 0;
+    private int travelTotal = 80;
     private ElevatorState state = ElevatorState.IDLE;
-    private boolean hasCabin = true; // True if the physical cabin is currently at THIS floor
     private int timerTicks = 0;
-    private boolean redstoneEmit = true; // Emits redstone when doors at THIS floor should be OPEN
 
     public ElevatorButtonBlockEntity(BlockPos pos, BlockState blockState) {
         super(ModBlockEntities.ELEVATOR_BUTTON_BE.get(), pos, blockState);
     }
 
-    public BlockPos getLinkedPos() {
-        return linkedPos;
+    // ------------------------------------------------------------------
+    // Network management (called by the linker item)
+    // ------------------------------------------------------------------
+
+    public void applyNetwork(List<BlockPos> newMembers, List<Boolean> interiors) {
+        this.members.clear();
+        this.members.addAll(newMembers);
+        this.memberInterior.clear();
+        this.memberInterior.addAll(interiors);
+        int self = newMembers.indexOf(worldPosition);
+        this.interior = self >= 0 && self < interiors.size() && interiors.get(self);
+        this.cabinFloor = 0; // cabin starts at the lowest exterior floor
+        this.srcFloor = 0;
+        this.dstFloor = 0;
+        this.state = ElevatorState.IDLE;
+        this.timerTicks = 0;
+        sync();
     }
 
-    public void setLinkedPos(BlockPos pos) {
-        this.linkedPos = pos;
-        updateState();
+    public boolean hasNetwork() {
+        return members.size() >= 2;
     }
 
-    public boolean hasCabin() {
-        return hasCabin;
+    public boolean isInterior() {
+        return interior;
     }
 
-    public void setHasCabin(boolean hasCabin) {
-        this.hasCabin = hasCabin;
-        // Doors only open on the floor where the cabin physically is!
-        this.redstoneEmit = (this.state == ElevatorState.IDLE || this.state == ElevatorState.OPENING_DOORS) && this.hasCabin;
-        updateState();
+    /** Exterior (floor) member positions sorted bottom -> top. */
+    public List<BlockPos> getExteriorFloors() {
+        List<BlockPos> floors = new ArrayList<>();
+        for (int i = 0; i < members.size(); i++) {
+            if (i < memberInterior.size() && !memberInterior.get(i)) {
+                floors.add(members.get(i));
+            }
+        }
+        floors.sort(Comparator.comparingInt(BlockPos::getY).thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ));
+        return floors;
+    }
+
+    public int getFloorCount() {
+        return getExteriorFloors().size();
+    }
+
+    public int getCabinFloor() {
+        return Math.min(cabinFloor, Math.max(0, getFloorCount() - 1));
+    }
+
+    public int getSrcFloor() {
+        return srcFloor;
+    }
+
+    public int getDstFloor() {
+        return dstFloor;
+    }
+
+    public int getTravelTotal() {
+        return travelTotal;
     }
 
     public ElevatorState getState() {
         return state;
     }
 
-    public boolean isEmittingRedstone() {
-        return redstoneEmit;
+    public int getTimerTicks() {
+        return timerTicks;
     }
 
-    public boolean triggerElevator() {
-        if (level == null || level.isClientSide) return false;
-        if (state != ElevatorState.IDLE) return false;
-        if (linkedPos == null) return false;
+    // ------------------------------------------------------------------
+    // Interaction
+    // ------------------------------------------------------------------
 
-        ServerLevel serverLevel = (ServerLevel) level;
+    /** Called when a player right-clicks this button. Server-side only. */
+    public void onPressed() {
+        if (level == null || level.isClientSide) return;
+        level.playSound(null, worldPosition, SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.BLOCKS, 0.8f, 1.2f);
 
-        // Force-load target chunk
-        serverLevel.getChunkSource().getChunk(linkedPos.getX() >> 4, linkedPos.getZ() >> 4, ChunkStatus.FULL, true);
+        if (!hasNetwork() || state != ElevatorState.IDLE) return;
 
-        // Immediate tactile click sound
-        serverLevel.playSound(null, worldPosition, SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.BLOCKS, 1.0f, 1.2f);
+        List<BlockPos> floors = getExteriorFloors();
+        if (floors.size() < 2) return;
 
-        BlockEntity targetBe = serverLevel.getBlockEntity(linkedPos);
-        ElevatorButtonBlockEntity targetElevator = (targetBe instanceof ElevatorButtonBlockEntity be) ? be : null;
-
-        if (targetElevator != null && targetElevator.getState() != ElevatorState.IDLE) {
-            return false;
+        int floor = getCabinFloor();
+        int target;
+        if (interior) {
+            // In-cabin button: go to the NEXT floor (cyclic), like a floor selector
+            target = (floor + 1) % floors.size();
+        } else {
+            target = floors.indexOf(worldPosition);
+            if (target < 0 || target == floor) return; // cabin is already here
         }
 
-        // Close doors everywhere during movement
-        this.state = ElevatorState.CLOSING_DOORS;
-        this.timerTicks = 30; // 1.5 seconds door closing
-        this.redstoneEmit = false;
-
-        if (targetElevator != null) {
-            targetElevator.state = ElevatorState.CLOSING_DOORS;
-            targetElevator.timerTicks = 30;
-            targetElevator.redstoneEmit = false;
-            targetElevator.updateState();
-        }
-
-        updateState();
-        return true;
+        int dy = Math.abs(floors.get(target).getY() - floors.get(floor).getY());
+        int travel = TRAVEL_BASE_TICKS + dy * 2;
+        networkStartMove(floor, target, travel);
     }
 
-    public static void serverTick(Level level, BlockPos pos, BlockState blockState, ElevatorButtonBlockEntity be) {
-        if (be.timerTicks > 0) {
-            be.timerTicks--;
-
-            if (be.timerTicks == 0) {
-                switch (be.state) {
-                    case CLOSING_DOORS -> {
-                        be.state = ElevatorState.MOVING;
-                        be.timerTicks = 80; // 4.0 seconds movement
-                        level.playSound(null, pos, ModSounds.ELEVATOR_MOVING.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-                        if (be.linkedPos != null) {
-                            level.playSound(null, be.linkedPos, ModSounds.ELEVATOR_MOVING.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-                        }
-                        be.updateState();
-                    }
-                    case MOVING -> {
-                        if (level instanceof ServerLevel serverLevel && be.linkedPos != null) {
-                            // Determine direction of transfer based on which floor had the cabin
-                            BlockPos fromPos = be.hasCabin ? pos : be.linkedPos;
-                            BlockPos toPos = be.hasCabin ? be.linkedPos : pos;
-
-                            be.performTeleportation(serverLevel, fromPos, toPos);
-
-                            // The destination floor now has the cabin!
-                            boolean currentIsDest = (toPos.equals(pos));
-                            be.hasCabin = currentIsDest;
-                            be.state = ElevatorState.OPENING_DOORS;
-                            be.timerTicks = 30;
-                            be.redstoneEmit = currentIsDest; // ONLY open doors on the floor where cabin arrived!
-                            be.updateState();
-
-                            BlockEntity targetBe = serverLevel.getBlockEntity(be.linkedPos);
-                            if (targetBe instanceof ElevatorButtonBlockEntity targetElevator) {
-                                targetElevator.hasCabin = !currentIsDest;
-                                targetElevator.state = ElevatorState.OPENING_DOORS;
-                                targetElevator.timerTicks = 30;
-                                targetElevator.redstoneEmit = !currentIsDest; // ONLY open doors if cabin is here
-                                targetElevator.updateState();
-                            }
-                        }
-                    }
-                    case OPENING_DOORS -> {
-                        be.state = ElevatorState.COOLDOWN;
-                        be.timerTicks = 40; // 2.0 seconds cooldown
-                        be.updateState();
-                    }
-                    case COOLDOWN -> {
-                        be.state = ElevatorState.IDLE;
-                        be.redstoneEmit = be.hasCabin; // Keep doors open only if cabin is here
-                        be.updateState();
-                    }
-                    default -> {}
-                }
+    private void networkStartMove(int src, int dst, int travel) {
+        for (BlockPos memberPos : members) {
+            BlockEntity be = getMemberBlockEntity(memberPos);
+            if (be instanceof ElevatorButtonBlockEntity member) {
+                member.beginMove(src, dst, travel);
             }
         }
+    }
+
+    private void beginMove(int src, int dst, int travel) {
+        this.srcFloor = src;
+        this.dstFloor = dst;
+        this.travelTotal = travel;
+        this.state = ElevatorState.CLOSING_DOORS;
+        this.timerTicks = CLOSE_TICKS;
+        sync();
+    }
+
+    @org.jetbrains.annotations.Nullable
+    private BlockEntity getMemberBlockEntity(BlockPos pos) {
+        if (!(level instanceof ServerLevel serverLevel)) return level != null ? level.getBlockEntity(pos) : null;
+        serverLevel.getChunkSource().getChunk(pos.getX() >> 4, pos.getZ() >> 4, ChunkStatus.FULL, true);
+        return serverLevel.getBlockEntity(pos);
+    }
+
+    // ------------------------------------------------------------------
+    // State machine (ticked on BOTH sides; client mirrors timers for smooth render)
+    // ------------------------------------------------------------------
+
+    public static void tick(Level level, BlockPos pos, BlockState blockState, ElevatorButtonBlockEntity be) {
+        if (be.timerTicks <= 0) return;
+        be.timerTicks--;
+        if (be.timerTicks > 0) return;
+
+        boolean server = !level.isClientSide;
+        switch (be.state) {
+            case CLOSING_DOORS -> {
+                be.state = ElevatorState.MOVING;
+                be.timerTicks = be.travelTotal;
+                if (server && level instanceof ServerLevel serverLevel) {
+                    for (BlockPos memberPos : be.members) {
+                        level.playSound(null, memberPos, ModSounds.ELEVATOR_MOVING.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+                        serverLevel.getChunkSource().getChunk(memberPos.getX() >> 4, memberPos.getZ() >> 4, ChunkStatus.FULL, true);
+                    }
+                }
+            }
+            case MOVING -> {
+                if (server && level instanceof ServerLevel serverLevel) {
+                    List<BlockPos> floors = be.getExteriorFloors();
+                    if (floors.size() >= 2) {
+                        BlockPos src = floors.get(Math.min(be.srcFloor, floors.size() - 1));
+                        BlockPos dst = floors.get(Math.min(be.dstFloor, floors.size() - 1));
+                        // The physical transfer happens exactly once, from the destination member
+                        if (pos.equals(dst)) {
+                            be.performTeleportation(serverLevel, src, dst);
+                        }
+                    }
+                }
+                be.cabinFloor = be.dstFloor;
+                be.state = ElevatorState.OPENING_DOORS;
+                be.timerTicks = OPEN_TICKS;
+            }
+            case OPENING_DOORS -> {
+                be.state = ElevatorState.COOLDOWN;
+                be.timerTicks = COOLDOWN_TICKS;
+            }
+            case COOLDOWN -> {
+                be.state = ElevatorState.IDLE;
+            }
+            default -> {}
+        }
+        be.sync();
     }
 
     private void performTeleportation(ServerLevel level, BlockPos fromPos, BlockPos toPos) {
@@ -199,7 +267,27 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         }
     }
 
-    public void updateState() {
+    // ------------------------------------------------------------------
+    // Redstone doors control
+    // ------------------------------------------------------------------
+
+    public boolean isEmittingRedstone() {
+        if (interior || !hasNetwork()) return false;
+        List<BlockPos> floors = getExteriorFloors();
+        int cabin = getCabinFloor();
+        // Doors open ONLY on the floor where the cabin physically rests
+        return cabin < floors.size()
+                && floors.get(cabin).equals(worldPosition)
+                && (state == ElevatorState.IDLE
+                || state == ElevatorState.OPENING_DOORS
+                || state == ElevatorState.COOLDOWN);
+    }
+
+    // ------------------------------------------------------------------
+    // Sync / NBT
+    // ------------------------------------------------------------------
+
+    public void sync() {
         setChanged();
         if (level != null && !level.isClientSide) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
@@ -210,11 +298,22 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
-        if (tag.contains("LinkedX")) {
-            this.linkedPos = new BlockPos(tag.getInt("LinkedX"), tag.getInt("LinkedY"), tag.getInt("LinkedZ"));
-        } else {
-            this.linkedPos = null;
+        members.clear();
+        memberInterior.clear();
+        if (tag.contains("Members", Tag.TAG_LIST)) {
+            ListTag list = tag.getList("Members", Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag m = list.getCompound(i);
+                members.add(new BlockPos(m.getInt("X"), m.getInt("Y"), m.getInt("Z")));
+                memberInterior.add(m.getBoolean("Interior"));
+            }
         }
+        this.interior = tag.getBoolean("SelfInterior");
+        this.cabinFloor = tag.getInt("CabinFloor");
+        this.srcFloor = tag.getInt("SrcFloor");
+        this.dstFloor = tag.getInt("DstFloor");
+        this.travelTotal = Math.max(20, tag.getInt("TravelTotal"));
+        this.timerTicks = tag.getInt("TimerTicks");
         if (tag.contains("ElevatorState")) {
             try {
                 this.state = ElevatorState.valueOf(tag.getString("ElevatorState"));
@@ -222,23 +321,28 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                 this.state = ElevatorState.IDLE;
             }
         }
-        this.hasCabin = tag.getBoolean("HasCabin");
-        this.timerTicks = tag.getInt("TimerTicks");
-        this.redstoneEmit = tag.getBoolean("RedstoneEmit");
     }
 
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
-        if (linkedPos != null) {
-            tag.putInt("LinkedX", linkedPos.getX());
-            tag.putInt("LinkedY", linkedPos.getY());
-            tag.putInt("LinkedZ", linkedPos.getZ());
+        ListTag list = new ListTag();
+        for (int i = 0; i < members.size(); i++) {
+            CompoundTag m = new CompoundTag();
+            m.putInt("X", members.get(i).getX());
+            m.putInt("Y", members.get(i).getY());
+            m.putInt("Z", members.get(i).getZ());
+            m.putBoolean("Interior", i < memberInterior.size() && memberInterior.get(i));
+            list.add(m);
         }
-        tag.putString("ElevatorState", state.name());
-        tag.putBoolean("HasCabin", hasCabin);
+        tag.put("Members", list);
+        tag.putBoolean("SelfInterior", interior);
+        tag.putInt("CabinFloor", cabinFloor);
+        tag.putInt("SrcFloor", srcFloor);
+        tag.putInt("DstFloor", dstFloor);
+        tag.putInt("TravelTotal", travelTotal);
         tag.putInt("TimerTicks", timerTicks);
-        tag.putBoolean("RedstoneEmit", redstoneEmit);
+        tag.putString("ElevatorState", state.name());
     }
 
     @Override
