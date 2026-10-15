@@ -19,7 +19,6 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -28,9 +27,6 @@ import org.jetbrains.annotations.Nullable;
 
 public class ElevatorButtonBlock extends Block implements EntityBlock {
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
-    /** TRUE = cabin is at THIS floor: panel glows mint with pulsing "you are here" node.
-     *  FALSE = cabin is on the other floor / moving: panel is dark with a blinking red node. */
-    public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
 
     // Voxel shapes matching compact panel (4.5 to 11.5 on X/Z, 2.5 to 13.5 on Y, 1.2 thick)
     private static final VoxelShape SHAPE_NORTH = Block.box(4.5, 2.5, 14.8, 11.5, 13.5, 16.0);
@@ -40,14 +36,12 @@ public class ElevatorButtonBlock extends Block implements EntityBlock {
 
     public ElevatorButtonBlock(Properties properties) {
         super(properties);
-        this.registerDefaultState(this.stateDefinition.any()
-                .setValue(FACING, Direction.NORTH)
-                .setValue(ACTIVE, true));
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, ACTIVE);
+        builder.add(FACING);
     }
 
     @Nullable

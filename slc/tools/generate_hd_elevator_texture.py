@@ -1,7 +1,6 @@
 import struct
 import zlib
 import os
-import math
 
 def create_png(width, height, pixel_data):
     def chunk(chunk_type, data):
@@ -19,128 +18,112 @@ def create_png(width, height, pixel_data):
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', compressed) + chunk(b'IEND', b'')
 
 
-FRAMES = 8
+FRAMES = 8  # 4 frames: box at bottom node (lift down) -> 4 frames: box at top node (lift up)
 
-# ---------------- PALETTE (sampled 1:1 from the SCP:SL panel screenshot) ----------------
-PLATE        = (8, 10, 14, 255)      # pure near-black panel face
-RIM_CYAN     = (110, 230, 215, 255)  # thin cyan glow rim (active panel edge)
-RIM_DARK     = (26, 30, 36, 255)     # panel edge when powered down
-
-STRIP_CORE   = (250, 255, 255, 255)  # white-hot strip core
-STRIP_HALO   = (110, 238, 222, 255)  # cyan bloom row around the core
-
-LINE_CYAN    = (0, 228, 214, 255)    # zigzag route lines / hollow node outline
-NODE_SOLID   = (215, 255, 248, 255)  # filled "elevator is here" square
-NODE_SOLID_D = (70, 205, 185, 255)   # dim phase of the pulse
-
-OFF_STRIP    = (62, 66, 74, 255)     # powered-down strip
-OFF_STRIP_HI = (80, 84, 92, 255)
-OFF_LINE     = (58, 62, 70, 255)     # dead zigzag lines
-
-RED_HOT      = (255, 72, 60, 255)    # red "elevator NOT here" warning square
-RED_DEAD     = (60, 16, 14, 255)     # red blink off-phase
+# ---------------- PALETTE (sampled from user's exact reference screenshot) ----------------
+FACE       = (14, 16, 20, 255)       # recessed black inner face
+BEVEL_HI   = (58, 62, 70, 255)       # top bevel edge
+BEVEL_MID  = (42, 46, 53, 255)       # left/right bevel edge
+BEVEL_LO   = (24, 27, 32, 255)       # bottom bevel edge
+CORNER_CUT = (26, 28, 33, 255)       # chamfered corner shadow
+BLUE       = (64, 118, 204, 255)     # flat azure blue for strips + route + solid box
 
 
-def _px(pixels, x, y, c):
+def _px(px, x, y, c):
     if 0 <= x < 16 and 0 <= y < 16:
         i = (y * 16 + x) * 4
-        pixels[i:i+4] = bytes(c)
+        px[i:i+4] = bytes(c)
 
 
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(4))
-
-
-def draw_base(frame, rim_color):
+def draw_base(f):
     for y in range(16):
         for x in range(16):
-            on_edge = x == 0 or x == 15 or y == 0 or y == 15
-            _px(frame, x, y, rim_color if on_edge else PLATE)
+            _px(f, x, y, FACE)
+    # Outer bevel frame (1 px ring)
+    for x in range(16):
+        _px(f, x, 0, BEVEL_HI)
+        _px(f, x, 15, BEVEL_LO)
+    for y in range(16):
+        _px(f, 0, y, BEVEL_MID)
+        _px(f, 15, y, BEVEL_MID)
+    # Chamfered corners (3-px staircase cuts)
+    for (cx, cy) in ((0, 0), (15, 0), (0, 15), (15, 15)):
+        pass
+    cuts = [(0, 0), (1, 0), (0, 1),
+            (15, 0), (14, 0), (15, 1),
+            (0, 15), (1, 15), (0, 14),
+            (15, 15), (14, 15), (15, 14)]
+    for (x, y) in cuts:
+        _px(f, x, y, CORNER_CUT)
 
 
-def draw_strips(frame, k, off):
-    # Top strip: halo row y=2, core row y=3 ; Bottom strip: core y=12, halo y=13
-    if not off:
-        halo = _lerp(STRIP_HALO, STRIP_CORE, 0.25 * k)
-        core = _lerp(STRIP_HALO, STRIP_CORE, 0.75 + 0.25 * k)
-    else:
-        halo, core = OFF_STRIP, OFF_STRIP_HI
-    for x in range(2, 14):
-        _px(frame, x, 2, halo)
-        _px(frame, x, 3, core)
-        _px(frame, x, 12, core)
-        _px(frame, x, 13, halo)
+def draw_strips(f):
+    # Top and bottom blue light bars (flat, 1 row, inset from bevel)
+    for x in range(3, 13):
+        _px(f, x, 2, BLUE)
+        _px(f, x, 13, BLUE)
 
 
-def hollow_node(frame, x0, y0, color):
-    for x in range(x0, x0 + 3):
-        _px(frame, x, y0, color)
-        _px(frame, x, y0 + 2, color)
-    _px(frame, x0, y0 + 1, color)
-    _px(frame, x0 + 2, y0 + 1, color)
+def hollow_node(f, x0, y0):
+    # 4x4 outline (1 px thick), hollow center
+    for x in range(x0, x0 + 4):
+        _px(f, x, y0, BLUE)
+        _px(f, x, y0 + 3, BLUE)
+    for y in range(y0, y0 + 4):
+        _px(f, x0, y, BLUE)
+        _px(f, x0 + 3, y, BLUE)
 
 
-def solid_node(frame, x0, y0, color):
-    for y in range(y0, y0 + 3):
-        for x in range(x0, x0 + 3):
-            _px(frame, x, y, color)
+def solid_box(f, x0, y0):
+    for y in range(y0, y0 + 4):
+        for x in range(x0, x0 + 4):
+            _px(f, x, y, BLUE)
 
 
-def draw_active(frame, k):
-    line = LINE_CYAN
-    # 45-degree diagonals, top hollow -> mid filled
-    _px(frame, 7, 7, line)
-    _px(frame, 6, 8, line)
-    # mid filled -> bottom hollow
-    _px(frame, 6, 10, line)
-    _px(frame, 7, 11, line)
-    # Nodes: top-right hollow, bottom-right hollow, mid-left SOLID (pulsing)
-    hollow_node(frame, 8, 4, line)
-    hollow_node(frame, 8, 10, line)
-    solid_node(frame, 3, 7, _lerp(NODE_SOLID_D, NODE_SOLID, k))
+def draw_route(f):
+    # Right-angle route on the right side: top node -> right -> down -> left -> bottom node
+    _px(f, 9, 4, BLUE)   # horizontal out of top node
+    _px(f, 10, 4, BLUE)
+    for y in range(5, 11):  # vertical drop x=10
+        _px(f, 10, y, BLUE)
+    _px(f, 9, 10, BLUE)  # horizontal into bottom node
 
 
-def draw_off(frame, k):
-    # Dead gray zigzag with hollow squares
-    _px(frame, 7, 7, OFF_LINE)
-    _px(frame, 6, 8, OFF_LINE)
-    _px(frame, 6, 10, OFF_LINE)
-    _px(frame, 7, 11, OFF_LINE)
-    hollow_node(frame, 8, 10, OFF_LINE)
-    hollow_node(frame, 3, 7, OFF_LINE)
-    # Red solid square at the TOP node position, blinking
-    solid_node(frame, 8, 4, _lerp(RED_DEAD, RED_HOT, k))
-
-
-def gen_strip(active):
+def gen_strip():
     pixels = bytearray(16 * (16 * FRAMES) * 4)
-    for f in range(FRAMES):
-        frame = bytearray(16 * 16 * 4)
-        t = 2.0 * math.pi * f / FRAMES
-        if active:
-            k = 0.5 + 0.5 * math.sin(t)          # smooth breathing
-            draw_base(frame, _lerp((70, 170, 160, 255), RIM_CYAN, k))
-            draw_strips(frame, k, off=False)
-            draw_active(frame, k)
+    for fi in range(FRAMES):
+        f = bytearray(16 * 16 * 4)
+        draw_base(f)
+        draw_strips(f)
+        draw_route(f)
+        # Hollow nodes at BOTH ends (top & bottom)
+        hollow_node(f, 5, 3)
+        hollow_node(f, 5, 9)
+        # The "where is the lift" FILLED BOX alternates between nodes
+        if fi < FRAMES // 2:
+            solid_box(f, 5, 9)   # lift at bottom floor
         else:
-            k = 1.0 if math.sin(t) > -0.2 else 0.0   # hard SL-style blink
-            draw_base(frame, RIM_DARK)
-            draw_strips(frame, k, off=True)
-            draw_off(frame, k)
+            solid_box(f, 5, 3)   # lift at top floor
         for y in range(16):
             for x in range(16):
                 s = (y * 16 + x) * 4
-                d = ((f * 16 + y) * 16 + x) * 4
-                pixels[d:d+4] = frame[s:s+4]
+                d = ((fi * 16 + y) * 16 + x) * 4
+                pixels[d:d+4] = f[s:s+4]
     return pixels
 
 
 def gen_item_icon():
-    frame = bytearray(16 * 16 * 4)
-    draw_base(frame, RIM_CYAN)
-    draw_strips(frame, 1.0, off=False)
-    draw_active(frame, 1.0)
-    return frame
+    f = bytearray(16 * 16 * 4)
+    draw_base(f)
+    draw_strips(f)
+    draw_route(f)
+    hollow_node(f, 5, 3)
+    solid_box(f, 5, 9)
+    return f
+
+
+def write_animated(mcmeta):
+    return '{\n  "animation": {\n    "frametime": 6,\n    "interpolate": false\n  }\n}\n'
 
 
 if __name__ == '__main__':
@@ -148,15 +131,12 @@ if __name__ == '__main__':
     os.makedirs(f'{base}/block', exist_ok=True)
     os.makedirs(f'{base}/item', exist_ok=True)
 
-    mcmeta = '{\n  "animation": {\n    "frametime": 3,\n    "interpolate": true\n  }\n}\n'
+    with open(f'{base}/block/elevator_button.png', 'wb') as fp:
+        fp.write(create_png(16, 16 * FRAMES, gen_strip()))
+    with open(f'{base}/block/elevator_button.png.mcmeta', 'w') as fp:
+        fp.write('{\n  "animation": {\n    "frametime": 6,\n    "interpolate": false\n  }\n}\n')
 
-    for name, active in (('elevator_button', True), ('elevator_button_off', False)):
-        with open(f'{base}/block/{name}.png', 'wb') as f:
-            f.write(create_png(16, 16 * FRAMES, gen_strip(active)))
-        with open(f'{base}/block/{name}.png.mcmeta', 'w') as f:
-            f.write(mcmeta)
+    with open(f'{base}/item/elevator_button.png', 'wb') as fp:
+        fp.write(create_png(16, 16, gen_item_icon()))
 
-    with open(f'{base}/item/elevator_button.png', 'wb') as f:
-        f.write(create_png(16, 16, gen_item_icon()))
-
-    print("1:1 SL panel textures regenerated (cyan rim, white-hot strips, pulsing solid node / blinking red node).")
+    print("Exact-reference elevator panel texture generated (blue bars, right-angle route, animating solid box).")
