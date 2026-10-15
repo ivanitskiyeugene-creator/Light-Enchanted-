@@ -87,7 +87,9 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                 floors.add(members.get(i));
             }
         }
-        floors.sort(Comparator.comparingInt(BlockPos::getY).thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ));
+        floors.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY)
+                .thenComparingInt(BlockPos::getX)
+                .thenComparingInt(BlockPos::getZ));
         return floors;
     }
 
