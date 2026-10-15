@@ -18,8 +18,8 @@ public class SpectatorHudOverlay implements IGuiOverlay {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        // Strict requirement: Only active if player is in Spectator mode AND Round is in progress
-        if (!mc.player.isSpectator() || !ClientRoundCache.isRoundActive()) return;
+        // Strict requirement: Only active if player is in Spectator mode, Round is in progress, AND player's role is actually SPECTATOR (not SCP-079!)
+        if (!mc.player.isSpectator() || !ClientRoundCache.isRoundActive() || ClientRoundCache.getLocalRole() != dev.slc.role.Role.SPECTATOR) return;
 
         Font font = mc.font;
 

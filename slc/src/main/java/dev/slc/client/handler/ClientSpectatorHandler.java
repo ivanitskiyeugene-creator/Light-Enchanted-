@@ -26,8 +26,8 @@ public class ClientSpectatorHandler {
         if (!ClientRoundCache.isRoundActive()) return;
 
         if (event.getAction() == GLFW.GLFW_PRESS) {
-            if (mc.player.isSpectator()) {
-                // SPECTATOR CONTROLS
+            if (mc.player.isSpectator() && ClientRoundCache.getLocalRole() == dev.slc.role.Role.SPECTATOR) {
+                // SPECTATOR CONTROLS (Only for actual dead spectators, not SCP-079)
                 if (event.getKey() == GLFW.GLFW_KEY_SPACE) {
                     ClientRoundCache.toggleFreecam();
                     if (ClientRoundCache.isFreecamMode()) {
@@ -40,7 +40,7 @@ public class ClientSpectatorHandler {
                 } else if (event.getKey() == GLFW.GLFW_KEY_K) {
                     ClientRoundCache.toggleMuteSpectatedPlayer();
                 }
-            } else {
+            } else if (!mc.player.isSpectator()) {
                 // ALIVE PLAYER CONTROLS
                 if (event.getKey() == GLFW.GLFW_KEY_TAB) {
                     mc.setScreen(new RadialInventoryScreen());
@@ -54,8 +54,8 @@ public class ClientSpectatorHandler {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;
 
-        // Strict requirement: Only active when in Spectator and Round is active
-        if (!mc.player.isSpectator() || !ClientRoundCache.isRoundActive()) return;
+        // Strict requirement: Only active when in Spectator, Round is active, and role is SPECTATOR
+        if (!mc.player.isSpectator() || !ClientRoundCache.isRoundActive() || ClientRoundCache.getLocalRole() != dev.slc.role.Role.SPECTATOR) return;
 
         if (event.getAction() == GLFW.GLFW_PRESS) {
             if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
