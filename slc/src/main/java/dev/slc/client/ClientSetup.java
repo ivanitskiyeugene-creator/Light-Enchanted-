@@ -6,6 +6,7 @@ import dev.slc.client.gui.DisarmedHudOverlay;
 import dev.slc.client.gui.RoleIntroOverlay;
 import dev.slc.client.gui.MapSetupToolOverlay;
 import dev.slc.client.gui.SpectatorHudOverlay;
+import dev.slc.client.gui.SlcHudOverlay;
 import dev.slc.client.render.ElevatorButtonRenderer;
 import dev.slc.client.render.TestDummyRenderer;
 import dev.slc.init.ModEntities;
@@ -26,18 +27,7 @@ public class ClientSetup {
     /** Appears in Minecraft's Controls menu and is rebindable like every other key. */
     public static final KeyMapping ADMIN_PANEL_KEY = new KeyMapping(
             "key.slc.admin_panel", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_M, "key.categories.slc");
-    public static final KeyMapping RADIAL_INVENTORY_KEY = new KeyMapping(
-            "key.slc.radial_inventory", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_TAB, "key.categories.slc");
-    public static final KeyMapping CARD_ACTION_KEY = new KeyMapping(
-            "key.slc.card_action", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.slc");
-    public static final KeyMapping INTERACT_ACTION_KEY = new KeyMapping(
-            "key.slc.interact_action", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_E, "key.categories.slc");
-    public static final KeyMapping GRENADE_ACTION_KEY = new KeyMapping(
-            "key.slc.grenade_action", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.slc");
-    public static final KeyMapping MEDKIT_ACTION_KEY = new KeyMapping(
-            "key.slc.medkit_action", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_X, "key.categories.slc");
-    public static final KeyMapping SPRINT_ACTION_KEY = new KeyMapping(
-            "key.slc.sprint_action", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_SHIFT, "key.categories.slc");
+
 
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
@@ -47,12 +37,6 @@ public class ClientSetup {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(ADMIN_PANEL_KEY);
-        event.register(RADIAL_INVENTORY_KEY);
-        event.register(CARD_ACTION_KEY);
-        event.register(INTERACT_ACTION_KEY);
-        event.register(GRENADE_ACTION_KEY);
-        event.register(MEDKIT_ACTION_KEY);
-        event.register(SPRINT_ACTION_KEY);
     }
 
     @SubscribeEvent
@@ -69,6 +53,7 @@ public class ClientSetup {
         event.registerAboveAll("role_intro", RoleIntroOverlay.INSTANCE);
         event.registerAboveAll("cassie_text", CassieHudOverlay.INSTANCE);
         event.registerAboveAll("disarmed_hud", DisarmedHudOverlay.INSTANCE);
+        event.registerAboveAll("slc_round_hud", SlcHudOverlay.INSTANCE);
         event.registerAboveAll("map_setup_tool", MapSetupToolOverlay.INSTANCE);
     }
 }

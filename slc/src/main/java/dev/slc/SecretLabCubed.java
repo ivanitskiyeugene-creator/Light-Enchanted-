@@ -79,6 +79,13 @@ public class SecretLabCubed {
     }
 
     @SubscribeEvent
+    public void onPlayerLoggedIn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            dev.slc.network.ModNetwork.sendToPlayer(dev.slc.network.S2CSyncRoundControlsPacket.from(player), player);
+        }
+    }
+
+    @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !event.player.level().isClientSide && event.player instanceof ServerPlayer serverPlayer) {
             if (serverPlayer.tickCount % 20 == 0 && dev.slc.admin.AdminPermission.isAdmin(serverPlayer)) {

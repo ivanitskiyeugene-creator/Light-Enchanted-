@@ -11,6 +11,7 @@ public class ClientRoundCache {
     private static RoundState roundState = RoundState.WAITING_FOR_PLAYERS;
     private static int roundElapsedTicks = 0;
     private static boolean automaticRoundEndLocked;
+    private static float stamina = 100.0F;
     private static float mtfInfluence = 0.5f;
     private static float chaosInfluence = 0.5f;
     private static final List<SpectatorTargetInfo> alivePlayers = new ArrayList<>();
@@ -96,6 +97,14 @@ public class ClientRoundCache {
 
     public static void setAutomaticRoundEndLocked(boolean locked) {
         automaticRoundEndLocked = locked;
+    }
+
+    public static float getStamina() {
+        return stamina;
+    }
+
+    public static void setStamina(float value) {
+        stamina = Math.max(0.0F, Math.min(100.0F, value));
     }
 
     public static void setRoundElapsedTicks(int ticks) {

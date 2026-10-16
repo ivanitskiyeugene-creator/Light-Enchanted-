@@ -3,6 +3,8 @@ package dev.slc.network;
 import dev.slc.admin.AdminAction;
 import dev.slc.admin.AdminPermission;
 import dev.slc.admin.AdminStateManager;
+import dev.slc.controls.RoundControl;
+import dev.slc.controls.SlcControlSavedData;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.role.Role;
 import dev.slc.role.Team;
@@ -62,6 +64,8 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
                 boolean locked = RoundEngine.toggleAutomaticRoundEndLock();
                 status(admin, locked ? "Автозавершение раунда отключено" : "Автозавершение раунда включено", true);
             }
+            case CONTROL_REQUEST -> ModNetwork.sendToPlayer(S2CSyncRoundControlsPacket.from(admin), admin);
+            case CONTROL_SET -> updateRoundControl(admin, request.number);
             case ROUND_RESTART -> {
                 RoundEngine.restartToLobby();
                 status(admin, "Раунд перезапущен: лобби", true);
@@ -230,6 +234,28 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         } catch (IllegalArgumentException ignored) {
             status(admin, "Неизвестная роль набора", false);
         }
+    }
+
+    /** number stores the control ordinal in the upper 16 bits and the GLFW key code below it. */
+    private static void updateRoundControl(ServerPlayer admin, int packed) {
+        int controlIndex = packed >>> 16;
+        int keyCode = packed & 0xFFFF;
+        if (controlIndex < 0 || controlIndex >= RoundControl.values().length) {
+            status(admin, "Некорректная клавиша раунда", false);
+            return;
+        }
+        SlcControlSavedData controls = SlcControlSavedData.get(admin.serverLevel());
+        RoundControl control = RoundControl.values()[controlIndex];
+        if (!controls.setKey(control, keyCode)) {
+            status(admin, "Клавиша недопустима или уже занята", false);
+            return;
+        }
+        if (admin.server != null) {
+            for (ServerPlayer player : admin.server.getPlayerList().getPlayers()) {
+                ModNetwork.sendToPlayer(S2CSyncRoundControlsPacket.from(player), player);
+            }
+        }
+        status(admin, control.displayName() + " → сохранено для этого мира", true);
     }
 
     private static void status(ServerPlayer player, String text, boolean success) {

@@ -33,7 +33,18 @@ public class Scp079PlayerManager {
         return SESSIONS.get(uuid);
     }
 
+    /** Manual /079 command entry keeps legacy informational messages. */
     public static boolean startSession(ServerPlayer player, BlockPos startingCameraPos) {
+        return startSession(player, startingCameraPos, true);
+    }
+
+    /** SLC role entry: same complete session, but no command/chat noise and no duplicate map system. */
+    public static boolean startSlcSession(ServerPlayer player) {
+        return startSession(player, player.blockPosition(), false);
+    }
+
+    private static boolean startSession(ServerPlayer player, BlockPos startingCameraPos, boolean feedback) {
+        if (SESSIONS.containsKey(player.getUUID())) return true;
         CameraBlockEntity camBe = FacilityNetworkManager.getCamera(startingCameraPos);
 
         // 1. Check all registered cameras
@@ -74,12 +85,12 @@ public class Scp079PlayerManager {
                 camBe = createdCam;
                 createdCam.setCameraName("HCZ - Primary Camera");
                 FacilityNetworkManager.registerCamera(autoPos, createdCam);
-                player.sendSystemMessage(Component.literal("§a[0-7-9] Auto-deployed Surveillance Camera at [" + autoPos.getX() + ", " + autoPos.getY() + ", " + autoPos.getZ() + "]"));
+                if (feedback) player.sendSystemMessage(Component.literal("§a[0-7-9] Auto-deployed Surveillance Camera at [" + autoPos.getX() + ", " + autoPos.getY() + ", " + autoPos.getZ() + "]"));
             }
         }
 
         if (camBe == null) {
-            player.sendSystemMessage(Component.literal("§c[0-7-9] Камеры видеонаблюдения не найдены! Поставьте блок камеры (HCZ, LCZ или EZ Camera) на стену и введите /079 join."));
+            if (feedback) player.sendSystemMessage(Component.literal("§c[0-7-9] Камеры видеонаблюдения не найдены! Поставьте блок камеры (HCZ, LCZ или EZ Camera) на стену и введите /079 join."));
             return false;
         }
 

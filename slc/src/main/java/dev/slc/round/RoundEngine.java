@@ -49,12 +49,14 @@ public class RoundEngine {
         tiedClassDEscapes = 0;
         DecontaminationManager.reset();
         AlphaWarheadManager.reset();
+        StaminaManager.reset();
         RespawnWaveManager.init(s);
         dev.slc.disarm.DisarmerManager.clearAll();
     }
 
     public static void cleanup() {
         RoundInventoryManager.forgetAll();
+        StaminaManager.reset();
         server = null;
         playerRoles.clear();
         RespawnWaveManager.cleanup();
@@ -87,6 +89,10 @@ public class RoundEngine {
     /** Applies role state and its saved equipment template, but leaves the player in place. */
     public static void setPlayerRole(ServerPlayer player, Role role) {
         if (player == null || role == null) return;
+        Role previous = getPlayerRole(player.getUUID());
+        if (previous == Role.SCP_079 && role != Role.SCP_079) {
+            dev.slc.integration.Scp079Bridge.end(player);
+        }
         playerRoles.put(player.getUUID(), role);
         applyRoleToPlayer(player, role);
     }
@@ -94,7 +100,8 @@ public class RoundEngine {
     /** Administration/spawn-wave path: full role application followed by a saved point or zone spawn. */
     public static void forceRoleAndSpawn(ServerPlayer player, Role role) {
         setPlayerRole(player, role);
-        teleportToRoleSpawn(player, role);
+        // SCP-079 is positioned by its 0-7-9 camera session, not by a physical role spawn.
+        if (role != Role.SCP_079) teleportToRoleSpawn(player, role);
         // Do not wait for the ten-tick spectator sync: the role card must appear with the spawn.
         syncClientState();
     }
@@ -186,6 +193,7 @@ public class RoundEngine {
 
     public static void endRound(Team winningTeam) {
         state = RoundState.ROUND_ENDED;
+        endScp079Sessions();
         RoundInventoryManager.finishRound(server);
         String winMsg = winningTeam != null ?
                 "РАУНД ОКОНЧЕН! ПОБЕДА: " + winningTeam.getDisplayName().toUpperCase() :
@@ -197,6 +205,7 @@ public class RoundEngine {
 
     /** Clean round reset used by the OP-4 control panel. Map zones/loadouts are SavedData and remain intact. */
     public static void restartToLobby() {
+        endScp079Sessions();
         RoundInventoryManager.finishRound(server);
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
@@ -241,6 +250,7 @@ public class RoundEngine {
             }
             case IN_PROGRESS -> {
                 roundElapsedTicks++;
+                StaminaManager.tick(server);
                 DecontaminationManager.tick(roundElapsedTicks);
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
@@ -251,6 +261,7 @@ public class RoundEngine {
             }
             case WARHEAD_DETONATING -> {
                 roundElapsedTicks++;
+                StaminaManager.tick(server);
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
@@ -269,8 +280,8 @@ public class RoundEngine {
         int aliveChaos = 0;
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isAlive() && player.gameMode.getGameModeForPlayer() != GameType.SPECTATOR) {
-                Role role = getPlayerRole(player.getUUID());
+            Role role = getPlayerRole(player.getUUID());
+            if (player.isAlive() && (player.gameMode.getGameModeForPlayer() != GameType.SPECTATOR || role == Role.SCP_079)) {
                 if (role != Role.SPECTATOR) {
                     float hp = player.getHealth();
                     float maxHp = (float) role.getMaxHealth();
@@ -309,7 +320,7 @@ public class RoundEngine {
             Role r = getPlayerRole(player.getUUID());
             dev.slc.network.ModNetwork.sendToPlayer(new dev.slc.network.S2CSyncRoundStatePacket(
                     state, roundElapsedTicks, mtfRatio, chaosRatio, r,
-                    tiedSet.contains(player.getUUID()), tiedSet, automaticRoundEndLocked), player);
+                    tiedSet.contains(player.getUUID()), tiedSet, automaticRoundEndLocked, StaminaManager.get(player)), player);
         }
         dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncSpectatorDataPacket(targets));
     }
@@ -366,6 +377,15 @@ public class RoundEngine {
             player.setGameMode(GameType.SPECTATOR);
         } else {
             player.setGameMode(GameType.SURVIVAL);
+            StaminaManager.refill(player);
+            if (role == Role.SCP_079) dev.slc.integration.Scp079Bridge.begin(player);
+        }
+    }
+
+    private static void endScp079Sessions() {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (getPlayerRole(player.getUUID()) == Role.SCP_079) dev.slc.integration.Scp079Bridge.end(player);
         }
     }
 
@@ -379,8 +399,8 @@ public class RoundEngine {
         int aliveScps = 0;
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isAlive() && player.gameMode.getGameModeForPlayer() != GameType.SPECTATOR) {
-                Role r = getPlayerRole(player.getUUID());
+            Role r = getPlayerRole(player.getUUID());
+            if (player.isAlive() && (player.gameMode.getGameModeForPlayer() != GameType.SPECTATOR || r == Role.SCP_079)) {
                 switch (r.getTeam()) {
                     case CLASS_D_PERSONNEL -> aliveClassD++;
                     case SCIENTISTS -> aliveScientists++;

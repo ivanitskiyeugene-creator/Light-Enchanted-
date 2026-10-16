@@ -4,11 +4,14 @@ import dev.slc.admin.AdminAction;
 import dev.slc.client.ClientAdminKitCache;
 import dev.slc.client.ClientAdminPanelState;
 import dev.slc.client.ClientRoundCache;
+import dev.slc.client.ClientRoundControlCache;
+import dev.slc.controls.RoundControl;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.init.ModItems;
 import dev.slc.network.C2SAdminActionPacket;
 import dev.slc.network.ModNetwork;
 import dev.slc.role.Role;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -24,7 +27,7 @@ import java.util.UUID;
 
 /** Deliberately plain OP panel: clear controls first, every mutation routes through C2SAdminActionPacket. */
 public final class AdminPanelScreen extends Screen {
-    private enum Tab { ROUND, PLAYERS, POWERS, ITEMS, MAP_079, LOADOUTS, DUMMIES, MODERATION }
+    private enum Tab { ROUND, CONTROLS, PLAYERS, POWERS, ITEMS, MAP_079, LOADOUTS, DUMMIES, MODERATION }
 
     private Tab tab = Tab.ROUND;
     private UUID selectedPlayer;
@@ -33,6 +36,7 @@ public final class AdminPanelScreen extends Screen {
     private EditBox itemCount;
     private MapGroup mapGroup = MapGroup.CIVILIANS;
     private Role mapRole = Role.CLASS_D;
+    private int capturingRoundControl = -1;
 
     private enum MapGroup {
         CIVILIANS("ПЕРСОНАЛ", new Role[]{Role.CLASS_D, Role.SCIENTIST, Role.FACILITY_GUARD}),
@@ -83,6 +87,7 @@ public final class AdminPanelScreen extends Screen {
         }
         switch (tab) {
             case ROUND -> buildRound();
+            case CONTROLS -> buildControls();
             case PLAYERS -> buildPlayers(false);
             case POWERS -> buildPowers();
             case ITEMS -> buildItems();
@@ -104,6 +109,10 @@ public final class AdminPanelScreen extends Screen {
         addAction("END: SCP", 190, 142, 110, AdminAction.ROUND_END_SCP);
         addAction("НЕ ОСТАНАВЛИВАТЬ РАУНД: " + (ClientRoundCache.isAutomaticRoundEndLocked() ? "ВКЛ" : "ВЫКЛ"),
                 24, 184, 220, AdminAction.ROUND_TOGGLE_AUTO_END);
+    }
+
+    private void buildControls() {
+        send(AdminAction.CONTROL_REQUEST, null, "", 0);
     }
 
     private void buildPlayers(boolean moderation) {
@@ -259,6 +268,7 @@ public final class AdminPanelScreen extends Screen {
         graphics.drawString(font, titleForTab(), 24, 48, 0xFFFFFFFF, false);
         switch (tab) {
             case ROUND -> drawRoundHelp(graphics);
+            case CONTROLS -> drawControls(graphics);
             case PLAYERS -> graphics.drawString(font, "Выбранный игрок получает роль, набор и телепорт на спавн.", 24, 186, 0xFFB8C2CC, false);
             case POWERS -> graphics.drawString(font, "No-clip и god mode снимаются автоматически при потере OP 4 или выходе.", 24, 158, 0xFFB8C2CC, false);
             case ITEMS -> graphics.drawString(font, "Идентификатор из любого загруженного мода; ключ-карты — только scpfr:*.", 24, 132, 0xFFB8C2CC, false);
@@ -274,6 +284,27 @@ public final class AdminPanelScreen extends Screen {
             graphics.drawString(font, adminStatus, 24, height - 29, color, false);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private void drawControls(GuiGraphics graphics) {
+        graphics.drawString(font, "УПРАВЛЕНИЕ РАУНДА • сохраняется для этого мира и применяется ко всем игрокам", 24, 58, 0xFFFFFFFF, false);
+        graphics.drawString(font, capturingRoundControl >= 0
+                ? "Нажми новую клавишу для: " + RoundControl.values()[capturingRoundControl].displayName() + " • ESC отмена"
+                : "ЛКМ по строке — назначить клавишу. Одинаковые клавиши сервер отклонит.",
+                24, 76, capturingRoundControl >= 0 ? 0xFFF1C40F : 0xFFB8C2CC, false);
+        int x = 24;
+        int y = 96;
+        for (RoundControl control : RoundControl.values()) {
+            boolean selected = capturingRoundControl == control.ordinal();
+            graphics.fill(x, y, x + 280, y + 24, selected ? 0xFF384A59 : 0xFF080B10);
+            graphics.fill(x, y, x + 100, y + 24, selected ? 0xFFF1C40F : ACCENT);
+            graphics.drawCenteredString(font, control.displayName(), x + 50, y + 8, 0xFF101318);
+            String keyName = InputConstants.getKey(ClientRoundControlCache.key(control), -1).getDisplayName().getString().toUpperCase();
+            graphics.drawString(font, keyName, x + 112, y + 8, 0xFFFFFFFF, false);
+            y += 28;
+        }
+        graphics.drawString(font, "В раунде эти клавиши заменяют ванильные действия. TAB/список игроков и E/инвентарь не откроют ванильный UI.",
+                24, y + 6, 0xFFB8C2CC, false);
     }
 
     private void drawRoundHelp(GuiGraphics graphics) {
@@ -338,6 +369,11 @@ public final class AdminPanelScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (tab == Tab.CONTROLS && button == 0 && mouseX >= 24 && mouseX < 304 && mouseY >= 96
+                && mouseY < 96 + RoundControl.values().length * 28) {
+            capturingRoundControl = (int) ((mouseY - 96) / 28);
+            return true;
+        }
         if (tab == Tab.LOADOUTS) {
             int originX = 24;
             int originY = 106;
@@ -366,11 +402,26 @@ public final class AdminPanelScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (tab == Tab.CONTROLS && capturingRoundControl >= 0) {
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+                capturingRoundControl = -1;
+            } else {
+                send(AdminAction.CONTROL_SET, null, "", (capturingRoundControl << 16) | (keyCode & 0xFFFF));
+                capturingRoundControl = -1;
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public boolean isPauseScreen() { return false; }
 
     private static String label(Tab tab) {
         return switch (tab) {
             case ROUND -> "РАУНД";
+            case CONTROLS -> "КЛАВИШИ";
             case PLAYERS -> "ИГРОКИ";
             case POWERS -> "РЕЖИМ";
             case ITEMS -> "ПРЕДМЕТЫ";

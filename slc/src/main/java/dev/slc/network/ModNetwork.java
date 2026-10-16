@@ -86,6 +86,12 @@ public class ModNetwork {
                 .consumerMainThread(S2CMapZonesPacket::handle)
                 .add();
 
+        CHANNEL.messageBuilder(S2CSyncRoundControlsPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CSyncRoundControlsPacket::encode)
+                .decoder(S2CSyncRoundControlsPacket::decode)
+                .consumerMainThread(S2CSyncRoundControlsPacket::handle)
+                .add();
+
         CHANNEL.messageBuilder(C2SAdminActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SAdminActionPacket::encode)
                 .decoder(C2SAdminActionPacket::decode)
