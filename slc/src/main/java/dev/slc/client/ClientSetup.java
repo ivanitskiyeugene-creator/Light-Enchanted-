@@ -1,6 +1,8 @@
 package dev.slc.client;
 
 import dev.slc.SecretLabCubed;
+import dev.slc.client.gui.CassieHudOverlay;
+import dev.slc.client.gui.DisarmedHudOverlay;
 import dev.slc.client.gui.RoleIntroOverlay;
 import dev.slc.client.gui.SpectatorHudOverlay;
 import dev.slc.client.render.ElevatorButtonRenderer;
@@ -29,5 +31,7 @@ public class ClientSetup {
     public static void onRegisterOverlays(RegisterGuiOverlaysEvent event) {
         event.registerAboveAll("spectator_hud", SpectatorHudOverlay.INSTANCE);
         event.registerAboveAll("role_intro", RoleIntroOverlay.INSTANCE);
+        event.registerAboveAll("cassie_text", CassieHudOverlay.INSTANCE);
+        event.registerAboveAll("disarmed_hud", DisarmedHudOverlay.INSTANCE);
     }
 }

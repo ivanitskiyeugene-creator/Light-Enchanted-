@@ -37,6 +37,12 @@ public class ModNetwork {
                 .decoder(C2SSelectInventorySlotPacket::decode)
                 .consumerMainThread(C2SSelectInventorySlotPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(S2CCassiePacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CCassiePacket::encode)
+                .decoder(S2CCassiePacket::decode)
+                .consumerMainThread(S2CCassiePacket::handle)
+                .add();
     }
 
     public static void sendToPlayer(Object packet, ServerPlayer player) {

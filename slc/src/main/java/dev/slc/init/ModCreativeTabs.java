@@ -21,6 +21,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.SPATIAL_MARKER_WAND.get());
                         output.accept(ModItems.ELEVATOR_LINKER.get());
                         output.accept(ModItems.ELEVATOR_TIMER_TUNER.get());
+                        output.accept(ModItems.DISARMER.get());
                     })
                     .build());
 }

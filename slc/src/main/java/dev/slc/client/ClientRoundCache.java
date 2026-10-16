@@ -22,6 +22,57 @@ public class ClientRoundCache {
     private static boolean muteDeadChat = false;
     private static boolean muteSpectatedPlayer = false;
 
+    private static boolean localTied = false;
+    private static final java.util.Set<java.util.UUID> tiedPlayers = new java.util.HashSet<>();
+
+    // C.A.S.S.I.E. streaming text state
+    private static String cassieText = "";
+    private static int cassieColor = 0xFFFFFF;
+    private static long cassieStartMillis = 0L;
+
+    public static boolean isLocalTied() {
+        return localTied;
+    }
+
+    public static void setLocalTied(boolean tied) {
+        localTied = tied;
+    }
+
+    public static java.util.Set<java.util.UUID> getTiedPlayers() {
+        return tiedPlayers;
+    }
+
+    public static void setTiedPlayers(java.util.Set<java.util.UUID> set) {
+        tiedPlayers.clear();
+        tiedPlayers.addAll(set);
+    }
+
+    public static boolean isPlayerTied(java.util.UUID uuid) {
+        return tiedPlayers.contains(uuid);
+    }
+
+    public static void pushCassieMessage(String text, int colorRgb) {
+        cassieText = text;
+        cassieColor = colorRgb;
+        cassieStartMillis = System.currentTimeMillis();
+    }
+
+    public static String getCassieText() {
+        return cassieText;
+    }
+
+    public static int getCassieColor() {
+        return cassieColor;
+    }
+
+    public static long getCassieStartMillis() {
+        return cassieStartMillis;
+    }
+
+    public static boolean hasCassieMessage() {
+        return !cassieText.isEmpty();
+    }
+
     public static boolean isRoundActive() {
         return roundState == RoundState.IN_PROGRESS || roundState == RoundState.WARHEAD_DETONATING;
     }

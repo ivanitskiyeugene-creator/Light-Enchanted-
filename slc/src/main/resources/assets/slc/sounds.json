@@ -5,5 +5,19 @@
     "sounds": [
       "slc:elevator_moving"
     ]
+  },
+  "cassie_announce_mtf": {
+    "category": "master",
+    "subtitle": "subtitles.slc.cassie_announce_mtf",
+    "sounds": [
+      "slc:cassie_announce_mtf"
+    ]
+  },
+  "cassie_announce_chaos": {
+    "category": "master",
+    "subtitle": "subtitles.slc.cassie_announce_chaos",
+    "sounds": [
+      "slc:cassie_announce_chaos"
+    ]
   }
 }

@@ -9,6 +9,10 @@ public class SlcConfig {
         public final ForgeConfigSpec.IntValue decontamTimeSeconds;
         public final ForgeConfigSpec.IntValue warheadDetonationSeconds;
         public final ForgeConfigSpec.BooleanValue allowFriendlyFire;
+        public final ForgeConfigSpec.IntValue respawnWaveIntervalSeconds;
+        public final ForgeConfigSpec.IntValue startingTickets;
+        public final ForgeConfigSpec.IntValue mtfEscapeTicketBonus;
+        public final ForgeConfigSpec.IntValue chaosEscapeTicketBonus;
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.push("round");
@@ -28,6 +32,26 @@ public class SlcConfig {
             allowFriendlyFire = builder
                     .comment("Whether teammates can damage each other (e.g. MTF vs MTF). Default: false.")
                     .define("allowFriendlyFire", false);
+
+            builder.pop();
+
+            builder.push("respawn_waves");
+
+            respawnWaveIntervalSeconds = builder
+                    .comment("Interval in seconds between MTF / Chaos Insurgency respawn waves. Default: 360 (6 minutes).")
+                    .defineInRange("respawnWaveIntervalSeconds", 360, 60, 3600);
+
+            startingTickets = builder
+                    .comment("Respawn tickets each faction (MTF and Chaos Insurgency) starts the round with.")
+                    .defineInRange("startingTickets", 18, 0, 200);
+
+            mtfEscapeTicketBonus = builder
+                    .comment("MTF tickets granted for a Scientist escaping (free or converted).")
+                    .defineInRange("mtfEscapeTicketBonus", 2, 0, 50);
+
+            chaosEscapeTicketBonus = builder
+                    .comment("Chaos tickets granted for a Class-D escaping (free or converted).")
+                    .defineInRange("chaosEscapeTicketBonus", 2, 0, 50);
 
             builder.pop();
         }

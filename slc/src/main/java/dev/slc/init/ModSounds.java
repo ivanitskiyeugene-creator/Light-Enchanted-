@@ -13,4 +13,10 @@ public class ModSounds {
 
     public static final RegistryObject<SoundEvent> ELEVATOR_MOVING = SOUNDS.register("elevator_moving",
             () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(SecretLabCubed.MOD_ID, "elevator_moving")));
+
+    public static final RegistryObject<SoundEvent> CASSIE_MTF_WAVE = SOUNDS.register("cassie_announce_mtf",
+            () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(SecretLabCubed.MOD_ID, "cassie_announce_mtf")));
+
+    public static final RegistryObject<SoundEvent> CASSIE_CHAOS_WAVE = SOUNDS.register("cassie_announce_chaos",
+            () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(SecretLabCubed.MOD_ID, "cassie_announce_chaos")));
 }

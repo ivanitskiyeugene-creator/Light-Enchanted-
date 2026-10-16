@@ -1,6 +1,7 @@
 package dev.slc.init;
 
 import dev.slc.SecretLabCubed;
+import dev.slc.item.DisarmerItem;
 import dev.slc.item.ElevatorLinkerItem;
 import dev.slc.item.ElevatorTimerTunerItem;
 import dev.slc.item.SpatialMarkerWandItem;
@@ -25,4 +26,7 @@ public class ModItems {
 
     public static final RegistryObject<Item> ELEVATOR_TIMER_TUNER = ITEMS.register("elevator_timer_tuner",
             () -> new ElevatorTimerTunerItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> DISARMER = ITEMS.register("disarmer",
+            () -> new DisarmerItem(new Item.Properties().stacksTo(1)));
 }

@@ -1,6 +1,7 @@
 package dev.slc.round;
 
 import dev.slc.cassie.CassieVoiceEngine;
+import dev.slc.config.SlcConfig;
 import dev.slc.decontam.DecontaminationManager;
 import dev.slc.role.Role;
 import dev.slc.role.Team;
@@ -41,11 +42,15 @@ public class RoundEngine {
         tiedClassDEscapes = 0;
         DecontaminationManager.reset();
         AlphaWarheadManager.reset();
+        RespawnWaveManager.init(s);
+        dev.slc.disarm.DisarmerManager.clearAll();
     }
 
     public static void cleanup() {
         server = null;
         playerRoles.clear();
+        RespawnWaveManager.cleanup();
+        dev.slc.disarm.DisarmerManager.clearAll();
     }
 
     public static RoundState getState() {
@@ -94,19 +99,27 @@ public class RoundEngine {
             if (isTied) {
                 tiedClassDEscapes++;
                 setPlayerRole(player, Role.MTF_PRIVATE);
+                // Captor's faction gains the converted escape: MTF tickets
+                RespawnWaveManager.addMtfTickets(SlcConfig.COMMON.mtfEscapeTicketBonus.get());
             } else {
                 freeClassDEscapes++;
                 setPlayerRole(player, Role.CHAOS_CONSCRIPT);
+                RespawnWaveManager.addChaosTickets(SlcConfig.COMMON.chaosEscapeTicketBonus.get());
             }
         } else if (currentRole == Role.SCIENTIST) {
             if (isTied) {
                 tiedScientistEscapes++;
                 setPlayerRole(player, Role.CHAOS_CONSCRIPT);
+                // Captor's faction gains the converted escape: Chaos tickets
+                RespawnWaveManager.addChaosTickets(SlcConfig.COMMON.chaosEscapeTicketBonus.get());
             } else {
                 freeScientistEscapes++;
                 setPlayerRole(player, Role.MTF_SPECIALIST);
+                RespawnWaveManager.addMtfTickets(SlcConfig.COMMON.mtfEscapeTicketBonus.get());
             }
         }
+        // Bonds never survive an escape
+        dev.slc.disarm.DisarmerManager.untie(player);
     }
 
     public static void startRoundCountdown(int seconds) {
@@ -139,6 +152,8 @@ public class RoundEngine {
     public static void tick() {
         if (server == null) return;
 
+        dev.slc.disarm.DisarmerManager.tick(server);
+
         switch (state) {
             case LOBBY_COUNTDOWN -> {
                 if (countdownTicks > 0) {
@@ -158,6 +173,7 @@ public class RoundEngine {
                 roundElapsedTicks++;
                 DecontaminationManager.tick(roundElapsedTicks);
                 AlphaWarheadManager.tick();
+                RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
                     syncSpectatorData();
                 }
@@ -166,6 +182,7 @@ public class RoundEngine {
             case WARHEAD_DETONATING -> {
                 roundElapsedTicks++;
                 AlphaWarheadManager.tick();
+                RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
                     syncSpectatorData();
                 }
@@ -209,15 +226,20 @@ public class RoundEngine {
             }
         }
 
-        float mtfTokens = Math.max(0.1f, aliveMtf + freeScientistEscapes * 2.0f);
-        float chaosTokens = Math.max(0.1f, aliveChaos + freeClassDEscapes * 2.0f);
+        // Ticket bars show the REAL respawn tickets (SL influence tokens)
+        float mtfTokens = Math.max(0.1f, RespawnWaveManager.getMtfTickets());
+        float chaosTokens = Math.max(0.1f, RespawnWaveManager.getChaosTickets());
         float total = mtfTokens + chaosTokens;
         float mtfRatio = mtfTokens / total;
         float chaosRatio = chaosTokens / total;
 
+        java.util.Set<UUID> tiedSet = dev.slc.disarm.DisarmerManager.getTiedPlayers();
+
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             Role r = getPlayerRole(player.getUUID());
-            dev.slc.network.ModNetwork.sendToPlayer(new dev.slc.network.S2CSyncRoundStatePacket(state, roundElapsedTicks, mtfRatio, chaosRatio, r), player);
+            dev.slc.network.ModNetwork.sendToPlayer(new dev.slc.network.S2CSyncRoundStatePacket(
+                    state, roundElapsedTicks, mtfRatio, chaosRatio, r,
+                    tiedSet.contains(player.getUUID()), tiedSet), player);
         }
         dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncSpectatorDataPacket(targets));
     }

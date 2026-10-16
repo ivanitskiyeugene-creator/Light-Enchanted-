@@ -82,7 +82,7 @@ public class SecretLabCubed {
                     SpatialZoneManager zoneMgr = SpatialZoneManager.get(serverPlayer.serverLevel());
                     AABB escapeZone = zoneMgr.getEscapeZone();
                     if (escapeZone != null && escapeZone.contains(serverPlayer.position())) {
-                        boolean isTied = false; // Tied status integration
+                        boolean isTied = dev.slc.disarm.DisarmerManager.isTied(serverPlayer.getUUID());
                         RoundEngine.handlePlayerEscape(serverPlayer, isTied);
                     }
                 }
