@@ -32,5 +32,8 @@
   "role.slc.scp_173": "SCP-173",
   "role.slc.scp_049": "SCP-049",
   "role.slc.scp_096": "SCP-096",
-  "role.slc.spectator": "Spectator"
+  "role.slc.spectator": "Spectator",
+  "item.slc.admin_panel": "SLC Admin Panel",
+  "item.slc.admin_zone_marker": "SLC Zone Marker",
+  "item.slc.dummy_spawner": "SLC Dummy Spawner"
 }

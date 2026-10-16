@@ -3,12 +3,16 @@ package dev.slc.round;
 import dev.slc.cassie.CassieVoiceEngine;
 import dev.slc.config.SlcConfig;
 import dev.slc.decontam.DecontaminationManager;
+import dev.slc.loadout.SlcArmorManager;
+import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.role.Role;
 import dev.slc.role.Team;
 import dev.slc.warhead.AlphaWarheadManager;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import dev.slc.zone.SpatialZoneManager;
 
 import java.util.*;
 
@@ -65,10 +69,30 @@ public class RoundEngine {
         return playerRoles.getOrDefault(uuid, Role.SPECTATOR);
     }
 
+    /** Applies role state and its saved equipment template, but leaves the player in place. */
     public static void setPlayerRole(ServerPlayer player, Role role) {
         if (player == null || role == null) return;
         playerRoles.put(player.getUUID(), role);
         applyRoleToPlayer(player, role);
+    }
+
+    /** Administration/spawn-wave path: full role application followed by a saved point or zone spawn. */
+    public static void forceRoleAndSpawn(ServerPlayer player, Role role) {
+        setPlayerRole(player, role);
+        teleportToRoleSpawn(player, role);
+    }
+
+    public static void teleportToRoleSpawn(ServerPlayer player, Role role) {
+        if (player == null || !(player.level() instanceof ServerLevel level)) return;
+        SpatialZoneManager.SpawnTarget target = SpatialZoneManager.get(level)
+                .getRandomRoleSpawn(level, role, player.getRandom());
+        if (target == null) {
+            net.minecraft.core.BlockPos fallback = level.getSharedSpawnPos();
+            target = new SpatialZoneManager.SpawnTarget(fallback.getX() + 0.5D, fallback.getY(), fallback.getZ() + 0.5D,
+                    player.getYRot(), player.getXRot());
+        }
+        player.connection.teleport(target.x(), target.y(), target.z(), target.yaw(), target.pitch());
+        player.resetFallDistance();
     }
 
     public static int getFreeScientistEscapes() {
@@ -135,6 +159,7 @@ public class RoundEngine {
         freeClassDEscapes = 0;
         tiedScientistEscapes = 0;
         tiedClassDEscapes = 0;
+        RespawnWaveManager.reset();
         assignInitialRoles();
         DecontaminationManager.startTimer();
         CassieVoiceEngine.broadcast("FACILITY OPERATING NORMALLY . ALL STATIONS AT FULL BREACH READINESS", 0x2ECC71);
@@ -147,6 +172,26 @@ public class RoundEngine {
                 "РАУНД ОКОНЧЕН! НИЧЬЯ (STALEMATE)";
 
         CassieVoiceEngine.broadcast(winMsg, winningTeam != null ? winningTeam.getColorRgb() : 0xFFFFFF);
+    }
+
+    /** Clean round reset used by the OP-4 control panel. Map zones/loadouts are SavedData and remain intact. */
+    public static void restartToLobby() {
+        state = RoundState.WAITING_FOR_PLAYERS;
+        countdownTicks = 0;
+        roundElapsedTicks = 0;
+        freeScientistEscapes = 0;
+        freeClassDEscapes = 0;
+        tiedScientistEscapes = 0;
+        tiedClassDEscapes = 0;
+        DecontaminationManager.reset();
+        AlphaWarheadManager.reset();
+        RespawnWaveManager.reset();
+        dev.slc.disarm.DisarmerManager.clearAll();
+        if (server != null) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                setPlayerRole(player, Role.SPECTATOR);
+            }
+        }
     }
 
     public static void tick() {
@@ -258,32 +303,35 @@ public class RoundEngine {
 
         Role[] scpPool = {Role.SCP_173, Role.SCP_079, Role.SCP_939, Role.SCP_049, Role.SCP_096};
         for (int i = 0; i < scpCount && assigned < total; i++) {
-            setPlayerRole(players.get(assigned++), scpPool[i % scpPool.length]);
+            forceRoleAndSpawn(players.get(assigned++), scpPool[i % scpPool.length]);
         }
 
         // 2. Assign Guards
         int guardCount = Math.max(1, (total - assigned) / 4);
         for (int i = 0; i < guardCount && assigned < total; i++) {
-            setPlayerRole(players.get(assigned++), Role.FACILITY_GUARD);
+            forceRoleAndSpawn(players.get(assigned++), Role.FACILITY_GUARD);
         }
 
         // 3. Assign Scientists
         int remaining = total - assigned;
         int sciCount = Math.max(1, remaining / 3);
         for (int i = 0; i < sciCount && assigned < total; i++) {
-            setPlayerRole(players.get(assigned++), Role.SCIENTIST);
+            forceRoleAndSpawn(players.get(assigned++), Role.SCIENTIST);
         }
 
         // 4. Remaining are Class-D
         while (assigned < total) {
-            setPlayerRole(players.get(assigned++), Role.CLASS_D);
+            forceRoleAndSpawn(players.get(assigned++), Role.CLASS_D);
         }
     }
 
     private static void applyRoleToPlayer(ServerPlayer player, Role role) {
         if (player == null || role == null) return;
 
-        player.setHealth(role.getMaxHealth());
+        if (player.level() instanceof ServerLevel level) {
+            SlcArmorManager.applyRoleLoadout(player, SlcLoadoutSavedData.get(level).getLoadout(role));
+        }
+        player.setHealth(Math.min(role.getMaxHealth(), player.getMaxHealth()));
         if (role == Role.SPECTATOR) {
             player.setGameMode(GameType.SPECTATOR);
         } else {

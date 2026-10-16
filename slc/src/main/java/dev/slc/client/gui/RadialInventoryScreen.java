@@ -1,6 +1,7 @@
 package dev.slc.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import dev.slc.client.ClientSlcArmorCache;
 import dev.slc.network.C2SSelectInventorySlotPacket;
 import dev.slc.network.ModNetwork;
 import net.minecraft.client.Minecraft;
@@ -122,6 +123,21 @@ public class RadialInventoryScreen extends Screen {
             graphics.drawCenteredString(font, "§7ИНВЕНТАРЬ", cx, cy - 12, 0xAAAAAA);
             graphics.drawCenteredString(font, "§88 СЛОТОВ", cx, cy + 2, 0x666666);
         }
+
+        // Separate, single-cell SLC body armor. It is functional but intentionally does not render on the player model.
+        ItemStack bodyArmor = ClientSlcArmorCache.getArmor();
+        int armorX = cx + 118;
+        int armorY = cy - 12;
+        graphics.fill(armorX - 3, armorY - 3, armorX + 21, armorY + 21, 0xCC080B10);
+        graphics.fill(armorX - 4, armorY - 4, armorX + 22, armorY - 3, COLOR_GOLD_LINE);
+        graphics.fill(armorX - 4, armorY + 21, armorX + 22, armorY + 22, COLOR_GOLD_LINE);
+        graphics.fill(armorX - 4, armorY - 4, armorX - 3, armorY + 22, COLOR_GOLD_LINE);
+        graphics.fill(armorX + 21, armorY - 4, armorX + 22, armorY + 22, COLOR_GOLD_LINE);
+        if (!bodyArmor.isEmpty()) {
+            graphics.renderItem(bodyArmor, armorX, armorY);
+            graphics.renderItemDecorations(font, bodyArmor, armorX, armorY);
+        }
+        graphics.drawCenteredString(font, "БРОНЯ", armorX + 8, armorY + 25, COLOR_GOLD_TEXT);
 
         // 3. Bottom-Left Stamina Meter (1:1 SL Yellow Box)
         int gaugeX = 14;

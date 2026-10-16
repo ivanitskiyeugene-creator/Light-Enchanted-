@@ -32,5 +32,8 @@
   "role.slc.scp_173": "SCP-173",
   "role.slc.scp_049": "SCP-049",
   "role.slc.scp_096": "SCP-096",
-  "role.slc.spectator": "Наблюдатель"
+  "role.slc.spectator": "Наблюдатель",
+  "item.slc.admin_panel": "Админ-панель SLC",
+  "item.slc.admin_zone_marker": "Маркер Зон SLC",
+  "item.slc.dummy_spawner": "Спавнер Dummy SLC"
 }

@@ -43,6 +43,30 @@ public class ModNetwork {
                 .decoder(S2CCassiePacket::decode)
                 .consumerMainThread(S2CCassiePacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(S2CSyncSlcArmorPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CSyncSlcArmorPacket::encode)
+                .decoder(S2CSyncSlcArmorPacket::decode)
+                .consumerMainThread(S2CSyncSlcArmorPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(S2COpenAdminPanelPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenAdminPanelPacket::encode)
+                .decoder(S2COpenAdminPanelPacket::decode)
+                .consumerMainThread(S2COpenAdminPanelPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(S2CAdminKitPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CAdminKitPacket::encode)
+                .decoder(S2CAdminKitPacket::decode)
+                .consumerMainThread(S2CAdminKitPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(C2SAdminActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SAdminActionPacket::encode)
+                .decoder(C2SAdminActionPacket::decode)
+                .consumerMainThread(C2SAdminActionPacket::handle)
+                .add();
     }
 
     public static void sendToPlayer(Object packet, ServerPlayer player) {

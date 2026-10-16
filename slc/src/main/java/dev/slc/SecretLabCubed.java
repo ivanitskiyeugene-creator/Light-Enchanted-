@@ -5,6 +5,7 @@ import dev.slc.config.SlcConfig;
 import dev.slc.init.ModBlockEntities;
 import dev.slc.init.ModBlocks;
 import dev.slc.init.ModCreativeTabs;
+import dev.slc.init.ModEntities;
 import dev.slc.init.ModItems;
 import dev.slc.init.ModSounds;
 import dev.slc.round.RoundEngine;
@@ -38,6 +39,7 @@ public class SecretLabCubed {
 
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
+        ModEntities.ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);

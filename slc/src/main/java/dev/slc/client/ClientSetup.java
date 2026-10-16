@@ -6,6 +6,8 @@ import dev.slc.client.gui.DisarmedHudOverlay;
 import dev.slc.client.gui.RoleIntroOverlay;
 import dev.slc.client.gui.SpectatorHudOverlay;
 import dev.slc.client.render.ElevatorButtonRenderer;
+import dev.slc.client.render.TestDummyRenderer;
+import dev.slc.init.ModEntities;
 import dev.slc.init.ModBlockEntities;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -25,6 +27,9 @@ public class ClientSetup {
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.ELEVATOR_BUTTON_BE.get(), ElevatorButtonRenderer::new);
+        event.registerEntityRenderer(ModEntities.STATIC_DUMMY.get(), TestDummyRenderer::new);
+        event.registerEntityRenderer(ModEntities.RESPAWN_DUMMY.get(), TestDummyRenderer::new);
+        event.registerEntityRenderer(ModEntities.AI_DUMMY.get(), TestDummyRenderer::new);
     }
 
     @SubscribeEvent
