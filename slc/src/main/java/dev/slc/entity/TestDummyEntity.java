@@ -101,7 +101,7 @@ public final class TestDummyEntity extends PathfinderMob {
     public boolean removeWhenFarAway(double distanceToClosestPlayer) { return false; }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag tag) {
+    public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putString("AiMode", aiMode.name());
         tag.putLong("Home", home.asLong());
@@ -109,7 +109,7 @@ public final class TestDummyEntity extends PathfinderMob {
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag tag) {
+    public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         try { aiMode = AiMode.valueOf(tag.getString("AiMode")); } catch (IllegalArgumentException ignored) { }
         if (tag.contains("Home")) home = BlockPos.of(tag.getLong("Home"));

@@ -3,6 +3,7 @@ package dev.slc.zone;
 import dev.slc.role.Role;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.RandomSource;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
@@ -72,7 +73,7 @@ public class SpatialZoneManager extends SavedData {
     }
 
     /** Chooses uniformly from point anchors and boxed spawn regions; returns null when role has none. */
-    public SpawnTarget getRandomRoleSpawn(ServerLevel level, Role role, Random random) {
+    public SpawnTarget getRandomRoleSpawn(ServerLevel level, Role role, RandomSource random) {
         List<SpawnPoint> points = roleSpawnPoints.getOrDefault(role, Collections.emptyList());
         List<SpawnZone> zones = roleSpawnZones.getOrDefault(role, Collections.emptyList());
         int count = points.size() + zones.size();
@@ -86,7 +87,7 @@ public class SpatialZoneManager extends SavedData {
         return randomPointInZone(level, zone, random);
     }
 
-    private SpawnTarget randomPointInZone(ServerLevel level, SpawnZone zone, Random random) {
+    private SpawnTarget randomPointInZone(ServerLevel level, SpawnZone zone, RandomSource random) {
         AABB box = zone.bounds;
         int minX = (int) Math.floor(box.minX);
         int maxX = Math.max(minX, (int) Math.ceil(box.maxX) - 1);
