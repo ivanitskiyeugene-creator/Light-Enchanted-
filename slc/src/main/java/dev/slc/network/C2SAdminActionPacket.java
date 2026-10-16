@@ -3,6 +3,7 @@ package dev.slc.network;
 import dev.slc.admin.AdminAction;
 import dev.slc.admin.AdminPermission;
 import dev.slc.admin.AdminStateManager;
+import dev.slc.loadout.QuickAction;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.role.Role;
 import dev.slc.role.Team;
@@ -106,6 +107,7 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             case KIT_REQUEST -> sendKit(admin, request.value);
             case KIT_SAVE_HAND -> updateKitFromHand(admin, request.value, request.number, false);
             case KIT_CLEAR -> updateKitFromHand(admin, request.value, request.number, true);
+            case KIT_BIND -> updateKitBinding(admin, request.value, request.number);
             case GIVE_DUMMY_SPAWNER -> {
                 giveDummySpawner(admin, request.value);
                 status(admin, "Спавнер dummy выдан", true);
@@ -180,6 +182,7 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         ItemStack marker = new ItemStack(item);
         if (!admin.getInventory().add(marker)) admin.drop(marker, false);
         admin.inventoryMenu.broadcastChanges();
+        dev.slc.zone.MapZoneVisualSync.send(admin);
         status(admin, message, true);
     }
 
@@ -201,7 +204,7 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         try {
             Role role = Role.valueOf(rawRole);
             SlcLoadoutSavedData.Loadout kit = SlcLoadoutSavedData.get(admin.serverLevel()).getLoadout(role);
-            ModNetwork.sendToPlayer(new S2CAdminKitPacket(role, kit.inventory(), kit.bodyArmor()), admin);
+            ModNetwork.sendToPlayer(new S2CAdminKitPacket(role, kit.inventory(), kit.bodyArmor(), kit.quickBindings()), admin);
         } catch (IllegalArgumentException ignored) {
             status(admin, "Неизвестная роль набора", false);
         }
@@ -222,6 +225,27 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             data.setItem(role, slot, clear ? ItemStack.EMPTY : admin.getMainHandItem().copy());
             sendKit(admin, rawRole);
             status(admin, clear ? "Ячейка очищена" : "Ячейка набора сохранена", true);
+        } catch (IllegalArgumentException ignored) {
+            status(admin, "Неизвестная роль набора", false);
+        }
+    }
+
+    /** number packs a canonical action in the high byte and a source cell + 1 in the low byte.
+     * A zero source component clears the assignment. */
+    private static void updateKitBinding(ServerPlayer admin, String rawRole, int packed) {
+        int actionIndex = packed >>> 8;
+        int sourceCell = (packed & 0xFF) - 1;
+        if (actionIndex < 0 || actionIndex >= QuickAction.values().length || sourceCell >= SlcLoadoutSavedData.INVENTORY_SLOTS) {
+            status(admin, "Некорректное назначение клавиши", false);
+            return;
+        }
+        try {
+            Role role = Role.valueOf(rawRole);
+            SlcLoadoutSavedData data = SlcLoadoutSavedData.get(admin.serverLevel());
+            ItemStack bound = sourceCell < 0 ? ItemStack.EMPTY : data.getLoadout(role).itemAt(sourceCell);
+            data.setQuickBinding(role, QuickAction.values()[actionIndex], bound);
+            sendKit(admin, rawRole);
+            status(admin, bound.isEmpty() ? "Назначение клавиши очищено" : "Клавиша назначена на предмет", true);
         } catch (IllegalArgumentException ignored) {
             status(admin, "Неизвестная роль набора", false);
         }

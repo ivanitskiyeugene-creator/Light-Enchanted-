@@ -51,6 +51,7 @@ public class RoundEngine {
     }
 
     public static void cleanup() {
+        RoundInventoryManager.forgetAll();
         server = null;
         playerRoles.clear();
         RespawnWaveManager.cleanup();
@@ -171,6 +172,7 @@ public class RoundEngine {
 
     public static void endRound(Team winningTeam) {
         state = RoundState.ROUND_ENDED;
+        RoundInventoryManager.finishRound(server);
         String winMsg = winningTeam != null ?
                 "РАУНД ОКОНЧЕН! ПОБЕДА: " + winningTeam.getDisplayName().toUpperCase() :
                 "РАУНД ОКОНЧЕН! НИЧЬЯ (STALEMATE)";
@@ -181,6 +183,7 @@ public class RoundEngine {
 
     /** Clean round reset used by the OP-4 control panel. Map zones/loadouts are SavedData and remain intact. */
     public static void restartToLobby() {
+        RoundInventoryManager.finishRound(server);
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
         roundElapsedTicks = 0;
@@ -194,7 +197,8 @@ public class RoundEngine {
         dev.slc.disarm.DisarmerManager.clearAll();
         if (server != null) {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                setPlayerRole(player, Role.SPECTATOR);
+                playerRoles.put(player.getUUID(), Role.SPECTATOR);
+                player.setGameMode(GameType.SPECTATOR);
             }
         }
         syncClientState();
@@ -334,6 +338,11 @@ public class RoundEngine {
     private static void applyRoleToPlayer(ServerPlayer player, Role role) {
         if (player == null || role == null) return;
 
+        if (role != Role.SPECTATOR && (state == RoundState.IN_PROGRESS || state == RoundState.WARHEAD_DETONATING)) {
+            // The player's ordinary inventory is retained out of sight for the round. The live cells
+            // then become SLC's technical backing, which keeps normal TACZ scanning functional.
+            RoundInventoryManager.hideForRound(player);
+        }
         if (player.level() instanceof ServerLevel level) {
             SlcArmorManager.applyRoleLoadout(player, SlcLoadoutSavedData.get(level).getLoadout(role));
         }

@@ -1,6 +1,5 @@
 package dev.slc.client.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import dev.slc.client.ClientSlcArmorCache;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.network.C2SSelectInventorySlotPacket;
@@ -13,167 +12,139 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
-public class RadialInventoryScreen extends Screen {
-    public static final int SLOTS = 8;
-    private int hoveredSlot = -1;
+import java.util.ArrayList;
+import java.util.List;
 
-    // Authentic SCP:SL Gold/Yellow Palette from reference
+/**
+ * The only in-round inventory interface. It reads the operative's real backing cells but never
+ * exposes the Minecraft inventory screen. Eight sectors are a page, not an eight-item limit.
+ */
+public class RadialInventoryScreen extends Screen {
+    private static final int PAGE_SIZE = 8;
     private static final int COLOR_GOLD_LINE = 0xFFD8B01C;
     private static final int COLOR_HOVER_FILL = 0xAAD8B01C;
     private static final int COLOR_BG_SECTOR = 0x660A0D12;
     private static final int COLOR_GOLD_TEXT = 0xFFF1C40F;
 
+    private int hoveredIndex = -1;
+    private int page;
+
     public RadialInventoryScreen() {
-        super(Component.literal("Tactical Radial Inventory"));
+        super(Component.literal("SLC Tactical Inventory"));
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
+    public boolean isPauseScreen() { return false; }
+
+    private List<Integer> occupiedCells(Player player) {
+        List<Integer> cells = new ArrayList<>();
+        for (int slot = 0; slot < SlcLoadoutSavedData.AMMO_SLOT; slot++) {
+            if (!player.getInventory().getItem(slot).isEmpty()) cells.add(slot);
+        }
+        return cells;
+    }
+
+    private int pageCount(List<Integer> cells) {
+        return Math.max(1, (cells.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+    }
+
+    private int sourceCellAt(Player player, int index) {
+        List<Integer> cells = occupiedCells(player);
+        int source = page * PAGE_SIZE + index;
+        return source >= 0 && source < cells.size() ? cells.get(source) : -1;
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
+        List<Integer> cells = occupiedCells(player);
+        page = Math.min(page, pageCount(cells) - 1);
 
         Font font = this.font;
         int cx = width / 2;
         int cy = height / 2;
         double dx = mouseX - cx;
         double dy = mouseY - cy;
-        double dist = Math.sqrt(dx * dx + dy * dy);
+        double distance = Math.sqrt(dx * dx + dy * dy);
+        double innerRadius = 48.0;
+        double outerRadius = 102.0;
 
-        double innerR = 48.0;
-        double outerR = 102.0;
-
-        // Calculate hovered sector
-        if (dist >= innerR && dist <= outerR + 15) {
-            double angle = Math.toDegrees(Math.atan2(dy, dx)) + 90.0 + (360.0 / SLOTS / 2.0);
+        if (distance >= innerRadius && distance <= outerRadius + 15) {
+            double angle = Math.toDegrees(Math.atan2(dy, dx)) + 90.0 + 22.5;
             if (angle < 0) angle += 360.0;
-            hoveredSlot = ((int) (angle / (360.0 / SLOTS))) % SLOTS;
+            hoveredIndex = ((int) (angle / 45.0)) % PAGE_SIZE;
         } else {
-            hoveredSlot = -1;
+            hoveredIndex = -1;
         }
 
-        // 1. Render Sectors (Outlines, Backgrounds, and Highlights)
-        double sectorAngle = 360.0 / SLOTS;
-        for (int i = 0; i < SLOTS; i++) {
-            boolean isHovered = (i == hoveredSlot);
-            double midAngle = Math.toRadians((i * sectorAngle) - 90.0);
-            double iconR = (innerR + outerR) / 2.0;
+        for (int i = 0; i < PAGE_SIZE; i++) {
+            boolean hovered = i == hoveredIndex;
+            double middle = Math.toRadians((i * 45.0) - 90.0);
+            double iconRadius = (innerRadius + outerRadius) / 2.0;
+            int iconX = (int) (cx + Math.cos(middle) * iconRadius) - 8;
+            int iconY = (int) (cy + Math.sin(middle) * iconRadius) - 8;
+            graphics.fill(iconX - 8, iconY - 8, iconX + 24, iconY + 24, hovered ? COLOR_HOVER_FILL : COLOR_BG_SECTOR);
 
-            int iconX = (int) (cx + Math.cos(midAngle) * iconR) - 8;
-            int iconY = (int) (cy + Math.sin(midAngle) * iconR) - 8;
-
-            // Sector fill
-            int fillColor = isHovered ? COLOR_HOVER_FILL : COLOR_BG_SECTOR;
-            graphics.fill(iconX - 8, iconY - 8, iconX + 24, iconY + 24, fillColor);
-
-            // Item Icon
-            ItemStack stack = player.getInventory().getItem(i);
-            if (!stack.isEmpty()) {
+            int sourceCell = sourceCellAt(player, i);
+            if (sourceCell >= 0) {
+                ItemStack stack = player.getInventory().getItem(sourceCell);
                 graphics.renderItem(stack, iconX, iconY);
                 graphics.renderItemDecorations(font, stack, iconX, iconY);
+                if (sourceCell == player.getInventory().selected) {
+                    graphics.fill(iconX - 9, iconY - 9, iconX + 25, iconY - 8, 0xFF62D87B);
+                }
             }
         }
 
-        // Draw radial sector dividing lines and rings
-        renderCircleOutline(graphics, cx, cy, (int) innerR, COLOR_GOLD_LINE);
-        renderCircleOutline(graphics, cx, cy, (int) outerR, COLOR_GOLD_LINE);
-
-        for (int i = 0; i < SLOTS; i++) {
-            double lineAngle = Math.toRadians((i * sectorAngle) - 90.0 - (sectorAngle / 2.0));
-            int x1 = (int) (cx + Math.cos(lineAngle) * innerR);
-            int y1 = (int) (cy + Math.sin(lineAngle) * innerR);
-            int x2 = (int) (cx + Math.cos(lineAngle) * outerR);
-            int y2 = (int) (cy + Math.sin(lineAngle) * outerR);
+        renderCircleOutline(graphics, cx, cy, (int) innerRadius, COLOR_GOLD_LINE);
+        renderCircleOutline(graphics, cx, cy, (int) outerRadius, COLOR_GOLD_LINE);
+        for (int i = 0; i < PAGE_SIZE; i++) {
+            double lineAngle = Math.toRadians((i * 45.0) - 112.5);
+            int x1 = (int) (cx + Math.cos(lineAngle) * innerRadius);
+            int y1 = (int) (cy + Math.sin(lineAngle) * innerRadius);
+            int x2 = (int) (cx + Math.cos(lineAngle) * outerRadius);
+            int y2 = (int) (cy + Math.sin(lineAngle) * outerRadius);
             graphics.fill(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2) + 1, Math.max(y1, y2) + 1, COLOR_GOLD_LINE);
         }
 
-        // 2. Center Info Circle (1:1 SL Center Layout)
         graphics.fill(cx - 46, cy - 46, cx + 46, cy + 46, 0xEE080B10);
-
-        if (hoveredSlot >= 0 && hoveredSlot < SLOTS) {
-            ItemStack stack = player.getInventory().getItem(hoveredSlot);
-            if (!stack.isEmpty()) {
-                String itemName = stack.getHoverName().getString().toUpperCase();
-                // Item Header
-                graphics.drawCenteredString(font, "§l" + itemName, cx, cy - 32, COLOR_GOLD_TEXT);
-
-                // Stats Section
-                graphics.fill(cx - 38, cy - 20, cx + 38, cy - 19, COLOR_GOLD_LINE);
-
-                String itemId = stack.getItem().toString().toLowerCase();
-                if (itemId.contains("gun") || itemId.contains("rifle") || itemId.contains("pistol") || itemId.contains("card")) {
-                    graphics.drawString(font, "§7Type:", cx - 36, cy - 14, 0xAAAAAA, false);
-                    graphics.drawString(font, "§eTACZ / FR", cx + 2, cy - 14, COLOR_GOLD_TEXT, false);
-
-                    graphics.drawString(font, "§7Slot:", cx - 36, cy - 4, 0xAAAAAA, false);
-                    graphics.drawString(font, "§e#" + (hoveredSlot + 1), cx + 18, cy - 4, COLOR_GOLD_TEXT, false);
-                } else {
-                    graphics.drawCenteredString(font, "§eКоличество: §f" + stack.getCount(), cx, cy - 10, 0xFFFFFF);
-                }
-
-                // Attachments / Details
-                graphics.drawString(font, "§8[ПКМ - Выбросить]", cx - 36, cy + 22, 0x888888, false);
-            } else {
-                graphics.drawCenteredString(font, "§8[ПУСТОЙ СЛОТ " + (hoveredSlot + 1) + "]", cx, cy - 4, 0x666666);
-            }
+        int sourceCell = hoveredIndex < 0 ? -1 : sourceCellAt(player, hoveredIndex);
+        if (sourceCell >= 0) {
+            ItemStack stack = player.getInventory().getItem(sourceCell);
+            graphics.drawCenteredString(font, "§l" + stack.getHoverName().getString().toUpperCase(), cx, cy - 28, COLOR_GOLD_TEXT);
+            graphics.drawCenteredString(font, "§eКоличество: §f" + stack.getCount(), cx, cy - 6, 0xFFFFFFFF);
+            graphics.drawCenteredString(font, "§8ЛКМ выбрать • ПКМ выбросить", cx, cy + 18, 0x888888);
         } else {
-            graphics.drawCenteredString(font, "§7ИНВЕНТАРЬ", cx, cy - 12, 0xAAAAAA);
-            graphics.drawCenteredString(font, "§88 СЛОТОВ", cx, cy + 2, 0x666666);
+            graphics.drawCenteredString(font, "§7SLC ИНВЕНТАРЬ", cx, cy - 12, 0xAAAAAA);
+            graphics.drawCenteredString(font, "§8Страница " + (page + 1) + "/" + pageCount(cells) + " • " + cells.size() + " предметов", cx, cy + 2, 0x888888);
         }
+        graphics.drawCenteredString(font, "Колесо мыши: страницы", cx, cy + 36, 0xAAAAAA);
 
-        // Separate, single-cell SLC body armor. It is functional but intentionally does not render on the player model.
-        ItemStack bodyArmor = ClientSlcArmorCache.getArmor();
-        int armorX = cx + 118;
-        int armorY = cy - 12;
-        graphics.fill(armorX - 3, armorY - 3, armorX + 21, armorY + 21, 0xCC080B10);
-        graphics.fill(armorX - 4, armorY - 4, armorX + 22, armorY - 3, COLOR_GOLD_LINE);
-        graphics.fill(armorX - 4, armorY + 21, armorX + 22, armorY + 22, COLOR_GOLD_LINE);
-        graphics.fill(armorX - 4, armorY - 4, armorX - 3, armorY + 22, COLOR_GOLD_LINE);
-        graphics.fill(armorX + 21, armorY - 4, armorX + 22, armorY + 22, COLOR_GOLD_LINE);
-        if (!bodyArmor.isEmpty()) {
-            graphics.renderItem(bodyArmor, armorX, armorY);
-            graphics.renderItemDecorations(font, bodyArmor, armorX, armorY);
-        }
-        graphics.drawCenteredString(font, "БРОНЯ", armorX + 8, armorY + 25, COLOR_GOLD_TEXT);
-
-        // Separate physical TACZ ammunition cell: the stack remains in player inventory slot 35,
-        // so TACZ reload logic can consume its exact NBT variant normally.
-        ItemStack ammo = player.getInventory().getItem(SlcLoadoutSavedData.AMMO_SLOT);
-        int ammoX = cx + 118;
-        int ammoY = cy + 46;
-        graphics.fill(ammoX - 3, ammoY - 3, ammoX + 21, ammoY + 21, 0xCC080B10);
-        graphics.fill(ammoX - 4, ammoY - 4, ammoX + 22, ammoY - 3, 0xFFE67E22);
-        graphics.fill(ammoX - 4, ammoY + 21, ammoX + 22, ammoY + 22, 0xFFE67E22);
-        graphics.fill(ammoX - 4, ammoY - 4, ammoX - 3, ammoY + 22, 0xFFE67E22);
-        graphics.fill(ammoX + 21, ammoY - 4, ammoX + 22, ammoY + 22, 0xFFE67E22);
-        if (!ammo.isEmpty()) {
-            graphics.renderItem(ammo, ammoX, ammoY);
-            graphics.renderItemDecorations(font, ammo, ammoX, ammoY);
-        }
-        graphics.drawCenteredString(font, "AMMO", ammoX + 8, ammoY + 25, 0xFFE67E22);
-
-        // 3. Bottom-Left Stamina Meter (1:1 SL Yellow Box)
-        int gaugeX = 14;
-        int gaugeY = height - 24;
-        int gaugeW = 70;
-        int gaugeH = 12;
-
-        graphics.fill(gaugeX - 1, gaugeY - 1, gaugeX + gaugeW + 1, gaugeY + gaugeH + 1, COLOR_GOLD_LINE);
-        graphics.fill(gaugeX, gaugeY, gaugeX + gaugeW, gaugeY + gaugeH, 0xFFC29B12);
-        graphics.drawCenteredString(font, "§0§l100%", gaugeX + gaugeW / 2, gaugeY + 2, 0x000000);
+        renderSpecialCell(graphics, font, cx + 118, cy - 12, ClientSlcArmorCache.getArmor(), "БРОНЯ", COLOR_GOLD_TEXT);
+        renderSpecialCell(graphics, font, cx + 118, cy + 46,
+                player.getInventory().getItem(SlcLoadoutSavedData.AMMO_SLOT), "AMMO", 0xFFE67E22);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
+    private void renderSpecialCell(GuiGraphics graphics, Font font, int x, int y, ItemStack stack, String label, int color) {
+        graphics.fill(x - 3, y - 3, x + 21, y + 21, 0xCC080B10);
+        graphics.fill(x - 4, y - 4, x + 22, y - 3, color);
+        graphics.fill(x - 4, y + 21, x + 22, y + 22, color);
+        graphics.fill(x - 4, y - 4, x - 3, y + 22, color);
+        graphics.fill(x + 21, y - 4, x + 22, y + 22, color);
+        if (!stack.isEmpty()) {
+            graphics.renderItem(stack, x, y);
+            graphics.renderItemDecorations(font, stack, x, y);
+        }
+        graphics.drawCenteredString(font, label, x + 8, y + 25, color);
+    }
+
     private void renderCircleOutline(GuiGraphics graphics, int cx, int cy, int radius, int color) {
-        int segments = 32;
-        for (int i = 0; i < segments; i++) {
-            double a1 = Math.toRadians((i * (360.0 / segments)));
-            double a2 = Math.toRadians(((i + 1) * (360.0 / segments)));
+        for (int i = 0; i < 32; i++) {
+            double a1 = Math.toRadians(i * 11.25);
+            double a2 = Math.toRadians((i + 1) * 11.25);
             int x1 = (int) (cx + Math.cos(a1) * radius);
             int y1 = (int) (cy + Math.sin(a1) * radius);
             int x2 = (int) (cx + Math.cos(a2) * radius);
@@ -183,52 +154,53 @@ public class RadialInventoryScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return true;
+        int pages = pageCount(occupiedCells(player));
+        page = Math.floorMod(page + (delta < 0 ? 1 : -1), pages);
+        return true;
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (hoveredSlot >= 0 && hoveredSlot < SLOTS) {
-            if (button == 0) {
-                selectSlotAndClose(hoveredSlot);
-                return true;
-            } else if (button == 1) {
-                // RMB drops selected item
-                if (Minecraft.getInstance().player != null) {
-                    Minecraft.getInstance().player.getInventory().selected = hoveredSlot;
-                    ModNetwork.CHANNEL.sendToServer(new C2SSelectInventorySlotPacket(hoveredSlot));
-                    Minecraft.getInstance().player.drop(false);
-                }
-            }
+        Player player = Minecraft.getInstance().player;
+        int source = player == null || hoveredIndex < 0 ? -1 : sourceCellAt(player, hoveredIndex);
+        if (source >= 0 && button == 0) {
+            selectAndClose(source);
+            return true;
+        }
+        if (source >= 0 && button == 1 && player != null) {
+            ModNetwork.CHANNEL.sendToServer(new C2SSelectInventorySlotPacket(source, true));
+            return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (button == 0 && hoveredSlot >= 0 && hoveredSlot < SLOTS) {
-            selectSlotAndClose(hoveredSlot);
-            return true;
+        if (button == 0) {
+            Player player = Minecraft.getInstance().player;
+            int source = player == null || hoveredIndex < 0 ? -1 : sourceCellAt(player, hoveredIndex);
+            if (source >= 0) {
+                selectAndClose(source);
+                return true;
+            }
         }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // Tab (258) or Escape (256)
         if (keyCode == 258 || keyCode == 256) {
-            if (hoveredSlot >= 0 && hoveredSlot < SLOTS) {
-                selectSlotAndClose(hoveredSlot);
-            } else {
-                this.onClose();
-            }
+            this.onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private void selectSlotAndClose(int slot) {
-        Player player = Minecraft.getInstance().player;
-        if (player != null) {
-            player.getInventory().selected = slot;
-            ModNetwork.CHANNEL.sendToServer(new C2SSelectInventorySlotPacket(slot));
-        }
+    private void selectAndClose(int sourceCell) {
+        ModNetwork.CHANNEL.sendToServer(new C2SSelectInventorySlotPacket(sourceCell, false));
         this.onClose();
     }
 }

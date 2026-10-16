@@ -1,7 +1,6 @@
 package dev.slc.client.handler;
 
 import dev.slc.client.ClientRoundCache;
-import dev.slc.client.gui.RadialInventoryScreen;
 import dev.slc.client.gui.SpectatorMemeScreen;
 import dev.slc.spectator.SpectatorTargetInfo;
 import net.minecraft.client.Minecraft;
@@ -39,11 +38,6 @@ public class ClientSpectatorHandler {
                     ClientRoundCache.toggleMuteDeadChat();
                 } else if (event.getKey() == GLFW.GLFW_KEY_K) {
                     ClientRoundCache.toggleMuteSpectatedPlayer();
-                }
-            } else if (!mc.player.isSpectator()) {
-                // ALIVE PLAYER CONTROLS
-                if (event.getKey() == GLFW.GLFW_KEY_TAB) {
-                    mc.setScreen(new RadialInventoryScreen());
                 }
             }
         }

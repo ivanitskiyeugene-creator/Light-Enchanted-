@@ -41,6 +41,7 @@ public final class ElevatorCabinMarkerItem extends Item {
         if (!(level.getBlockEntity(pos) instanceof ElevatorButtonBlockEntity)) return InteractionResult.FAIL;
         SpatialZoneManager.get(level).setElevatorCabin(pos, MapMarkerFeedback.finishBox(stack, pos));
         MapMarkerFeedback.feedback(level, pos, true);
+        dev.slc.zone.MapZoneVisualSync.send(player);
         return InteractionResult.CONSUME;
     }
 }

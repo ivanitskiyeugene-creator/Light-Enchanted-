@@ -81,6 +81,14 @@ public class SecretLabCubed {
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !event.player.level().isClientSide && event.player instanceof ServerPlayer serverPlayer) {
+            if (serverPlayer.tickCount % 20 == 0 && dev.slc.admin.AdminPermission.isAdmin(serverPlayer)) {
+                net.minecraft.world.item.Item held = serverPlayer.getMainHandItem().getItem();
+                if (held instanceof dev.slc.item.map.RoleSpawnMarkerItem
+                        || held instanceof dev.slc.item.map.ExitZoneMarkerItem
+                        || held instanceof dev.slc.item.map.ElevatorCabinMarkerItem) {
+                    dev.slc.zone.MapZoneVisualSync.send(serverPlayer);
+                }
+            }
             if (RoundEngine.getState() == RoundState.IN_PROGRESS && serverPlayer.gameMode.getGameModeForPlayer() != GameType.SPECTATOR) {
                 // Check surface escape zone
                 if (serverPlayer.tickCount % 20 == 0) {

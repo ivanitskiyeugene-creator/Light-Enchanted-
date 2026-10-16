@@ -39,6 +39,7 @@ public final class ExitZoneMarkerItem extends Item {
         }
         SpatialZoneManager.get(level).setEscapeZone(MapMarkerFeedback.finishBox(stack, pos));
         MapMarkerFeedback.feedback(level, pos, true);
+        dev.slc.zone.MapZoneVisualSync.send(player);
         return InteractionResult.CONSUME;
     }
 }

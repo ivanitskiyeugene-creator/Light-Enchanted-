@@ -119,6 +119,11 @@ public class SpatialZoneManager extends SavedData {
         return elevatorCabins.get(buttonPos);
     }
 
+    /** Immutable editor view used only for client-side marker visualization. */
+    public Map<BlockPos, AABB> getElevatorCabins() {
+        return Map.copyOf(elevatorCabins);
+    }
+
     public void removeElevatorCabin(BlockPos buttonPos) {
         elevatorCabins.remove(buttonPos);
         setDirty();

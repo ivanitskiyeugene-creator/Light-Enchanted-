@@ -38,6 +38,18 @@ public class ModNetwork {
                 .consumerMainThread(C2SSelectInventorySlotPacket::handle)
                 .add();
 
+        CHANNEL.messageBuilder(C2SActivateLoadoutActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SActivateLoadoutActionPacket::encode)
+                .decoder(C2SActivateLoadoutActionPacket::decode)
+                .consumerMainThread(C2SActivateLoadoutActionPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(S2CActivateLoadoutActionPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CActivateLoadoutActionPacket::encode)
+                .decoder(S2CActivateLoadoutActionPacket::decode)
+                .consumerMainThread(S2CActivateLoadoutActionPacket::handle)
+                .add();
+
         CHANNEL.messageBuilder(S2CCassiePacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CCassiePacket::encode)
                 .decoder(S2CCassiePacket::decode)
@@ -66,6 +78,12 @@ public class ModNetwork {
                 .encoder(S2CAdminStatusPacket::encode)
                 .decoder(S2CAdminStatusPacket::decode)
                 .consumerMainThread(S2CAdminStatusPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(S2CMapZonesPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CMapZonesPacket::encode)
+                .decoder(S2CMapZonesPacket::decode)
+                .consumerMainThread(S2CMapZonesPacket::handle)
                 .add();
 
         CHANNEL.messageBuilder(C2SAdminActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)

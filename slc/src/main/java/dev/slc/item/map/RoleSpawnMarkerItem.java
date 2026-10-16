@@ -51,6 +51,7 @@ public final class RoleSpawnMarkerItem extends Item {
         if (type == Type.POINT) {
             zones.addRoleSpawn(role, clicked.above(), player.getYRot(), player.getXRot());
             MapMarkerFeedback.feedback(serverLevel, clicked.above(), true);
+            dev.slc.zone.MapZoneVisualSync.send(player);
             return InteractionResult.CONSUME;
         }
 
@@ -67,6 +68,7 @@ public final class RoleSpawnMarkerItem extends Item {
         }
         zones.addRoleSpawnZone(role, MapMarkerFeedback.finishBox(stack, clicked), player.getYRot(), player.getXRot());
         MapMarkerFeedback.feedback(serverLevel, clicked, true);
+        dev.slc.zone.MapZoneVisualSync.send(player);
         return InteractionResult.CONSUME;
     }
 }
