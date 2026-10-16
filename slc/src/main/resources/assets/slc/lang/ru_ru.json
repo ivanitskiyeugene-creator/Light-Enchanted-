@@ -5,6 +5,7 @@
   "item.slc.elevator_button": "Кнопка Вызова Лифта",
   "item.slc.spatial_marker_wand": "Инструмент Разметки Зон",
   "item.slc.elevator_linker": "Связчик Лифтов (Linker)",
+  "item.slc.elevator_timer_tuner": "Настройщик Времени Лифта",
   "subtitles.slc.elevator_moving": "Движение лифта",
   "team.slc.class_d": "Персонал Класса D",
   "team.slc.scientists": "Научный Персонал",

@@ -2,6 +2,7 @@ package dev.slc.init;
 
 import dev.slc.SecretLabCubed;
 import dev.slc.item.ElevatorLinkerItem;
+import dev.slc.item.ElevatorTimerTunerItem;
 import dev.slc.item.SpatialMarkerWandItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -21,4 +22,7 @@ public class ModItems {
 
     public static final RegistryObject<Item> ELEVATOR_LINKER = ITEMS.register("elevator_linker",
             () -> new ElevatorLinkerItem(new Item.Properties().stacksTo(1)));
+
+    public static final RegistryObject<Item> ELEVATOR_TIMER_TUNER = ITEMS.register("elevator_timer_tuner",
+            () -> new ElevatorTimerTunerItem(new Item.Properties().stacksTo(1)));
 }

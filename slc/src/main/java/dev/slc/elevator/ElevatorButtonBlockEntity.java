@@ -36,7 +36,9 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     public static final int CLOSE_TICKS = 30;
     public static final int OPEN_TICKS = 30;
     public static final int COOLDOWN_TICKS = 40;
-    public static final int TRAVEL_BASE_TICKS = 60;
+    public static final int TRAVEL_BASE_TICKS = 90; // canon default: 4.5 seconds
+    public static final int TRAVEL_MIN_TICKS = 20;  // 1.0 s
+    public static final int TRAVEL_MAX_TICKS = 600; // 30.0 s
 
     private final List<BlockPos> members = new ArrayList<>();
     private final List<Boolean> memberInterior = new ArrayList<>();
@@ -44,7 +46,8 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     private int cabinFloor = 0;            // index into exterior floors sorted by Y (asc)
     private int srcFloor = 0;
     private int dstFloor = 0;
-    private int travelTotal = 80;
+    private int travelTotal = 90;
+    private int travelSetting = TRAVEL_BASE_TICKS; // network-wide travel time, tunable by the timer tool
     private ElevatorState state = ElevatorState.IDLE;
     private int timerTicks = 0;
 
@@ -145,9 +148,32 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
             if (target < 0 || target == floor) return; // cabin is already here
         }
 
-        int dy = Math.abs(floors.get(target).getY() - floors.get(floor).getY());
-        int travel = TRAVEL_BASE_TICKS + dy * 2;
-        networkStartMove(floor, target, travel);
+        networkStartMove(floor, target, travelSetting);
+    }
+
+    // ------------------------------------------------------------------
+    // Network-wide travel time (Elevator Timer Tuner item)
+    // ------------------------------------------------------------------
+
+    public int getTravelSetting() {
+        return travelSetting;
+    }
+
+    /** Applies the travel time to EVERY member of the network automatically. */
+    public void networkSetTravelSetting(int ticks) {
+        int clamped = Math.max(TRAVEL_MIN_TICKS, Math.min(TRAVEL_MAX_TICKS, ticks));
+        for (BlockPos memberPos : members) {
+            BlockEntity be = getMemberBlockEntity(memberPos);
+            if (be instanceof ElevatorButtonBlockEntity member) {
+                member.travelSetting = clamped;
+                member.sync();
+            }
+        }
+        // Unlinked button: just self
+        if (!hasNetwork()) {
+            this.travelSetting = clamped;
+            sync();
+        }
     }
 
     private void networkStartMove(int src, int dst, int travel) {
@@ -315,6 +341,9 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         this.srcFloor = tag.getInt("SrcFloor");
         this.dstFloor = tag.getInt("DstFloor");
         this.travelTotal = Math.max(20, tag.getInt("TravelTotal"));
+        if (tag.contains("TravelSetting")) {
+            this.travelSetting = Math.max(TRAVEL_MIN_TICKS, Math.min(TRAVEL_MAX_TICKS, tag.getInt("TravelSetting")));
+        }
         this.timerTicks = tag.getInt("TimerTicks");
         if (tag.contains("ElevatorState")) {
             try {
@@ -343,6 +372,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         tag.putInt("SrcFloor", srcFloor);
         tag.putInt("DstFloor", dstFloor);
         tag.putInt("TravelTotal", travelTotal);
+        tag.putInt("TravelSetting", travelSetting);
         tag.putInt("TimerTicks", timerTicks);
         tag.putString("ElevatorState", state.name());
     }
