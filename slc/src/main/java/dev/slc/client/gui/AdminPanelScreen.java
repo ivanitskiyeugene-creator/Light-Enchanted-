@@ -4,6 +4,7 @@ import dev.slc.admin.AdminAction;
 import dev.slc.client.ClientAdminKitCache;
 import dev.slc.client.ClientAdminPanelState;
 import dev.slc.loadout.SlcLoadoutSavedData;
+import dev.slc.init.ModItems;
 import dev.slc.network.C2SAdminActionPacket;
 import dev.slc.network.ModNetwork;
 import dev.slc.role.Role;
@@ -29,6 +30,20 @@ public final class AdminPanelScreen extends Screen {
     private int roleIndex;
     private EditBox itemId;
     private EditBox itemCount;
+    private MapGroup mapGroup = MapGroup.CIVILIANS;
+    private Role mapRole = Role.CLASS_D;
+
+    private enum MapGroup {
+        CIVILIANS("ПЕРСОНАЛ", new Role[]{Role.CLASS_D, Role.SCIENTIST, Role.FACILITY_GUARD}),
+        REINFORCEMENTS("ПОДКРЕПЛЕНИЯ", new Role[]{Role.MTF_PRIVATE, Role.MTF_SERGEANT, Role.MTF_SPECIALIST, Role.MTF_CAPTAIN,
+                Role.CHAOS_CONSCRIPT, Role.CHAOS_MARAUDER, Role.CHAOS_REPRESSOR}),
+        SCPS("SCP", new Role[]{Role.SCP_079, Role.SCP_939, Role.SCP_173, Role.SCP_049, Role.SCP_096}),
+        OTHER("ПРОЧЕЕ", new Role[]{Role.SPECTATOR});
+
+        private final String label;
+        private final Role[] roles;
+        MapGroup(String label, Role[] roles) { this.label = label; this.roles = roles; }
+    }
     private static final int BG = 0xEE101318;
     private static final int PANEL = 0xFF191E25;
     private static final int ACCENT = 0xFF4FA3DD;
@@ -136,20 +151,46 @@ public final class AdminPanelScreen extends Screen {
     }
 
     private void buildMap() {
-        addRenderableWidget(Button.builder(Component.literal("GIVE 0-7-9 MAP TABLET"), b -> send(AdminAction.GIVE_079_MAP, selectedPlayer, "", 0))
-                .bounds(24, 74, 190, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("EXIT ZONE MARKER"), b -> send(AdminAction.GIVE_ZONE_MARKER, null, "EXIT", -1))
-                .bounds(24, 154, 160, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("< ROLE"), b -> { roleIndex = Math.floorMod(roleIndex - 1, Role.values().length); rebuild(); })
-                .bounds(210, 154, 70, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("ROLE >"), b -> { roleIndex = (roleIndex + 1) % Role.values().length; rebuild(); })
-                .bounds(364, 154, 70, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("POINT"), b -> send(AdminAction.GIVE_ZONE_MARKER, null, "SPAWN_POINT", roleIndex))
-                .bounds(286, 154, 72, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("SPAWN ZONE"), b -> send(AdminAction.GIVE_ZONE_MARKER, null, "SPAWN_ZONE", roleIndex))
-                .bounds(210, 180, 110, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("LIFT CABIN"), b -> send(AdminAction.GIVE_ZONE_MARKER, null, "ELEVATOR_CABIN", -1))
-                .bounds(326, 180, 108, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("ОТКРЫТЬ ИНСТРУМЕНТ 079"), b -> send(AdminAction.GIVE_079_MAP, selectedPlayer, "", 0))
+                .bounds(24, 64, 182, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("ЗОНА ВЫХОДА"), b -> send(AdminAction.GIVE_EXIT_ZONE_MARKER, null, "", 0))
+                .bounds(24, 90, 128, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("КАБИНА ЛИФТА"), b -> send(AdminAction.GIVE_ELEVATOR_CABIN_MARKER, null, "", 0))
+                .bounds(158, 90, 128, 20).build());
+
+        int groupX = 24;
+        for (MapGroup group : MapGroup.values()) {
+            MapGroup captured = group;
+            int width = group == MapGroup.REINFORCEMENTS ? 122 : 82;
+            addRenderableWidget(Button.builder(Component.literal(group.label), b -> {
+                mapGroup = captured;
+                if (!containsRole(mapGroup, mapRole)) mapRole = mapGroup.roles[0];
+                rebuild();
+            }).bounds(groupX, 122, width, 18).build());
+            groupX += width + 3;
+        }
+
+        int x = 24;
+        int y = 150;
+        for (Role role : mapGroup.roles) {
+            Role captured = role;
+            addRenderableWidget(Button.builder(Component.literal(role == mapRole ? "• " + role.getDisplayName() : role.getDisplayName()), b -> {
+                mapRole = captured;
+                rebuild();
+            }).bounds(x, y, 170, 20).build());
+            y += 22;
+            if (y > height - 100) { y = 150; x += 178; }
+        }
+
+        addRenderableWidget(Button.builder(Component.literal("ВЫДАТЬ ТОЧКУ СПАВНА"), b ->
+                send(AdminAction.GIVE_ROLE_SPAWN_POINT_MARKER, null, "", mapRole.ordinal())).bounds(24, height - 76, 190, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("ВЫДАТЬ ЗОНУ СПАВНА"), b ->
+                send(AdminAction.GIVE_ROLE_SPAWN_ZONE_MARKER, null, "", mapRole.ordinal())).bounds(220, height - 76, 190, 20).build());
+    }
+
+    private static boolean containsRole(MapGroup group, Role role) {
+        for (Role candidate : group.roles) if (candidate == role) return true;
+        return false;
     }
 
     private void buildLoadouts() {
@@ -237,9 +278,20 @@ public final class AdminPanelScreen extends Screen {
     }
 
     private void drawMapHelp(GuiGraphics graphics) {
-        graphics.drawString(font, "Карта 079 открывается отдельным инструментом 0-7-9. Эта вкладка — её SLC-связь.", 24, 108, 0xFFB8C2CC, false);
-        graphics.drawString(font, "Маркер: ЛКМ — первая точка; Shift+ПКМ — применить объём. Точка спавна ставится ПКМ.", 24, 126, 0xFFB8C2CC, false);
-        graphics.drawCenteredString(font, Role.values()[roleIndex].getDisplayName(), 322, 158, 0xFFFFFFFF);
+        graphics.drawString(font, "Редактор карты SLC / 079", 24, 44, 0xFFFFFFFF, false);
+        graphics.drawString(font, "Выбери роль — появятся её отдельные инструменты точки и зоны спавна.", 24, 112, 0xFFB8C2CC, false);
+        graphics.drawString(font, "ЗОНА: ЛКМ = угол A, Shift+ПКМ = сохранить объём. ТОЧКА: ПКМ = добавить.", 24, 130, 0xFFB8C2CC, false);
+        graphics.drawString(font, "Выбрано: " + mapRole.getDisplayName(), 24, height - 96, 0xFFFFFFFF, false);
+        graphics.renderItem(new ItemStack(ModItems.spawnPointMarker(mapRole).get()), 195, height - 100);
+        graphics.renderItem(new ItemStack(ModItems.spawnZoneMarker(mapRole).get()), 391, height - 100);
+
+        int x = 28;
+        int y = 152;
+        for (Role role : mapGroup.roles) {
+            graphics.renderItem(new ItemStack(ModItems.spawnZoneMarker(role).get()), x, y + 2);
+            y += 22;
+            if (y > height - 100) { y = 152; x += 178; }
+        }
     }
 
     private void drawDummyHelp(GuiGraphics graphics) {

@@ -4,6 +4,7 @@ import dev.slc.SecretLabCubed;
 import dev.slc.client.gui.CassieHudOverlay;
 import dev.slc.client.gui.DisarmedHudOverlay;
 import dev.slc.client.gui.RoleIntroOverlay;
+import dev.slc.client.gui.MapSetupToolOverlay;
 import dev.slc.client.gui.SpectatorHudOverlay;
 import dev.slc.client.render.ElevatorButtonRenderer;
 import dev.slc.client.render.TestDummyRenderer;
@@ -50,5 +51,6 @@ public class ClientSetup {
         event.registerAboveAll("role_intro", RoleIntroOverlay.INSTANCE);
         event.registerAboveAll("cassie_text", CassieHudOverlay.INSTANCE);
         event.registerAboveAll("disarmed_hud", DisarmedHudOverlay.INSTANCE);
+        event.registerAboveAll("map_setup_tool", MapSetupToolOverlay.INSTANCE);
     }
 }

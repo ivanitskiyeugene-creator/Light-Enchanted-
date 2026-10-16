@@ -110,10 +110,10 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
                 giveDummySpawner(admin, request.value);
                 status(admin, "Спавнер dummy выдан", true);
             }
-            case GIVE_ZONE_MARKER -> {
-                giveZoneMarker(admin, request.value, request.number);
-                status(admin, "Маркер зоны выдан", true);
-            }
+            case GIVE_EXIT_ZONE_MARKER -> giveMapTool(admin, dev.slc.init.ModItems.EXIT_ZONE_MARKER.get(), "Маркер зоны выхода выдан");
+            case GIVE_ELEVATOR_CABIN_MARKER -> giveMapTool(admin, dev.slc.init.ModItems.ELEVATOR_CABIN_MARKER.get(), "Маркер кабины лифта выдан");
+            case GIVE_ROLE_SPAWN_POINT_MARKER -> giveRoleSpawnTool(admin, request.number, false);
+            case GIVE_ROLE_SPAWN_ZONE_MARKER -> giveRoleSpawnTool(admin, request.number, true);
             case GIVE_079_MAP -> status(admin, giveItem(target == null ? admin : target, "zero_seven_nine:map_tablet", 1)
                     ? "Планшет 079 выдан" : "0-7-9 не найден или планшет недоступен", giveItemPossible(target == null ? admin : target, "zero_seven_nine:map_tablet"));
         }
@@ -165,11 +165,21 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         admin.inventoryMenu.broadcastChanges();
     }
 
-    private static void giveZoneMarker(ServerPlayer admin, String mode, int roleOrdinal) {
-        Role role = roleOrdinal >= 0 && roleOrdinal < Role.values().length ? Role.values()[roleOrdinal] : null;
-        ItemStack marker = dev.slc.item.AdminZoneMarkerItem.configured(mode, role);
+    private static void giveRoleSpawnTool(ServerPlayer admin, int roleOrdinal, boolean zone) {
+        if (roleOrdinal < 0 || roleOrdinal >= Role.values().length) {
+            status(admin, "Некорректная роль", false);
+            return;
+        }
+        Role role = Role.values()[roleOrdinal];
+        giveMapTool(admin, (zone ? dev.slc.init.ModItems.spawnZoneMarker(role) : dev.slc.init.ModItems.spawnPointMarker(role)).get(),
+                (zone ? "Маркер зоны спавна: " : "Маркер точки спавна: ") + role.getDisplayName());
+    }
+
+    private static void giveMapTool(ServerPlayer admin, Item item, String message) {
+        ItemStack marker = new ItemStack(item);
         if (!admin.getInventory().add(marker)) admin.drop(marker, false);
         admin.inventoryMenu.broadcastChanges();
+        status(admin, message, true);
     }
 
     private static void ban(ServerPlayer admin, ServerPlayer target) {

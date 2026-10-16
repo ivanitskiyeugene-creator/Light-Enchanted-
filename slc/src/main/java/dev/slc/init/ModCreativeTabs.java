@@ -1,6 +1,7 @@
 package dev.slc.init;
 
 import dev.slc.SecretLabCubed;
+import dev.slc.role.Role;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -17,7 +18,12 @@ public class ModCreativeTabs {
                     .title(Component.translatable("itemGroup.slc.slc_tab"))
                     .icon(() -> new ItemStack(ModItems.ELEVATOR_BUTTON.get()))
                     .displayItems((params, output) -> {
-                        output.accept(ModItems.ADMIN_ZONE_MARKER.get());
+                        output.accept(ModItems.EXIT_ZONE_MARKER.get());
+                        output.accept(ModItems.ELEVATOR_CABIN_MARKER.get());
+                        for (Role role : Role.values()) {
+                            output.accept(ModItems.spawnPointMarker(role).get());
+                            output.accept(ModItems.spawnZoneMarker(role).get());
+                        }
                         output.accept(ModItems.DUMMY_SPAWNER.get());
                         output.accept(ModItems.ELEVATOR_BUTTON.get());
                         output.accept(ModItems.SPATIAL_MARKER_WAND.get());

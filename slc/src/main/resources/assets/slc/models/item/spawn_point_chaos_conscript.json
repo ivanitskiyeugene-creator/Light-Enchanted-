@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "slc:item/spawn_point_chaos_conscript"
+  }
+}
