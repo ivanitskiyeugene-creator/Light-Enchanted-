@@ -22,15 +22,17 @@ import org.joml.Matrix4f;
  */
 public class ElevatorButtonRenderer implements BlockEntityRenderer<ElevatorButtonBlockEntity> {
 
-    // Block-local panel space (north-facing local model coordinates)
-    private static final float CX = 7.0f;          // diagram horizontal center (slightly left, like the reference)
-    private static final float CELL_TOP = 4.6f;    // screen-space y of the TOP floor node
-    private static final float CELL_BOTTOM = 11.6f;// screen-space y of the BOTTOM floor node
-    private static final float HALF = 1.4f;        // node half-size
-    private static final float THICK = 0.6f;       // outline thickness
-    private static final float LANE_X0 = 9.4f;     // vertical route lane
-    private static final float LANE_X1 = 9.9f;
-    private static final float Z = 14.36f;         // quad plane (just in front of the screen)
+    // Block-local panel space in PIXELS divided by 16 (BER pose space = block units 0..1,
+    // unlike model JSONs which use 0..16 pixel units)
+    private static final float CX = 7.0f / 16.0f;          // diagram horizontal center (slightly left, like the reference)
+    private static final float CELL_TOP = 4.6f / 16.0f;    // screen-space y of the TOP floor node
+    private static final float CELL_BOTTOM = 11.6f / 16.0f;// screen-space y of the BOTTOM floor node
+    private static final float HALF = 1.4f / 16.0f;        // node half-size
+    private static final float THICK = 0.6f / 16.0f;       // outline thickness
+    private static final float LANE_X0 = 9.4f / 16.0f;     // vertical route lane
+    private static final float LANE_X1 = 9.9f / 16.0f;
+    private static final float Z = 14.36f / 16.0f;         // quad plane (just in front of the screen)
+    private static final float STUB_THICK = 0.275f / 16.0f;
 
     private static final int R = 64, G = 118, B = 204, A = 255;
 
@@ -65,7 +67,7 @@ public class ElevatorButtonRenderer implements BlockEntityRenderer<ElevatorButto
         quad(vc, m, LANE_X0, nodeY[floors - 1], LANE_X1, nodeY[0]);
         // Horizontal stub into every node + hollow node outline
         for (int i = 0; i < floors; i++) {
-            quad(vc, m, CX + HALF, nodeY[i] - 0.275f, LANE_X1, nodeY[i] + 0.275f);
+            quad(vc, m, CX + HALF, nodeY[i] - STUB_THICK, LANE_X1, nodeY[i] + STUB_THICK);
             hollow(vc, m, CX, nodeY[i]);
         }
 
