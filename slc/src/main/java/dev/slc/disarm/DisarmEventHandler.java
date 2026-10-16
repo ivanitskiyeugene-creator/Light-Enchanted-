@@ -23,7 +23,7 @@ public class DisarmEventHandler {
 
     @SubscribeEvent
     public static void onAttack(AttackEntityEvent event) {
-        if (event.getEntity() instanceof Player player && DisarmerManager.isTied(player.getUUID())) {
+        if (DisarmerManager.isTied(event.getEntity().getUUID())) {
             event.setCanceled(true);
         }
     }
