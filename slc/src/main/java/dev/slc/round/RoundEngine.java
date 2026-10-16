@@ -163,6 +163,7 @@ public class RoundEngine {
         assignInitialRoles();
         DecontaminationManager.startTimer();
         CassieVoiceEngine.broadcast("FACILITY OPERATING NORMALLY . ALL STATIONS AT FULL BREACH READINESS", 0x2ECC71);
+        syncClientState();
     }
 
     public static void endRound(Team winningTeam) {
@@ -172,6 +173,7 @@ public class RoundEngine {
                 "РАУНД ОКОНЧЕН! НИЧЬЯ (STALEMATE)";
 
         CassieVoiceEngine.broadcast(winMsg, winningTeam != null ? winningTeam.getColorRgb() : 0xFFFFFF);
+        syncClientState();
     }
 
     /** Clean round reset used by the OP-4 control panel. Map zones/loadouts are SavedData and remain intact. */
@@ -192,6 +194,7 @@ public class RoundEngine {
                 setPlayerRole(player, Role.SPECTATOR);
             }
         }
+        syncClientState();
     }
 
     public static void tick() {
@@ -220,7 +223,7 @@ public class RoundEngine {
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
-                    syncSpectatorData();
+                    syncClientState();
                 }
                 checkWinConditions();
             }
@@ -229,7 +232,7 @@ public class RoundEngine {
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
-                    syncSpectatorData();
+                    syncClientState();
                 }
                 checkWinConditions();
             }
@@ -237,7 +240,7 @@ public class RoundEngine {
         }
     }
 
-    private static void syncSpectatorData() {
+    public static void syncClientState() {
         if (server == null) return;
         List<dev.slc.spectator.SpectatorTargetInfo> targets = new ArrayList<>();
         int aliveMtf = 0;

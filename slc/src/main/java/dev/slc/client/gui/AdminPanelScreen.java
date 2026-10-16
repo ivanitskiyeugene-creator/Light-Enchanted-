@@ -2,6 +2,7 @@ package dev.slc.client.gui;
 
 import dev.slc.admin.AdminAction;
 import dev.slc.client.ClientAdminKitCache;
+import dev.slc.client.ClientAdminPanelState;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.network.C2SAdminActionPacket;
 import dev.slc.network.ModNetwork;
@@ -81,7 +82,7 @@ public final class AdminPanelScreen extends Screen {
         addAction("RESTART → LOBBY", 24, 90, 128, AdminAction.ROUND_RESTART);
         addAction("FORCE MTF WAVE", 24, 126, 128, AdminAction.FORCE_MTF_WAVE);
         addAction("FORCE CHAOS WAVE", 24, 152, 128, AdminAction.FORCE_CHAOS_WAVE);
-        addAction("END: DRAW", 190, 64, 110, AdminAction.ROUND_END_DRAW);
+        addAction("STOP ROUND", 190, 64, 110, AdminAction.ROUND_STOP);
         addAction("END: FOUNDATION", 190, 90, 110, AdminAction.ROUND_END_FOUNDATION);
         addAction("END: CHAOS", 190, 116, 110, AdminAction.ROUND_END_CHAOS);
         addAction("END: SCP", 190, 142, 110, AdminAction.ROUND_END_SCP);
@@ -221,6 +222,12 @@ public final class AdminPanelScreen extends Screen {
             case LOADOUTS -> drawLoadoutGrid(graphics);
             case DUMMIES -> drawDummyHelp(graphics);
             case MODERATION -> graphics.drawString(font, "Бан постоянный по UUID. Нельзя кикнуть/забанить себя через панель.", 24, 150, 0xFFB8C2CC, false);
+        }
+        String adminStatus = ClientAdminPanelState.message();
+        if (!adminStatus.isEmpty()) {
+            int color = ClientAdminPanelState.success() ? 0xFF77D68A : 0xFFFF7777;
+            graphics.fill(18, height - 34, width - 18, height - 16, 0xEE080B10);
+            graphics.drawString(font, adminStatus, 24, height - 29, color, false);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
     }

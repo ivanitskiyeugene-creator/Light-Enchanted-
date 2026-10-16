@@ -8,7 +8,6 @@ import dev.slc.role.Role;
 import dev.slc.role.Team;
 import dev.slc.round.RespawnWaveManager;
 import dev.slc.round.RoundEngine;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -42,7 +41,11 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             ServerPlayer admin = context.getSender();
-            if (!AdminPermission.isAdmin(admin)) return;
+            if (admin == null) return;
+            if (!AdminPermission.isAdmin(admin)) {
+                status(admin, "Нужно право OP 4", false);
+                return;
+            }
             ServerPlayer target = msg.targetId == null ? admin : admin.server.getPlayerList().getPlayer(msg.targetId);
             execute(admin, target, msg);
         });
@@ -51,45 +54,108 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
 
     private static void execute(ServerPlayer admin, ServerPlayer target, C2SAdminActionPacket request) {
         switch (request.action) {
-            case ROUND_START -> RoundEngine.forceStartRound();
-            case ROUND_RESTART -> RoundEngine.restartToLobby();
-            case ROUND_END_DRAW -> RoundEngine.endRound(null);
-            case ROUND_END_FOUNDATION -> RoundEngine.endRound(Team.FOUNDATION_FORCES);
-            case ROUND_END_CHAOS -> RoundEngine.endRound(Team.CHAOS_INSURGENCY);
-            case ROUND_END_SCP -> RoundEngine.endRound(Team.SCP_OBJECTS);
-            case FORCE_MTF_WAVE -> RespawnWaveManager.forceWave(true);
-            case FORCE_CHAOS_WAVE -> RespawnWaveManager.forceWave(false);
-            case SET_ROLE -> {
-                if (target == null) return;
-                try {
-                    RoundEngine.forceRoleAndSpawn(target, Role.valueOf(request.value));
-                } catch (IllegalArgumentException ignored) { }
+            case ROUND_START -> {
+                RoundEngine.forceStartRound();
+                status(admin, "Раунд запущен", true);
             }
-            case TOGGLE_GOD -> { if (target != null) AdminStateManager.toggleGodMode(target); }
-            case TOGGLE_NOCLIP -> { if (target != null) AdminStateManager.toggleNoClip(target); }
-            case GIVE_ITEM -> giveItem(target, request.value, request.number);
-            case KICK -> {
-                if (target != null && target != admin) target.connection.disconnect(Component.literal("Kicked by an SLC administrator"));
+            case ROUND_RESTART -> {
+                RoundEngine.restartToLobby();
+                status(admin, "Раунд перезапущен: лобби", true);
             }
+            case ROUND_STOP -> {
+                RoundEngine.endRound(null);
+                status(admin, "Раунд остановлен", true);
+            }
+            case ROUND_END_DRAW -> {
+                RoundEngine.endRound(null);
+                status(admin, "Раунд завершён: ничья", true);
+            }
+            case ROUND_END_FOUNDATION -> {
+                RoundEngine.endRound(Team.FOUNDATION_FORCES);
+                status(admin, "Раунд завершён: Foundation", true);
+            }
+            case ROUND_END_CHAOS -> {
+                RoundEngine.endRound(Team.CHAOS_INSURGENCY);
+                status(admin, "Раунд завершён: Chaos", true);
+            }
+            case ROUND_END_SCP -> {
+                RoundEngine.endRound(Team.SCP_OBJECTS);
+                status(admin, "Раунд завершён: SCP", true);
+            }
+            case FORCE_MTF_WAVE -> {
+                int spawned = RespawnWaveManager.forceWave(true);
+                status(admin, spawned > 0 ? "Вызвана волна MTF: " + spawned : "Нет наблюдателей для волны MTF", spawned > 0);
+            }
+            case FORCE_CHAOS_WAVE -> {
+                int spawned = RespawnWaveManager.forceWave(false);
+                status(admin, spawned > 0 ? "Вызвана волна Chaos: " + spawned : "Нет наблюдателей для волны Chaos", spawned > 0);
+            }
+            case SET_ROLE -> setRole(admin, target, request.value);
+            case TOGGLE_GOD -> {
+                if (target == null) status(admin, "Игрок вышел с сервера", false);
+                else status(admin, "Бессмертие: " + (AdminStateManager.toggleGodMode(target) ? "ВКЛ" : "ВЫКЛ"), true);
+            }
+            case TOGGLE_NOCLIP -> {
+                if (target == null) status(admin, "Игрок вышел с сервера", false);
+                else status(admin, "No-clip: " + (AdminStateManager.toggleNoClip(target) ? "ВКЛ" : "ВЫКЛ"), true);
+            }
+            case GIVE_ITEM -> status(admin, giveItem(target, request.value, request.number)
+                    ? "Предмет выдан" : "Не удалось выдать предмет: проверь ID", giveItemPossible(target, request.value));
+            case KICK -> kick(admin, target);
             case BAN -> ban(admin, target);
             case KIT_REQUEST -> sendKit(admin, request.value);
             case KIT_SAVE_HAND -> updateKitFromHand(admin, request.value, request.number, false);
             case KIT_CLEAR -> updateKitFromHand(admin, request.value, request.number, true);
-            case GIVE_DUMMY_SPAWNER -> giveDummySpawner(admin, request.value);
-            case GIVE_ZONE_MARKER -> giveZoneMarker(admin, request.value, request.number);
-            case GIVE_079_MAP -> giveItem(target == null ? admin : target, "zero_seven_nine:map_tablet", 1);
+            case GIVE_DUMMY_SPAWNER -> {
+                giveDummySpawner(admin, request.value);
+                status(admin, "Спавнер dummy выдан", true);
+            }
+            case GIVE_ZONE_MARKER -> {
+                giveZoneMarker(admin, request.value, request.number);
+                status(admin, "Маркер зоны выдан", true);
+            }
+            case GIVE_079_MAP -> status(admin, giveItem(target == null ? admin : target, "zero_seven_nine:map_tablet", 1)
+                    ? "Планшет 079 выдан" : "0-7-9 не найден или планшет недоступен", giveItemPossible(target == null ? admin : target, "zero_seven_nine:map_tablet"));
         }
     }
 
-    private static void giveItem(ServerPlayer target, String rawId, int requestedCount) {
-        if (target == null) return;
+    private static void setRole(ServerPlayer admin, ServerPlayer target, String rawRole) {
+        if (target == null) {
+            status(admin, "Игрок вышел с сервера", false);
+            return;
+        }
+        try {
+            Role role = Role.valueOf(rawRole);
+            RoundEngine.forceRoleAndSpawn(target, role);
+            status(admin, target.getScoreboardName() + " → " + role.getDisplayName(), true);
+        } catch (IllegalArgumentException ignored) {
+            status(admin, "Неизвестная роль", false);
+        }
+    }
+
+    private static boolean giveItemPossible(ServerPlayer target, String rawId) {
         ResourceLocation id = ResourceLocation.tryParse(rawId);
-        if (id == null) return;
-        Item item = ForgeRegistries.ITEMS.getValue(id);
-        if (item == null || item == net.minecraft.world.item.Items.AIR) return;
+        Item item = id == null ? null : ForgeRegistries.ITEMS.getValue(id);
+        return target != null && item != null && item != net.minecraft.world.item.Items.AIR;
+    }
+
+    private static boolean giveItem(ServerPlayer target, String rawId, int requestedCount) {
+        if (!giveItemPossible(target, rawId)) return false;
+        Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(rawId));
         ItemStack stack = new ItemStack(item, Math.max(1, Math.min(requestedCount, item.getMaxStackSize())));
         if (!target.getInventory().add(stack)) target.drop(stack, false);
         target.inventoryMenu.broadcastChanges();
+        return true;
+    }
+
+    private static void kick(ServerPlayer admin, ServerPlayer target) {
+        if (target == null) status(admin, "Игрок вышел с сервера", false);
+        else if (target == admin) status(admin, "Нельзя кикнуть себя", false);
+        else {
+            String name = target.getScoreboardName();
+            target.connection.disconnect(Component.literal("Kicked by an SLC administrator"));
+            status(admin, name + " кикнут", true);
+        }
     }
 
     private static void giveDummySpawner(ServerPlayer admin, String raw) {
@@ -107,10 +173,17 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
     }
 
     private static void ban(ServerPlayer admin, ServerPlayer target) {
-        if (target == null || target == admin) return;
-        admin.server.getPlayerList().getBans().add(new UserBanListEntry(
-                target.getGameProfile(), null, admin.getScoreboardName(), null, "Banned by an SLC administrator"));
-        target.connection.disconnect(Component.literal("Banned by an SLC administrator"));
+        if (target == null) {
+            status(admin, "Игрок вышел с сервера", false);
+        } else if (target == admin) {
+            status(admin, "Нельзя забанить себя", false);
+        } else {
+            String name = target.getScoreboardName();
+            admin.server.getPlayerList().getBans().add(new UserBanListEntry(
+                    target.getGameProfile(), null, admin.getScoreboardName(), null, "Banned by an SLC administrator"));
+            target.connection.disconnect(Component.literal("Banned by an SLC administrator"));
+            status(admin, name + " забанен", true);
+        }
     }
 
     private static void sendKit(ServerPlayer admin, String rawRole) {
@@ -118,16 +191,28 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             Role role = Role.valueOf(rawRole);
             SlcLoadoutSavedData.Loadout kit = SlcLoadoutSavedData.get(admin.serverLevel()).getLoadout(role);
             ModNetwork.sendToPlayer(new S2CAdminKitPacket(role, kit.inventory(), kit.bodyArmor()), admin);
-        } catch (IllegalArgumentException ignored) { }
+        } catch (IllegalArgumentException ignored) {
+            status(admin, "Неизвестная роль набора", false);
+        }
     }
 
     private static void updateKitFromHand(ServerPlayer admin, String rawRole, int slot, boolean clear) {
-        if (slot < 0 || slot > SlcLoadoutSavedData.INVENTORY_SLOTS) return;
+        if (slot < 0 || slot > SlcLoadoutSavedData.INVENTORY_SLOTS) {
+            status(admin, "Некорректная ячейка", false);
+            return;
+        }
         try {
             Role role = Role.valueOf(rawRole);
             SlcLoadoutSavedData data = SlcLoadoutSavedData.get(admin.serverLevel());
             data.setItem(role, slot, clear ? ItemStack.EMPTY : admin.getMainHandItem().copy());
             sendKit(admin, rawRole);
-        } catch (IllegalArgumentException ignored) { }
+            status(admin, clear ? "Ячейка очищена" : "Ячейка набора сохранена", true);
+        } catch (IllegalArgumentException ignored) {
+            status(admin, "Неизвестная роль набора", false);
+        }
+    }
+
+    private static void status(ServerPlayer player, String text, boolean success) {
+        ModNetwork.sendToPlayer(new S2CAdminStatusPacket(text, success), player);
     }
 }

@@ -62,6 +62,12 @@ public class ModNetwork {
                 .consumerMainThread(S2CAdminKitPacket::handle)
                 .add();
 
+        CHANNEL.messageBuilder(S2CAdminStatusPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CAdminStatusPacket::encode)
+                .decoder(S2CAdminStatusPacket::decode)
+                .consumerMainThread(S2CAdminStatusPacket::handle)
+                .add();
+
         CHANNEL.messageBuilder(C2SAdminActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SAdminActionPacket::encode)
                 .decoder(C2SAdminActionPacket::decode)

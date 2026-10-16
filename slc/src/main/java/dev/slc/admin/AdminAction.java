@@ -4,6 +4,7 @@ package dev.slc.admin;
 public enum AdminAction {
     ROUND_START,
     ROUND_RESTART,
+    ROUND_STOP,
     ROUND_END_DRAW,
     ROUND_END_FOUNDATION,
     ROUND_END_CHAOS,

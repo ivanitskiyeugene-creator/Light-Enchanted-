@@ -55,10 +55,10 @@ public class RespawnWaveManager {
     }
 
     /** Immediate, free reinforcement selected by the OP-4 administration panel. */
-    public static void forceWave(boolean mtf) {
-        if (server == null) return;
+    public static int forceWave(boolean mtf) {
+        if (server == null) return 0;
         List<ServerPlayer> candidates = collectCandidates();
-        if (!candidates.isEmpty()) spawnWave(candidates, mtf, true);
+        return candidates.isEmpty() ? 0 : spawnWave(candidates, mtf, true);
     }
 
     private static List<ServerPlayer> collectCandidates() {
@@ -72,9 +72,9 @@ public class RespawnWaveManager {
         return candidates;
     }
 
-    private static void spawnWave(List<ServerPlayer> candidates, boolean mtf, boolean free) {
+    private static int spawnWave(List<ServerPlayer> candidates, boolean mtf, boolean free) {
         int budget = free ? candidates.size() : (mtf ? mtfTickets : chaosTickets);
-        if (budget <= 0) return;
+        if (budget <= 0) return 0;
 
         int spawned = 0;
         for (ServerPlayer player : candidates) {
@@ -91,5 +91,6 @@ public class RespawnWaveManager {
             if (mtf) CassieVoiceEngine.announceMtfWave();
             else CassieVoiceEngine.announceChaosWave();
         }
+        return spawned;
     }
 }
