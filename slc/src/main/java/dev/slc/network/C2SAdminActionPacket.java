@@ -208,8 +208,12 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
     }
 
     private static void updateKitFromHand(ServerPlayer admin, String rawRole, int slot, boolean clear) {
-        if (slot < 0 || slot > SlcLoadoutSavedData.INVENTORY_SLOTS) {
+        if (slot < 0 || slot > SlcLoadoutSavedData.BODY_ARMOR_SLOT) {
             status(admin, "Некорректная ячейка", false);
+            return;
+        }
+        if (!clear && slot == SlcLoadoutSavedData.AMMO_SLOT && !dev.slc.loadout.SlcAmmoSlot.accepts(admin.getMainHandItem())) {
+            status(admin, "Слот боеприпасов принимает только tacz:ammo", false);
             return;
         }
         try {

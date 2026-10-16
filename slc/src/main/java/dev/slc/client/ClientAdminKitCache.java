@@ -25,7 +25,7 @@ public final class ClientAdminKitCache {
     }
 
     public static ItemStack get(Role role, int slot) {
-        if (slot == SlcLoadoutSavedData.INVENTORY_SLOTS) return ARMOR.getOrDefault(role, ItemStack.EMPTY).copy();
+        if (slot == SlcLoadoutSavedData.BODY_ARMOR_SLOT) return ARMOR.getOrDefault(role, ItemStack.EMPTY).copy();
         List<ItemStack> inventory = INVENTORIES.get(role);
         return inventory != null && slot >= 0 && slot < inventory.size() ? inventory.get(slot).copy() : ItemStack.EMPTY;
     }

@@ -18,6 +18,10 @@ public final class AdminEventHandler {
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase == TickEvent.Phase.END && !event.player.level().isClientSide && event.player instanceof ServerPlayer player) {
             AdminStateManager.tick(player);
+            // Do not touch normal Minecraft inventory before a player has an actual SLC role.
+            if (player.tickCount % 5 == 0 && dev.slc.round.RoundEngine.getPlayerRole(player.getUUID()) != dev.slc.role.Role.SPECTATOR) {
+                dev.slc.loadout.SlcAmmoSlot.enforceReservedSlot(player);
+            }
         }
     }
 

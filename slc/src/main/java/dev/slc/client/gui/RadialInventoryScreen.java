@@ -2,6 +2,7 @@ package dev.slc.client.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.slc.client.ClientSlcArmorCache;
+import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.network.C2SSelectInventorySlotPacket;
 import dev.slc.network.ModNetwork;
 import net.minecraft.client.Minecraft;
@@ -138,6 +139,22 @@ public class RadialInventoryScreen extends Screen {
             graphics.renderItemDecorations(font, bodyArmor, armorX, armorY);
         }
         graphics.drawCenteredString(font, "БРОНЯ", armorX + 8, armorY + 25, COLOR_GOLD_TEXT);
+
+        // Separate physical TACZ ammunition cell: the stack remains in player inventory slot 35,
+        // so TACZ reload logic can consume its exact NBT variant normally.
+        ItemStack ammo = player.getInventory().getItem(SlcLoadoutSavedData.AMMO_SLOT);
+        int ammoX = cx + 118;
+        int ammoY = cy + 46;
+        graphics.fill(ammoX - 3, ammoY - 3, ammoX + 21, ammoY + 21, 0xCC080B10);
+        graphics.fill(ammoX - 4, ammoY - 4, ammoX + 22, ammoY - 3, 0xFFE67E22);
+        graphics.fill(ammoX - 4, ammoY + 21, ammoX + 22, ammoY + 22, 0xFFE67E22);
+        graphics.fill(ammoX - 4, ammoY - 4, ammoX - 3, ammoY + 22, 0xFFE67E22);
+        graphics.fill(ammoX + 21, ammoY - 4, ammoX + 22, ammoY + 22, 0xFFE67E22);
+        if (!ammo.isEmpty()) {
+            graphics.renderItem(ammo, ammoX, ammoY);
+            graphics.renderItemDecorations(font, ammo, ammoX, ammoY);
+        }
+        graphics.drawCenteredString(font, "AMMO", ammoX + 8, ammoY + 25, 0xFFE67E22);
 
         // 3. Bottom-Left Stamina Meter (1:1 SL Yellow Box)
         int gaugeX = 14;

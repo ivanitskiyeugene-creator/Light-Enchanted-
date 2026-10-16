@@ -301,10 +301,10 @@ public final class AdminPanelScreen extends Screen {
     private void drawLoadoutGrid(GuiGraphics graphics) {
         Role role = Role.values()[roleIndex];
         graphics.drawCenteredString(font, role.getDisplayName(), 175, 63, 0xFFFFFFFF);
-        graphics.drawString(font, "ЛКМ: копия предмета из руки  •  ПКМ: очистить", 24, 86, 0xFFB8C2CC, false);
+        graphics.drawString(font, "ЛКМ: копия из руки  •  ПКМ: очистить  •  AMMO: только tacz:ammo с полным NBT", 24, 86, 0xFFB8C2CC, false);
         int originX = 24;
         int originY = 106;
-        for (int slot = 0; slot < SlcLoadoutSavedData.INVENTORY_SLOTS; slot++) {
+        for (int slot = 0; slot < SlcLoadoutSavedData.AMMO_SLOT; slot++) {
             int x = originX + (slot % 9) * 20;
             int y = originY + (slot / 9) * 20;
             graphics.fill(x, y, x + 18, y + 18, 0xFF080B10);
@@ -312,11 +312,20 @@ public final class AdminPanelScreen extends Screen {
             ItemStack stack = ClientAdminKitCache.get(role, slot);
             if (!stack.isEmpty()) graphics.renderItem(stack, x + 1, y + 1);
         }
+        int ammoX = originX + 202;
+        int ammoY = originY + 8;
+        graphics.fill(ammoX, ammoY, ammoX + 34, ammoY + 34, 0xFF080B10);
+        graphics.fill(ammoX, ammoY, ammoX + 34, ammoY + 1, 0xFFE67E22);
+        ItemStack ammo = ClientAdminKitCache.get(role, SlcLoadoutSavedData.AMMO_SLOT);
+        if (!ammo.isEmpty()) graphics.renderItem(ammo, ammoX + 9, ammoY + 9);
+        graphics.drawString(font, "TACZ", ammoX + 7, ammoY + 38, 0xFFE67E22, false);
+        graphics.drawString(font, "AMMO", ammoX + 1, ammoY + 48, 0xFFE67E22, false);
+
         int armorX = originX + 202;
-        int armorY = originY + 22;
+        int armorY = originY + 76;
         graphics.fill(armorX, armorY, armorX + 34, armorY + 34, 0xFF080B10);
         graphics.fill(armorX, armorY, armorX + 34, armorY + 1, 0xFFF1C40F);
-        ItemStack armor = ClientAdminKitCache.get(role, SlcLoadoutSavedData.INVENTORY_SLOTS);
+        ItemStack armor = ClientAdminKitCache.get(role, SlcLoadoutSavedData.BODY_ARMOR_SLOT);
         if (!armor.isEmpty()) graphics.renderItem(armor, armorX + 9, armorY + 9);
         graphics.drawString(font, "SLC", armorX + 7, armorY + 38, 0xFFF1C40F, false);
         graphics.drawString(font, "ARMOR", armorX + 1, armorY + 48, 0xFFF1C40F, false);
@@ -328,8 +337,10 @@ public final class AdminPanelScreen extends Screen {
             int originX = 24;
             int originY = 106;
             int slot = slotAt(mouseX, mouseY, originX, originY);
-            if (slot == -1 && mouseX >= originX + 202 && mouseX < originX + 236 && mouseY >= originY + 22 && mouseY < originY + 56) {
-                slot = SlcLoadoutSavedData.INVENTORY_SLOTS;
+            if (slot == -1 && mouseX >= originX + 202 && mouseX < originX + 236 && mouseY >= originY + 8 && mouseY < originY + 42) {
+                slot = SlcLoadoutSavedData.AMMO_SLOT;
+            } else if (slot == -1 && mouseX >= originX + 202 && mouseX < originX + 236 && mouseY >= originY + 76 && mouseY < originY + 110) {
+                slot = SlcLoadoutSavedData.BODY_ARMOR_SLOT;
             }
             if (slot >= 0) {
                 send(button == 1 ? AdminAction.KIT_CLEAR : AdminAction.KIT_SAVE_HAND, null, Role.values()[roleIndex].name(), slot);
@@ -345,7 +356,8 @@ public final class AdminPanelScreen extends Screen {
         if (col < 0 || col >= 9 || row < 0 || row >= 4) return -1;
         double xIn = (mouseX - originX) % 20;
         double yIn = (mouseY - originY) % 20;
-        return xIn < 18 && yIn < 18 ? row * 9 + col : -1;
+        int slot = row * 9 + col;
+        return xIn < 18 && yIn < 18 && slot < SlcLoadoutSavedData.AMMO_SLOT ? slot : -1;
     }
 
     @Override

@@ -15,7 +15,10 @@ import java.util.Map;
 
 /** Per-world templates used when an SLC role is applied. */
 public final class SlcLoadoutSavedData extends SavedData {
+    /** Physical Minecraft inventory cells; the final one is reserved as the TACZ ammunition cell. */
     public static final int INVENTORY_SLOTS = 36;
+    public static final int AMMO_SLOT = INVENTORY_SLOTS - 1;
+    public static final int BODY_ARMOR_SLOT = INVENTORY_SLOTS;
     private static final String DATA_NAME = "slc_role_loadouts";
     private final Map<Role, Loadout> loadouts = new EnumMap<>(Role.class);
 
@@ -31,8 +34,11 @@ public final class SlcLoadoutSavedData extends SavedData {
 
     public void setItem(Role role, int slot, ItemStack stack) {
         Loadout loadout = getLoadout(role);
-        if (slot == INVENTORY_SLOTS) loadout.bodyArmor = stack.copy();
-        else if (slot >= 0 && slot < INVENTORY_SLOTS) loadout.inventory.set(slot, stack.copy());
+        if (slot == BODY_ARMOR_SLOT) loadout.bodyArmor = stack.copy();
+        else if (slot == AMMO_SLOT) {
+            if (!SlcAmmoSlot.accepts(stack)) return;
+            loadout.inventory.set(slot, stack.copy());
+        } else if (slot >= 0 && slot < INVENTORY_SLOTS) loadout.inventory.set(slot, stack.copy());
         setDirty();
     }
 
