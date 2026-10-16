@@ -23,6 +23,7 @@ import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -48,6 +49,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
     private int dstFloor = 0;
     private int travelTotal = 90;
     private int travelSetting = TRAVEL_BASE_TICKS; // network-wide travel time, tunable by the timer tool
+    private boolean floorFlipped = false;          // floor status inverted by the Flipper tool (bottom<->top)
     private ElevatorState state = ElevatorState.IDLE;
     private int timerTicks = 0;
 
@@ -82,7 +84,8 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         return interior;
     }
 
-    /** Exterior (floor) member positions sorted bottom -> top. */
+    /** Exterior (floor) member positions sorted bottom -> top
+     *  (or top -> bottom when the network is flipped by the Floor Flipper tool). */
     public List<BlockPos> getExteriorFloors() {
         List<BlockPos> floors = new ArrayList<>();
         for (int i = 0; i < members.size(); i++) {
@@ -93,7 +96,45 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         floors.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY)
                 .thenComparingInt(BlockPos::getX)
                 .thenComparingInt(BlockPos::getZ));
+        if (floorFlipped) {
+            Collections.reverse(floors);
+        }
         return floors;
+    }
+
+    public boolean isFloorFlipped() {
+        return floorFlipped;
+    }
+
+    /** Floor Flipper tool: swaps which end of the shaft counts as the bottom/top floor
+     *  on EVERY panel of the network at once. Sound feedback lives in the item. */
+    public boolean networkToggleFloorFlip() {
+        for (BlockPos memberPos : members) {
+            BlockEntity be = getMemberBlockEntity(memberPos);
+            if (be instanceof ElevatorButtonBlockEntity member) {
+                member.toggleFlipInternal();
+            }
+        }
+        if (!hasNetwork()) {
+            toggleFlipInternal();
+            return floorFlipped;
+        }
+        return members.isEmpty() ? floorFlipped : floorFlipped;
+    }
+
+    private void toggleFlipInternal() {
+        List<BlockPos> before = getExteriorFloors();
+        BlockPos cabPos = (cabinFloor >= 0 && cabinFloor < before.size()) ? before.get(cabinFloor) : null;
+        BlockPos srcPos = (srcFloor >= 0 && srcFloor < before.size()) ? before.get(srcFloor) : null;
+        BlockPos dstPos = (dstFloor >= 0 && dstFloor < before.size()) ? before.get(dstFloor) : null;
+
+        this.floorFlipped = !this.floorFlipped;
+
+        List<BlockPos> after = getExteriorFloors();
+        if (cabPos != null) cabinFloor = Math.max(0, after.indexOf(cabPos));
+        if (srcPos != null) srcFloor = Math.max(0, after.indexOf(srcPos));
+        if (dstPos != null) dstFloor = Math.max(0, after.indexOf(dstPos));
+        sync();
     }
 
     public int getFloorCount() {
@@ -337,6 +378,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
             }
         }
         this.interior = tag.getBoolean("SelfInterior");
+        this.floorFlipped = tag.getBoolean("FloorFlipped");
         this.cabinFloor = tag.getInt("CabinFloor");
         this.srcFloor = tag.getInt("SrcFloor");
         this.dstFloor = tag.getInt("DstFloor");
@@ -368,6 +410,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         }
         tag.put("Members", list);
         tag.putBoolean("SelfInterior", interior);
+        tag.putBoolean("FloorFlipped", floorFlipped);
         tag.putInt("CabinFloor", cabinFloor);
         tag.putInt("SrcFloor", srcFloor);
         tag.putInt("DstFloor", dstFloor);

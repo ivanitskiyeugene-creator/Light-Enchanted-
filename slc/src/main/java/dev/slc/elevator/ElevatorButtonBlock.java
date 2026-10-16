@@ -28,11 +28,11 @@ import org.jetbrains.annotations.Nullable;
 public class ElevatorButtonBlock extends Block implements EntityBlock {
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
 
-    // Voxel shapes matching the 3D panel plate (4 to 12 on X/Z, 2 to 14 on Y, 1.6 thick)
-    private static final VoxelShape SHAPE_NORTH = Block.box(4.0, 2.0, 14.4, 12.0, 14.0, 16.0);
-    private static final VoxelShape SHAPE_SOUTH = Block.box(4.0, 2.0, 0.0, 12.0, 14.0, 1.6);
-    private static final VoxelShape SHAPE_WEST  = Block.box(14.4, 2.0, 4.0, 16.0, 14.0, 12.0);
-    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 2.0, 4.0, 1.6, 14.0, 12.0);
+    // Voxel shapes matching the compact 3D panel plate (5 to 11 on X/Z, 3.5 to 12.5 on Y, 1.6 thick)
+    private static final VoxelShape SHAPE_NORTH = Block.box(5.0, 3.5, 14.4, 11.0, 12.5, 16.0);
+    private static final VoxelShape SHAPE_SOUTH = Block.box(5.0, 3.5, 0.0, 11.0, 12.5, 1.6);
+    private static final VoxelShape SHAPE_WEST  = Block.box(14.4, 3.5, 5.0, 16.0, 12.5, 11.0);
+    private static final VoxelShape SHAPE_EAST  = Block.box(0.0, 3.5, 5.0, 1.6, 12.5, 11.0);
 
     public ElevatorButtonBlock(Properties properties) {
         super(properties);

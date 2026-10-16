@@ -23,16 +23,16 @@ import org.joml.Matrix4f;
 public class ElevatorButtonRenderer implements BlockEntityRenderer<ElevatorButtonBlockEntity> {
 
     // Block-local panel space in PIXELS divided by 16 (BER pose space = block units 0..1,
-    // unlike model JSONs which use 0..16 pixel units)
-    private static final float CX = 7.0f / 16.0f;          // diagram horizontal center (slightly left, like the reference)
-    private static final float CELL_TOP = 4.6f / 16.0f;    // screen-space y of the TOP floor node
-    private static final float CELL_BOTTOM = 11.6f / 16.0f;// screen-space y of the BOTTOM floor node
-    private static final float HALF = 1.4f / 16.0f;        // node half-size
-    private static final float THICK = 0.6f / 16.0f;       // outline thickness
-    private static final float LANE_X0 = 9.4f / 16.0f;     // vertical route lane
-    private static final float LANE_X1 = 9.9f / 16.0f;
-    private static final float Z = 14.36f / 16.0f;         // quad plane (just in front of the screen)
-    private static final float STUB_THICK = 0.275f / 16.0f;
+    // unlike model JSONs which use 0..16 pixel units). Compact panel: plate 5-11 x 3.5-12.5.
+    private static final float CX = 7.0f / 16.0f;           // diagram horizontal center
+    private static final float CELL_TOP = 9.9f / 16.0f;     // y of the TOP floor node
+    private static final float CELL_BOTTOM = 6.1f / 16.0f;  // y of the BOTTOM floor node
+    private static final float HALF = 0.85f / 16.0f;        // node half-size
+    private static final float THICK = 0.45f / 16.0f;       // outline thickness
+    private static final float LANE_X0 = 8.9f / 16.0f;      // vertical route lane
+    private static final float LANE_X1 = 9.25f / 16.0f;
+    private static final float Z = 14.36f / 16.0f;          // quad plane (just in front of the screen)
+    private static final float STUB_THICK = 0.18f / 16.0f;
 
     private static final int R = 64, G = 118, B = 204, A = 255;
 
