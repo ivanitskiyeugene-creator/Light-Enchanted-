@@ -1,7 +1,6 @@
 package dev.slc.init;
 
 import dev.slc.SecretLabCubed;
-import dev.slc.item.AdminPanelItem;
 import dev.slc.item.AdminZoneMarkerItem;
 import dev.slc.item.DisarmerItem;
 import dev.slc.item.DummySpawnerItem;
@@ -18,9 +17,6 @@ import net.minecraftforge.registries.RegistryObject;
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, SecretLabCubed.MOD_ID);
-
-    public static final RegistryObject<Item> ADMIN_PANEL = ITEMS.register("admin_panel",
-            () -> new AdminPanelItem(new Item.Properties().stacksTo(1)));
 
     public static final RegistryObject<Item> ADMIN_ZONE_MARKER = ITEMS.register("admin_zone_marker",
             () -> new AdminZoneMarkerItem(new Item.Properties().stacksTo(1)));

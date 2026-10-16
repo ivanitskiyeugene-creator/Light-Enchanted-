@@ -17,7 +17,6 @@ public class ModCreativeTabs {
                     .title(Component.translatable("itemGroup.slc.slc_tab"))
                     .icon(() -> new ItemStack(ModItems.ELEVATOR_BUTTON.get()))
                     .displayItems((params, output) -> {
-                        output.accept(ModItems.ADMIN_PANEL.get());
                         output.accept(ModItems.ADMIN_ZONE_MARKER.get());
                         output.accept(ModItems.DUMMY_SPAWNER.get());
                         output.accept(ModItems.ELEVATOR_BUTTON.get());

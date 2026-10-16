@@ -73,6 +73,12 @@ public class ModNetwork {
                 .decoder(C2SAdminActionPacket::decode)
                 .consumerMainThread(C2SAdminActionPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(C2SRequestAdminPanelPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SRequestAdminPanelPacket::encode)
+                .decoder(C2SRequestAdminPanelPacket::decode)
+                .consumerMainThread(C2SRequestAdminPanelPacket::handle)
+                .add();
     }
 
     public static void sendToPlayer(Object packet, ServerPlayer player) {
