@@ -3,6 +3,7 @@ package dev.slc.admin;
 /** Every button is translated into one explicit, server-authorized action. */
 public enum AdminAction {
     ROUND_START,
+    ROUND_TOGGLE_AUTO_END,
     ROUND_RESTART,
     ROUND_STOP,
     ROUND_END_DRAW,
@@ -20,7 +21,6 @@ public enum AdminAction {
     KIT_REQUEST,
     KIT_SAVE_HAND,
     KIT_CLEAR,
-    KIT_BIND,
     GIVE_DUMMY_SPAWNER,
     GIVE_EXIT_ZONE_MARKER,
     GIVE_ELEVATOR_CABIN_MARKER,

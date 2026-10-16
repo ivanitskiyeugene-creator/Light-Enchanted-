@@ -19,9 +19,11 @@ public class S2CSyncRoundStatePacket {
     private final Role assignedRole;
     private final boolean selfTied;
     private final Set<UUID> tiedPlayers;
+    private final boolean automaticRoundEndLocked;
 
     public S2CSyncRoundStatePacket(RoundState state, int roundElapsedTicks, float mtfInfluence,
-                                   float chaosInfluence, Role assignedRole, boolean selfTied, Set<UUID> tiedPlayers) {
+                                   float chaosInfluence, Role assignedRole, boolean selfTied, Set<UUID> tiedPlayers,
+                                   boolean automaticRoundEndLocked) {
         this.state = state;
         this.roundElapsedTicks = roundElapsedTicks;
         this.mtfInfluence = mtfInfluence;
@@ -29,6 +31,7 @@ public class S2CSyncRoundStatePacket {
         this.assignedRole = assignedRole;
         this.selfTied = selfTied;
         this.tiedPlayers = tiedPlayers;
+        this.automaticRoundEndLocked = automaticRoundEndLocked;
     }
 
     public static void encode(S2CSyncRoundStatePacket msg, FriendlyByteBuf buf) {
@@ -38,6 +41,7 @@ public class S2CSyncRoundStatePacket {
         buf.writeFloat(msg.chaosInfluence);
         buf.writeEnum(msg.assignedRole);
         buf.writeBoolean(msg.selfTied);
+        buf.writeBoolean(msg.automaticRoundEndLocked);
         buf.writeVarInt(msg.tiedPlayers.size());
         for (UUID id : msg.tiedPlayers) {
             buf.writeUUID(id);
@@ -51,12 +55,13 @@ public class S2CSyncRoundStatePacket {
         float chaos = buf.readFloat();
         Role role = buf.readEnum(Role.class);
         boolean selfTied = buf.readBoolean();
+        boolean automaticEndLocked = buf.readBoolean();
         int count = buf.readVarInt();
         Set<UUID> tied = new HashSet<>();
         for (int i = 0; i < count; i++) {
             tied.add(buf.readUUID());
         }
-        return new S2CSyncRoundStatePacket(state, ticks, mtf, chaos, role, selfTied, tied);
+        return new S2CSyncRoundStatePacket(state, ticks, mtf, chaos, role, selfTied, tied, automaticEndLocked);
     }
 
     public static void handle(S2CSyncRoundStatePacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -67,6 +72,7 @@ public class S2CSyncRoundStatePacket {
             ClientRoundCache.updateLocalRole(msg.assignedRole);
             ClientRoundCache.setLocalTied(msg.selfTied);
             ClientRoundCache.setTiedPlayers(msg.tiedPlayers);
+            ClientRoundCache.setAutomaticRoundEndLocked(msg.automaticRoundEndLocked);
         });
         ctx.get().setPacketHandled(true);
     }

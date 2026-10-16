@@ -1,6 +1,6 @@
 package dev.slc.loadout;
 
-/** Canonical in-round SLC shortcuts. The item assigned to each action is saved per role. */
+/** Canonical global SLC controls available to every living player during an active round. */
 public enum QuickAction {
     CARD("CTRL", "КАРТА ДОСТУПА", false),
     INTERACT("E", "ВЗАИМОДЕЙСТВИЕ", true),

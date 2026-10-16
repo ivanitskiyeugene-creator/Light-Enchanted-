@@ -26,6 +26,8 @@ public class RoundEngine {
 
     private static int countdownTicks = 0;
     private static int roundElapsedTicks = 0;
+    /** OP switch: keeps the round alive by bypassing only automatic victory evaluation. */
+    private static boolean automaticRoundEndLocked = false;
     private static final Map<UUID, Role> playerRoles = new HashMap<>();
 
     // Escape counters strictly following SL 14.2 canon (only untied civilians score points)
@@ -39,6 +41,7 @@ public class RoundEngine {
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
         roundElapsedTicks = 0;
+        automaticRoundEndLocked = false;
         playerRoles.clear();
         freeScientistEscapes = 0;
         freeClassDEscapes = 0;
@@ -64,6 +67,17 @@ public class RoundEngine {
 
     public static int getRoundElapsedTicks() {
         return roundElapsedTicks;
+    }
+
+    public static boolean isAutomaticRoundEndLocked() {
+        return automaticRoundEndLocked;
+    }
+
+    /** @return the new enabled state of the "do not stop round" lock. */
+    public static boolean toggleAutomaticRoundEndLock() {
+        automaticRoundEndLocked = !automaticRoundEndLocked;
+        syncClientState();
+        return automaticRoundEndLocked;
     }
 
     public static Role getPlayerRole(UUID uuid) {
@@ -187,6 +201,7 @@ public class RoundEngine {
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
         roundElapsedTicks = 0;
+        automaticRoundEndLocked = false;
         freeScientistEscapes = 0;
         freeClassDEscapes = 0;
         tiedScientistEscapes = 0;
@@ -294,7 +309,7 @@ public class RoundEngine {
             Role r = getPlayerRole(player.getUUID());
             dev.slc.network.ModNetwork.sendToPlayer(new dev.slc.network.S2CSyncRoundStatePacket(
                     state, roundElapsedTicks, mtfRatio, chaosRatio, r,
-                    tiedSet.contains(player.getUUID()), tiedSet), player);
+                    tiedSet.contains(player.getUUID()), tiedSet, automaticRoundEndLocked), player);
         }
         dev.slc.network.ModNetwork.sendToAll(new dev.slc.network.S2CSyncSpectatorDataPacket(targets));
     }
@@ -355,7 +370,7 @@ public class RoundEngine {
     }
 
     private static void checkWinConditions() {
-        if (server == null || roundElapsedTicks < 200) return;
+        if (automaticRoundEndLocked || server == null || roundElapsedTicks < 200) return;
 
         int aliveClassD = 0;
         int aliveScientists = 0;

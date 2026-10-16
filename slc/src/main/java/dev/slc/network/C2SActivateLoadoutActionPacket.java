@@ -1,18 +1,22 @@
 package dev.slc.network;
 
 import dev.slc.loadout.QuickAction;
-import dev.slc.loadout.SlcLoadoutSavedData;
-import dev.slc.role.Role;
 import dev.slc.round.RoundEngine;
 import dev.slc.round.RoundState;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.Locale;
 import java.util.function.Supplier;
 
-/** Server-authorized canonical key action. A client cannot select an arbitrary source stack. */
+/**
+ * Server-authorized global SCP:SL controls. These actions never read a role-kit shortcut: every
+ * living player gets Ctrl/card, G/grenade and X/medkit while the round is active.
+ */
 public record C2SActivateLoadoutActionPacket(QuickAction action) {
     public static void encode(C2SActivateLoadoutActionPacket msg, FriendlyByteBuf buf) {
         buf.writeEnum(msg.action);
@@ -28,13 +32,8 @@ public record C2SActivateLoadoutActionPacket(QuickAction action) {
             ServerPlayer player = context.getSender();
             if (player == null || msg.action == null
                     || (RoundEngine.getState() != RoundState.IN_PROGRESS && RoundEngine.getState() != RoundState.WARHEAD_DETONATING)
-                    || player.isSpectator()) return;
-            Role role = RoundEngine.getPlayerRole(player.getUUID());
-            if (role == Role.SPECTATOR) return;
-
-            ItemStack configured = SlcLoadoutSavedData.get(player.serverLevel()).getLoadout(role).quickBinding(msg.action);
-            if (configured.isEmpty()) return;
-            int source = findConfiguredStack(player, configured);
+                    || player.isSpectator() || msg.action == QuickAction.INTERACT) return;
+            int source = findCanonicalItem(player, msg.action);
             if (source < 0) return;
 
             int selected = player.getInventory().selected;
@@ -51,11 +50,23 @@ public record C2SActivateLoadoutActionPacket(QuickAction action) {
         context.setPacketHandled(true);
     }
 
-    private static int findConfiguredStack(ServerPlayer player, ItemStack configured) {
-        for (int slot = 0; slot < SlcLoadoutSavedData.AMMO_SLOT; slot++) {
-            ItemStack actual = player.getInventory().getItem(slot);
-            if (ItemStack.isSameItemSameTags(actual, configured)) return slot;
+    private static int findCanonicalItem(ServerPlayer player, QuickAction action) {
+        for (int slot = 0; slot < dev.slc.loadout.SlcLoadoutSavedData.AMMO_SLOT; slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (!stack.isEmpty() && matchesCanonicalAction(stack, action)) return slot;
         }
         return -1;
+    }
+
+    private static boolean matchesCanonicalAction(ItemStack stack, QuickAction action) {
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (id == null) return false;
+        String path = id.getPath().toLowerCase(Locale.ROOT);
+        return switch (action) {
+            case CARD -> path.contains("keycard") || path.contains("key_card") || path.contains("access_card");
+            case GRENADE -> path.contains("grenade");
+            case MEDKIT -> path.contains("medkit") || path.contains("med_kit") || path.contains("first_aid") || path.contains("medical_kit");
+            case INTERACT -> false;
+        };
     }
 }

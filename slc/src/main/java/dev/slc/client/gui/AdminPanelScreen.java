@@ -3,7 +3,7 @@ package dev.slc.client.gui;
 import dev.slc.admin.AdminAction;
 import dev.slc.client.ClientAdminKitCache;
 import dev.slc.client.ClientAdminPanelState;
-import dev.slc.loadout.QuickAction;
+import dev.slc.client.ClientRoundCache;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.init.ModItems;
 import dev.slc.network.C2SAdminActionPacket;
@@ -33,7 +33,6 @@ public final class AdminPanelScreen extends Screen {
     private EditBox itemCount;
     private MapGroup mapGroup = MapGroup.CIVILIANS;
     private Role mapRole = Role.CLASS_D;
-    private int selectedQuickAction = -1;
 
     private enum MapGroup {
         CIVILIANS("ПЕРСОНАЛ", new Role[]{Role.CLASS_D, Role.SCIENTIST, Role.FACILITY_GUARD}),
@@ -103,6 +102,8 @@ public final class AdminPanelScreen extends Screen {
         addAction("END: FOUNDATION", 190, 90, 110, AdminAction.ROUND_END_FOUNDATION);
         addAction("END: CHAOS", 190, 116, 110, AdminAction.ROUND_END_CHAOS);
         addAction("END: SCP", 190, 142, 110, AdminAction.ROUND_END_SCP);
+        addAction("НЕ ОСТАНАВЛИВАТЬ РАУНД: " + (ClientRoundCache.isAutomaticRoundEndLocked() ? "ВКЛ" : "ВЫКЛ"),
+                24, 184, 220, AdminAction.ROUND_TOGGLE_AUTO_END);
     }
 
     private void buildPlayers(boolean moderation) {
@@ -276,7 +277,8 @@ public final class AdminPanelScreen extends Screen {
     }
 
     private void drawRoundHelp(GuiGraphics graphics) {
-        graphics.drawString(font, "Принудительные волны бесплатны: не тратят билеты и не меняют 6-минутный таймер.", 24, 190, 0xFFB8C2CC, false);
+        graphics.drawString(font, "Принудительные волны бесплатны: не тратят билеты и не меняют 6-минутный таймер.", 24, 216, 0xFFB8C2CC, false);
+        graphics.drawString(font, "«Не останавливать» блокирует только автоматическую победу; OP-кнопки STOP/END работают всегда.", 24, 230, 0xFFB8C2CC, false);
     }
 
     private void drawMapHelp(GuiGraphics graphics) {
@@ -303,18 +305,16 @@ public final class AdminPanelScreen extends Screen {
     private void drawLoadoutGrid(GuiGraphics graphics) {
         Role role = Role.values()[roleIndex];
         graphics.drawCenteredString(font, role.getDisplayName(), 175, 63, 0xFFFFFFFF);
-        String hint = selectedQuickAction >= 0
-                ? "Выбрано " + QuickAction.values()[selectedQuickAction].keyLabel() + ": ЛКМ по предмету набора — назначить"
-                : "ЛКМ: копия из руки  •  ПКМ: очистить  •  AMMO: только tacz:ammo с полным NBT";
-        graphics.drawString(font, hint, 24, 86, selectedQuickAction >= 0 ? 0xFFF1C40F : 0xFFB8C2CC, false);
+        graphics.drawString(font, "ЛКМ: копия из руки  •  ПКМ: очистить  •  AMMO: только tacz:ammo с полным NBT", 24, 86, 0xFFB8C2CC, false);
+        graphics.drawString(font, "CTRL / E / G / X — глобальные клавиши раунда, не зависят от набора роли.", 24, 226, 0xFFB8C2CC, false);
         int originX = 24;
         int originY = 106;
         for (int slot = 0; slot < SlcLoadoutSavedData.AMMO_SLOT; slot++) {
             int x = originX + (slot % 9) * 20;
             int y = originY + (slot / 9) * 20;
-            ItemStack stack = ClientAdminKitCache.get(role, slot);
             graphics.fill(x, y, x + 18, y + 18, 0xFF080B10);
-            graphics.fill(x, y, x + 18, y + 1, isQuickBound(role, stack) ? 0xFF62D87B : ACCENT);
+            graphics.fill(x, y, x + 18, y + 1, ACCENT);
+            ItemStack stack = ClientAdminKitCache.get(role, slot);
             if (!stack.isEmpty()) graphics.renderItem(stack, x + 1, y + 1);
         }
         int ammoX = originX + 202;
@@ -334,58 +334,11 @@ public final class AdminPanelScreen extends Screen {
         if (!armor.isEmpty()) graphics.renderItem(armor, armorX + 9, armorY + 9);
         graphics.drawString(font, "SLC", armorX + 7, armorY + 38, 0xFFF1C40F, false);
         graphics.drawString(font, "ARMOR", armorX + 1, armorY + 48, 0xFFF1C40F, false);
-
-        int bindingX = 278;
-        int bindingY = 104;
-        graphics.drawString(font, "КЛАВИША → ПРЕДМЕТ", bindingX, bindingY - 18, 0xFFFFFFFF, false);
-        graphics.drawString(font, "ЛКМ строка: выбрать • ПКМ: очистить", bindingX, bindingY - 7, 0xFFB8C2CC, false);
-        for (QuickAction action : QuickAction.values()) {
-            int y = bindingY + action.ordinal() * 31;
-            boolean selected = selectedQuickAction == action.ordinal();
-            graphics.fill(bindingX, y, bindingX + 238, y + 27, selected ? 0xFF384A59 : 0xFF080B10);
-            graphics.fill(bindingX, y, bindingX + 54, y + 27, selected ? 0xFFF1C40F : ACCENT);
-            graphics.drawCenteredString(font, action.keyLabel(), bindingX + 27, y + 9, 0xFF101318);
-            ItemStack binding = ClientAdminKitCache.getQuickBinding(role, action);
-            if (!binding.isEmpty()) {
-                graphics.renderItem(binding, bindingX + 62, y + 5);
-                graphics.drawString(font, shorten(binding.getHoverName().getString(), 20), bindingX + 82, y + 9, 0xFFFFFFFF, false);
-            } else {
-                graphics.drawString(font, "— не назначено —", bindingX + 64, y + 9, 0xFF89939E, false);
-            }
-            graphics.drawString(font, action.displayName(), bindingX + 62, y + 18, 0xFF89939E, false);
-        }
-    }
-
-    private boolean isQuickBound(Role role, ItemStack candidate) {
-        if (candidate.isEmpty()) return false;
-        for (QuickAction action : QuickAction.values()) {
-            if (ItemStack.isSameItemSameTags(candidate, ClientAdminKitCache.getQuickBinding(role, action))) return true;
-        }
-        return false;
-    }
-
-    private static String shorten(String value, int maximum) {
-        return value.length() <= maximum ? value : value.substring(0, Math.max(1, maximum - 1)) + "…";
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (tab == Tab.LOADOUTS) {
-            final int bindingX = 278;
-            final int bindingY = 104;
-            if (mouseX >= bindingX && mouseX < bindingX + 238 && mouseY >= bindingY && mouseY < bindingY + QuickAction.values().length * 31) {
-                int action = (int) ((mouseY - bindingY) / 31);
-                if (action >= 0 && action < QuickAction.values().length) {
-                    if (button == 1) {
-                        send(AdminAction.KIT_BIND, null, Role.values()[roleIndex].name(), action << 8);
-                        selectedQuickAction = -1;
-                    } else {
-                        selectedQuickAction = selectedQuickAction == action ? -1 : action;
-                    }
-                    return true;
-                }
-            }
-
             int originX = 24;
             int originY = 106;
             int slot = slotAt(mouseX, mouseY, originX, originY);
@@ -395,14 +348,7 @@ public final class AdminPanelScreen extends Screen {
                 slot = SlcLoadoutSavedData.BODY_ARMOR_SLOT;
             }
             if (slot >= 0) {
-                if (selectedQuickAction >= 0) {
-                    if (slot != SlcLoadoutSavedData.BODY_ARMOR_SLOT) {
-                        send(AdminAction.KIT_BIND, null, Role.values()[roleIndex].name(), (selectedQuickAction << 8) | (slot + 1));
-                    }
-                    selectedQuickAction = -1;
-                } else {
-                    send(button == 1 ? AdminAction.KIT_CLEAR : AdminAction.KIT_SAVE_HAND, null, Role.values()[roleIndex].name(), slot);
-                }
+                send(button == 1 ? AdminAction.KIT_CLEAR : AdminAction.KIT_SAVE_HAND, null, Role.values()[roleIndex].name(), slot);
                 return true;
             }
         }

@@ -41,7 +41,7 @@ public final class ClientRoundControls {
             mc.setScreen(new RadialInventoryScreen());
         }
         activateWhenPressed(ClientSetup.CARD_ACTION_KEY, QuickAction.CARD);
-        activateWhenPressed(ClientSetup.INTERACT_ACTION_KEY, QuickAction.INTERACT);
+        while (ClientSetup.INTERACT_ACTION_KEY.consumeClick()) KeyMapping.click(mc.options.keyUse.getKey());
         activateWhenPressed(ClientSetup.GRENADE_ACTION_KEY, QuickAction.GRENADE);
         activateWhenPressed(ClientSetup.MEDKIT_ACTION_KEY, QuickAction.MEDKIT);
 
