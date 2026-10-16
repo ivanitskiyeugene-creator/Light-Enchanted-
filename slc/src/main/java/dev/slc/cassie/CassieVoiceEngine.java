@@ -41,6 +41,16 @@ public class CassieVoiceEngine {
         broadcast(CHAOS_WAVE_TEXT, 0x2ECC71);
     }
 
+    /** Admin-forced role changes announce only actual MTF/Chaos entries, never guards or SCPs. */
+    public static void announceForcedReinforcement(dev.slc.role.Role role) {
+        if (role == null) return;
+        switch (role) {
+            case MTF_PRIVATE, MTF_SERGEANT, MTF_SPECIALIST, MTF_CAPTAIN -> announceMtfWave();
+            case CHAOS_CONSCRIPT, CHAOS_MARAUDER, CHAOS_REPRESSOR -> announceChaosWave();
+            default -> { }
+        }
+    }
+
     /** Text-only C.A.S.S.I.E. feed to every client HUD (never chat). */
     public static void broadcast(String message, int colorRgb) {
         if (server == null) return;

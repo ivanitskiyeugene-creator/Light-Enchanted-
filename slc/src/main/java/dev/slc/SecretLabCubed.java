@@ -1,6 +1,7 @@
 package dev.slc;
 
 import dev.slc.command.SlcCommands;
+import dev.slc.cassie.CassieVoiceEngine;
 import dev.slc.config.SlcConfig;
 import dev.slc.init.ModBlockEntities;
 import dev.slc.init.ModBlocks;
@@ -58,14 +59,16 @@ public class SecretLabCubed {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
+        CassieVoiceEngine.init(event.getServer());
         RoundEngine.init(event.getServer());
-        LOGGER.info("[SLC] Server starting - Round Engine attached.");
+        LOGGER.info("[SLC] Server starting - Round Engine and C.A.S.S.I.E. attached.");
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         RoundEngine.cleanup();
-        LOGGER.info("[SLC] Server stopping - Round Engine cleaned up.");
+        CassieVoiceEngine.cleanup();
+        LOGGER.info("[SLC] Server stopping - Round Engine and C.A.S.S.I.E. cleaned up.");
     }
 
     @SubscribeEvent

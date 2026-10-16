@@ -127,6 +127,7 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
         try {
             Role role = Role.valueOf(rawRole);
             RoundEngine.forceRoleAndSpawn(target, role);
+            dev.slc.cassie.CassieVoiceEngine.announceForcedReinforcement(role);
             status(admin, target.getScoreboardName() + " → " + role.getDisplayName(), true);
         } catch (IllegalArgumentException ignored) {
             status(admin, "Неизвестная роль", false);
