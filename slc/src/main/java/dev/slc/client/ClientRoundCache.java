@@ -113,7 +113,9 @@ public class ClientRoundCache {
     public static void updateLocalRole(Role role) {
         if (role != null && role != localRole) {
             localRole = role;
-            if (role != Role.SPECTATOR && isRoundActive()) {
+            // Role card is shown after every real role transition: start, escape conversion,
+            // forced admin assignment and every MTF/Chaos respawn wave.
+            if (role != Role.SPECTATOR) {
                 roleIntroTicks = 140; // 7 seconds intro popup
             }
         }

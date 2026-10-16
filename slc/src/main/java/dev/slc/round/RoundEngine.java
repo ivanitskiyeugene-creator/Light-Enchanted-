@@ -80,6 +80,8 @@ public class RoundEngine {
     public static void forceRoleAndSpawn(ServerPlayer player, Role role) {
         setPlayerRole(player, role);
         teleportToRoleSpawn(player, role);
+        // Do not wait for the ten-tick spectator sync: the role card must appear with the spawn.
+        syncClientState();
     }
 
     public static void teleportToRoleSpawn(ServerPlayer player, Role role) {
@@ -144,6 +146,7 @@ public class RoundEngine {
         }
         // Bonds never survive an escape
         dev.slc.disarm.DisarmerManager.untie(player);
+        syncClientState();
     }
 
     public static void startRoundCountdown(int seconds) {
