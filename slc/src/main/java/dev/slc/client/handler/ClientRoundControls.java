@@ -6,6 +6,7 @@ import dev.slc.client.gui.RadialInventoryScreen;
 import dev.slc.loadout.QuickAction;
 import dev.slc.network.C2SActivateLoadoutActionPacket;
 import dev.slc.network.ModNetwork;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraftforge.api.distmarker.Dist;
@@ -50,7 +51,9 @@ public final class ClientRoundControls {
         if (ClientSetup.SPRINT_ACTION_KEY.isDown()) mc.player.setSprinting(true);
 
         if (delayedUseTicks > 0 && --delayedUseTicks == 0 && mc.screen == null) {
-            mc.startUseItem();
+            // Route through the normal key mapping so vanilla performs a real targeted use
+            // (block/entity/air) after the server accepted the mapped item selection.
+            KeyMapping.click(mc.options.keyUse.getKey());
         }
     }
 
