@@ -65,6 +65,9 @@ public class RespawnWaveManager {
         List<ServerPlayer> candidates = new ArrayList<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             Role role = RoundEngine.getPlayerRole(player.getUUID());
+            // SCP-079 intentionally uses spectator mode for its camera session, but is still a
+            // living SCP role and must never enter either automatic or forced reinforcement pools.
+            if (role == Role.SCP_079) continue;
             boolean dead = !player.isAlive() || player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR || role == Role.SPECTATOR;
             if (dead) candidates.add(player);
         }
