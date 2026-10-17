@@ -13,7 +13,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -216,7 +215,7 @@ public final class ScpAbilityManager {
         double distance = delta.length();
         if (distance < .01D) return true;
         if (viewer.getViewVector(1.0F).dot(delta.scale(1.0D / distance)) < threshold) return false;
-        HitResult hit = viewer.level().clip(new ClipContext(eyes, targetEyes, ClipContext.Block.COLLIDER, Fluids.NONE, viewer));
+        HitResult hit = viewer.level().clip(new ClipContext(eyes, targetEyes, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, viewer));
         return hit.getType() == HitResult.Type.MISS;
     }
 

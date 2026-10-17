@@ -9,12 +9,12 @@ import dev.slc.role.Role;
 import dev.slc.spectator.SpectatorTargetInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
-import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -31,7 +31,7 @@ public final class HumanRoleSkinRenderer {
     @SubscribeEvent
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void onRenderPlayer(RenderPlayerEvent.Pre event) {
-        AbstractClientPlayer player = event.getEntity();
+        Player player = event.getEntity();
         Role role = roleOf(player);
         if (role == null || !role.isHuman()) return;
         ResourceLocation skin = ClientRoleSkinCache.texture(role);
@@ -63,7 +63,7 @@ public final class HumanRoleSkinRenderer {
         event.setCanceled(true);
     }
 
-    private static Role roleOf(AbstractClientPlayer player) {
+    private static Role roleOf(Player player) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null && player.getUUID().equals(mc.player.getUUID())) return ClientRoundCache.getLocalRole();
         for (SpectatorTargetInfo info : ClientRoundCache.getAlivePlayers()) {
