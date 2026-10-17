@@ -44,6 +44,12 @@ public class ModNetwork {
                 .consumerMainThread(C2SActivateLoadoutActionPacket::handle)
                 .add();
 
+        CHANNEL.messageBuilder(C2SScpAbilityPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SScpAbilityPacket::encode)
+                .decoder(C2SScpAbilityPacket::decode)
+                .consumerMainThread(C2SScpAbilityPacket::handle)
+                .add();
+
         CHANNEL.messageBuilder(S2CActivateLoadoutActionPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CActivateLoadoutActionPacket::encode)
                 .decoder(S2CActivateLoadoutActionPacket::decode)
@@ -90,6 +96,12 @@ public class ModNetwork {
                 .encoder(S2CSyncRoundControlsPacket::encode)
                 .decoder(S2CSyncRoundControlsPacket::decode)
                 .consumerMainThread(S2CSyncRoundControlsPacket::handle)
+                .add();
+
+        CHANNEL.messageBuilder(S2CSyncRoleSkinsPacket.class, packetId++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CSyncRoleSkinsPacket::encode)
+                .decoder(S2CSyncRoleSkinsPacket::decode)
+                .consumerMainThread(S2CSyncRoleSkinsPacket::handle)
                 .add();
 
         CHANNEL.messageBuilder(C2SAdminActionPacket.class, packetId++, NetworkDirection.PLAY_TO_SERVER)

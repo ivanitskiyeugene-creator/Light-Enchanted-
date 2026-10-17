@@ -3,6 +3,7 @@ package dev.slc.network;
 import dev.slc.admin.AdminAction;
 import dev.slc.admin.AdminPermission;
 import dev.slc.admin.AdminStateManager;
+import dev.slc.appearance.RoleSkinSavedData;
 import dev.slc.controls.RoundControl;
 import dev.slc.controls.SlcControlSavedData;
 import dev.slc.loadout.SlcLoadoutSavedData;
@@ -124,6 +125,8 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             case GIVE_ROLE_SPAWN_ZONE_MARKER -> giveRoleSpawnTool(admin, request.number, true);
             case GIVE_079_MAP -> status(admin, giveItem(target == null ? admin : target, "zero_seven_nine:map_tablet", 1)
                     ? "Планшет 079 выдан" : "0-7-9 не найден или планшет недоступен", giveItemPossible(target == null ? admin : target, "zero_seven_nine:map_tablet"));
+            case ROLE_SKIN_REQUEST -> ModNetwork.sendToPlayer(S2CSyncRoleSkinsPacket.from(admin), admin);
+            case ROLE_SKIN_SET -> updateRoleSkin(admin, request.number, request.value);
         }
     }
 
@@ -256,6 +259,25 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             }
         }
         status(admin, control.displayName() + " → сохранено для этого мира", true);
+    }
+
+    private static void updateRoleSkin(ServerPlayer admin, int roleOrdinal, String url) {
+        if (roleOrdinal < 0 || roleOrdinal >= Role.values().length) {
+            status(admin, "Некорректная роль", false);
+            return;
+        }
+        Role role = Role.values()[roleOrdinal];
+        RoleSkinSavedData skins = RoleSkinSavedData.get(admin.serverLevel());
+        if (!skins.setUrl(role, url)) {
+            status(admin, "Нужен HTTPS URL на PNG только для человеческой роли", false);
+            return;
+        }
+        if (admin.server != null) {
+            for (ServerPlayer player : admin.server.getPlayerList().getPlayers()) {
+                ModNetwork.sendToPlayer(S2CSyncRoleSkinsPacket.from(player), player);
+            }
+        }
+        status(admin, url.trim().isEmpty() ? "Скин роли очищен" : "URL скина роли сохранён", true);
     }
 
     private static void status(ServerPlayer player, String text, boolean success) {

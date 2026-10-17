@@ -7,7 +7,9 @@ import dev.slc.client.gui.RadialInventoryScreen;
 import dev.slc.controls.RoundControl;
 import dev.slc.loadout.QuickAction;
 import dev.slc.network.C2SActivateLoadoutActionPacket;
+import dev.slc.network.C2SScpAbilityPacket;
 import dev.slc.network.ModNetwork;
+import dev.slc.scp.ScpAbilityAction;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -49,6 +51,10 @@ public final class ClientRoundControls {
             ModNetwork.CHANNEL.sendToServer(new C2SActivateLoadoutActionPacket(QuickAction.GRENADE));
         } else if (matches(RoundControl.MEDKIT, key)) {
             ModNetwork.CHANNEL.sendToServer(new C2SActivateLoadoutActionPacket(QuickAction.MEDKIT));
+        } else if (matches(RoundControl.SCP_ABILITY, key)) {
+            ModNetwork.CHANNEL.sendToServer(new C2SScpAbilityPacket(ScpAbilityAction.REANIMATE_049));
+        } else if (matches(RoundControl.SCP_MIMIC, key)) {
+            ModNetwork.CHANNEL.sendToServer(new C2SScpAbilityPacket(ScpAbilityAction.MIMIC_939));
         }
     }
 

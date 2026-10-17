@@ -5,6 +5,7 @@ import dev.slc.client.ClientAdminKitCache;
 import dev.slc.client.ClientAdminPanelState;
 import dev.slc.client.ClientRoundCache;
 import dev.slc.client.ClientRoundControlCache;
+import dev.slc.client.ClientRoleSkinCache;
 import dev.slc.controls.RoundControl;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.init.ModItems;
@@ -27,13 +28,15 @@ import java.util.UUID;
 
 /** Deliberately plain OP panel: clear controls first, every mutation routes through C2SAdminActionPacket. */
 public final class AdminPanelScreen extends Screen {
-    private enum Tab { ROUND, CONTROLS, PLAYERS, POWERS, ITEMS, MAP_079, LOADOUTS, DUMMIES, MODERATION }
+    private enum Tab { ROUND, CONTROLS, PLAYERS, POWERS, ITEMS, MAP_079, LOADOUTS, SKINS, DUMMIES, MODERATION }
 
     private Tab tab = Tab.ROUND;
     private UUID selectedPlayer;
     private int roleIndex;
     private EditBox itemId;
     private EditBox itemCount;
+    private EditBox skinUrl;
+    private Role skinRole = Role.CLASS_D;
     private MapGroup mapGroup = MapGroup.CIVILIANS;
     private Role mapRole = Role.CLASS_D;
     private int capturingRoundControl = -1;
@@ -42,7 +45,7 @@ public final class AdminPanelScreen extends Screen {
         CIVILIANS("ПЕРСОНАЛ", new Role[]{Role.CLASS_D, Role.SCIENTIST, Role.FACILITY_GUARD}),
         REINFORCEMENTS("ПОДКРЕПЛЕНИЯ", new Role[]{Role.MTF_PRIVATE, Role.MTF_SERGEANT, Role.MTF_SPECIALIST, Role.MTF_CAPTAIN,
                 Role.CHAOS_CONSCRIPT, Role.CHAOS_MARAUDER, Role.CHAOS_REPRESSOR}),
-        SCPS("SCP", new Role[]{Role.SCP_079, Role.SCP_939, Role.SCP_173, Role.SCP_049, Role.SCP_096}),
+        SCPS("SCP", new Role[]{Role.SCP_079, Role.SCP_939, Role.SCP_173, Role.SCP_049, Role.SCP_049_2, Role.SCP_096}),
         OTHER("ПРОЧЕЕ", new Role[]{Role.SPECTATOR});
 
         private final String label;
@@ -93,6 +96,7 @@ public final class AdminPanelScreen extends Screen {
             case ITEMS -> buildItems();
             case MAP_079 -> buildMap();
             case LOADOUTS -> buildLoadouts();
+            case SKINS -> buildSkins();
             case DUMMIES -> buildDummies();
             case MODERATION -> buildPlayers(true);
         }
@@ -213,6 +217,41 @@ public final class AdminPanelScreen extends Screen {
         requestKit();
     }
 
+    private void buildSkins() {
+        send(AdminAction.ROLE_SKIN_REQUEST, null, "", 0);
+        if (!skinRole.isHuman()) skinRole = Role.CLASS_D;
+        addRenderableWidget(Button.builder(Component.literal("< ROLE"), b -> { skinRole = previousHumanRole(skinRole); rebuild(); })
+                .bounds(24, 66, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("ROLE >"), b -> { skinRole = nextHumanRole(skinRole); rebuild(); })
+                .bounds(294, 66, 72, 20).build());
+        skinUrl = new EditBox(font, 24, 102, 342, 20, Component.literal("https://…/skin.png"));
+        skinUrl.setMaxLength(512);
+        skinUrl.setValue(ClientRoleSkinCache.url(skinRole));
+        addRenderableWidget(skinUrl);
+        addRenderableWidget(Button.builder(Component.literal("SAVE HTTPS PNG"), b ->
+                send(AdminAction.ROLE_SKIN_SET, null, skinUrl.getValue(), skinRole.ordinal())).bounds(24, 130, 150, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("CLEAR"), b ->
+                send(AdminAction.ROLE_SKIN_SET, null, "", skinRole.ordinal())).bounds(180, 130, 80, 20).build());
+    }
+
+    private static Role nextHumanRole(Role role) {
+        Role[] roles = Role.values();
+        for (int offset = 1; offset <= roles.length; offset++) {
+            Role candidate = roles[(role.ordinal() + offset) % roles.length];
+            if (candidate.isHuman()) return candidate;
+        }
+        return Role.CLASS_D;
+    }
+
+    private static Role previousHumanRole(Role role) {
+        Role[] roles = Role.values();
+        for (int offset = 1; offset <= roles.length; offset++) {
+            Role candidate = roles[Math.floorMod(role.ordinal() - offset, roles.length)];
+            if (candidate.isHuman()) return candidate;
+        }
+        return Role.CLASS_D;
+    }
+
     private void buildDummies() {
         addRenderableWidget(Button.builder(Component.literal("STATIC DUMMY"), b -> send(AdminAction.GIVE_DUMMY_SPAWNER, null, "STATIC", 0))
                 .bounds(24, 74, 140, 20).build());
@@ -274,6 +313,7 @@ public final class AdminPanelScreen extends Screen {
             case ITEMS -> graphics.drawString(font, "Идентификатор из любого загруженного мода; ключ-карты — только scpfr:*.", 24, 132, 0xFFB8C2CC, false);
             case MAP_079 -> drawMapHelp(graphics);
             case LOADOUTS -> drawLoadoutGrid(graphics);
+            case SKINS -> drawSkinHelp(graphics);
             case DUMMIES -> drawDummyHelp(graphics);
             case MODERATION -> graphics.drawString(font, "Бан постоянный по UUID. Нельзя кикнуть/забанить себя через панель.", 24, 150, 0xFFB8C2CC, false);
         }
@@ -327,6 +367,13 @@ public final class AdminPanelScreen extends Screen {
             y += 22;
             if (y > height - 100) { y = 152; x += 178; }
         }
+    }
+
+    private void drawSkinHelp(GuiGraphics graphics) {
+        graphics.drawString(font, "Роль: " + skinRole.getDisplayName(), 108, 72, 0xFFFFFFFF, false);
+        graphics.drawString(font, "Скины доступны только человеческим ролям. SCP используют отдельные модели, не URL-скины.", 24, 166, 0xFFB8C2CC, false);
+        graphics.drawString(font, "Ссылка должна быть HTTPS и вести на PNG 64×64. Пустая ссылка возвращает обычный Minecraft-скин.", 24, 180, 0xFFB8C2CC, false);
+        graphics.drawString(font, "URL сохраняется в данных мира и синхронизируется всем клиентам; загрузка происходит только у клиента.", 24, 194, 0xFFB8C2CC, false);
     }
 
     private void drawDummyHelp(GuiGraphics graphics) {
@@ -427,6 +474,7 @@ public final class AdminPanelScreen extends Screen {
             case ITEMS -> "ПРЕДМЕТЫ";
             case MAP_079 -> "079 / КАРТА";
             case LOADOUTS -> "НАБОРЫ";
+            case SKINS -> "СКИНЫ";
             case DUMMIES -> "DUMMIES";
             case MODERATION -> "МОДЕРАЦИЯ";
         };

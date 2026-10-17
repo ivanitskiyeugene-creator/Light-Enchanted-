@@ -70,5 +70,8 @@
   "item.slc.spawn_point_scp_096": "SCP-096 Spawn Point Marker",
   "item.slc.spawn_zone_scp_096": "SCP-096 Spawn Zone Marker",
   "item.slc.spawn_point_spectator": "Spectator Spawn Point Marker",
-  "item.slc.spawn_zone_spectator": "Spectator Spawn Zone Marker"
+  "item.slc.spawn_zone_spectator": "Spectator Spawn Zone Marker",
+  "role.slc.scp_049_2": "SCP-049-2",
+  "item.slc.spawn_point_scp_049_2": "Spawn Point: SCP-049-2",
+  "item.slc.spawn_zone_scp_049_2": "Spawn Zone: SCP-049-2"
 }

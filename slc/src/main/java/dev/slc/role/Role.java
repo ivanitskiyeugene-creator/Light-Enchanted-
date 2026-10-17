@@ -15,6 +15,7 @@ public enum Role {
     SCP_939("SCP-939 (С многими голосами)", Team.SCP_OBJECTS, 1500, 600, 0xFFC0392B),
     SCP_173("SCP-173 (Скульптура)", Team.SCP_OBJECTS, 3200, 1200, 0xFFA93226),
     SCP_049("SCP-049 (Чумной Доктор)", Team.SCP_OBJECTS, 1700, 0, 0xFF922B21),
+    SCP_049_2("SCP-049-2 (Чумной зомби)", Team.SCP_OBJECTS, 600, 0, 0xFF566573),
     SCP_096("SCP-096 (Скромник)", Team.SCP_OBJECTS, 2000, 800, 0xFF7B241C),
     SPECTATOR("Наблюдатель", Team.SPECTATORS, 1, 0, 0xFF95A5A6);
 

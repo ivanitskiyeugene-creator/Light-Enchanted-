@@ -12,6 +12,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.phys.Vec3;
 import dev.slc.zone.SpatialZoneManager;
 
 import java.util.*;
@@ -50,6 +53,7 @@ public class RoundEngine {
         DecontaminationManager.reset();
         AlphaWarheadManager.reset();
         StaminaManager.reset();
+        dev.slc.scp.ScpAbilityManager.clear();
         RespawnWaveManager.init(s);
         dev.slc.disarm.DisarmerManager.clearAll();
     }
@@ -57,6 +61,7 @@ public class RoundEngine {
     public static void cleanup() {
         RoundInventoryManager.forgetAll();
         StaminaManager.reset();
+        dev.slc.scp.ScpAbilityManager.clear();
         server = null;
         playerRoles.clear();
         RespawnWaveManager.cleanup();
@@ -103,6 +108,15 @@ public class RoundEngine {
         // SCP-079 is positioned by its 0-7-9 camera session, not by a physical role spawn.
         if (role != Role.SCP_079) teleportToRoleSpawn(player, role);
         // Do not wait for the ten-tick spectator sync: the role card must appear with the spawn.
+        syncClientState();
+    }
+
+    /** Role conversion at an explicit world location, used by SCP-049 reanimation rather than a spawn marker. */
+    public static void forceRoleAt(ServerPlayer player, Role role, Vec3 position) {
+        if (player == null || role == null || position == null) return;
+        setPlayerRole(player, role);
+        player.connection.teleport(position.x, position.y, position.z, player.getYRot(), player.getXRot());
+        player.resetFallDistance();
         syncClientState();
     }
 
@@ -194,6 +208,7 @@ public class RoundEngine {
     public static void endRound(Team winningTeam) {
         state = RoundState.ROUND_ENDED;
         endScp079Sessions();
+        dev.slc.scp.ScpAbilityManager.clear();
         RoundInventoryManager.finishRound(server);
         String winMsg = winningTeam != null ?
                 "РАУНД ОКОНЧЕН! ПОБЕДА: " + winningTeam.getDisplayName().toUpperCase() :
@@ -206,6 +221,7 @@ public class RoundEngine {
     /** Clean round reset used by the OP-4 control panel. Map zones/loadouts are SavedData and remain intact. */
     public static void restartToLobby() {
         endScp079Sessions();
+        dev.slc.scp.ScpAbilityManager.clear();
         RoundInventoryManager.finishRound(server);
         state = RoundState.WAITING_FOR_PLAYERS;
         countdownTicks = 0;
@@ -372,7 +388,13 @@ public class RoundEngine {
         if (player.level() instanceof ServerLevel level) {
             SlcArmorManager.applyRoleLoadout(player, SlcLoadoutSavedData.get(level).getLoadout(role));
         }
-        player.setHealth(Math.min(role.getMaxHealth(), player.getMaxHealth()));
+        AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
+        // Minecraft's MAX_HEALTH attribute has a hard upper bound of 1024. The displayed role
+        // profile retains its canonical value while the physical combat attribute stays valid.
+        if (maxHealth != null) maxHealth.setBaseValue(Math.max(1.0D, Math.min(1024.0D, role.getMaxHealth())));
+        // Do not change health during LivingDeathEvent. The dead player must reach the spectator
+        // state normally; living role assignments and reanimations receive their full role HP.
+        if (role != Role.SPECTATOR && player.isAlive()) player.setHealth((float) player.getMaxHealth());
         if (role == Role.SPECTATOR) {
             player.setGameMode(GameType.SPECTATOR);
         } else {

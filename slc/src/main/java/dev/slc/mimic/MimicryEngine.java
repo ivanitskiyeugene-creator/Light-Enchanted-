@@ -2,7 +2,6 @@ package dev.slc.mimic;
 
 import dev.slc.role.Role;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -62,11 +61,15 @@ public class MimicryEngine {
         StolenVoiceClip clip = new StolenVoiceClip(victim.getUUID(), victim.getScoreboardName(), victimRole, phrase);
         clips.add(clip);
 
-        scp939.displayClientMessage(Component.literal("§c[SCP-939] §fУкраден голос жертвы: §e" + victim.getScoreboardName() + " §7(" + victimRole.getDisplayName() + ")"), true);
     }
 
     public static List<StolenVoiceClip> getClipsFor(UUID scp939Uuid) {
         return stolenVoices.getOrDefault(scp939Uuid, Collections.emptyList());
+    }
+
+    /** Captured voices are strictly round-scoped. */
+    public static void clear() {
+        stolenVoices.clear();
     }
 
     public static void playTacticalMimicSound(ServerPlayer scp939, TacticalSoundEffect effect, Vec3 targetPos) {

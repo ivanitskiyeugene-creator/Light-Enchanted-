@@ -82,6 +82,7 @@ public class SecretLabCubed {
     public void onPlayerLoggedIn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             dev.slc.network.ModNetwork.sendToPlayer(dev.slc.network.S2CSyncRoundControlsPacket.from(player), player);
+            dev.slc.network.ModNetwork.sendToPlayer(dev.slc.network.S2CSyncRoleSkinsPacket.from(player), player);
         }
     }
 

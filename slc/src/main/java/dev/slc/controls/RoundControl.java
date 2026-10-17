@@ -7,7 +7,9 @@ public enum RoundControl {
     SPRINT("БЕГ", 340),                   // GLFW_KEY_LEFT_SHIFT
     INTERACT("ВЗАИМОДЕЙСТВИЕ", 69),      // GLFW_KEY_E
     GRENADE("ГРАНАТА", 71),               // GLFW_KEY_G
-    MEDKIT("АПТЕЧКА", 88);                // GLFW_KEY_X
+    MEDKIT("АПТЕЧКА", 88),               // GLFW_KEY_X
+    SCP_ABILITY("СПОСОБНОСТЬ SCP", 70),  // GLFW_KEY_F
+    SCP_MIMIC("ГОЛОС SCP-939", 86);      // GLFW_KEY_V
 
     private final String displayName;
     private final int defaultKey;
