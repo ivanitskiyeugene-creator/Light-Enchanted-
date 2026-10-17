@@ -353,7 +353,7 @@ public class RoundEngine {
         int scpCount = Math.max(1, total / 5);
         int assigned = 0;
 
-        Role[] scpPool = {Role.SCP_173, Role.SCP_079, Role.SCP_939, Role.SCP_049, Role.SCP_096};
+        Role[] scpPool = {Role.SCP_173, Role.SCP_079, Role.SCP_939, Role.SCP_049, Role.SCP_096, Role.SCP_106};
         for (int i = 0; i < scpCount && assigned < total; i++) {
             forceRoleAndSpawn(players.get(assigned++), scpPool[i % scpPool.length]);
         }

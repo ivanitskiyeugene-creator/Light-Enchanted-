@@ -5,7 +5,7 @@ import dev.slc.mimic.MimicryEngine;
 import dev.slc.role.Role;
 import dev.slc.round.RoundEngine;
 import dev.slc.round.RoundState;
-import net.minecraft.core.BlockPos;
+import dev.slc.zone.SpatialZoneManager;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,6 +13,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -22,8 +23,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /** Server-authoritative gameplay for the non-079 SCP roles. */
@@ -35,6 +38,8 @@ public final class ScpAbilityManager {
     private static final Map<UUID, Corpse> CORPSES = new HashMap<>();
     private static final Map<UUID, Reanimation> REANIMATIONS = new HashMap<>();
     private static final Map<UUID, Rage> RAGES = new HashMap<>();
+    /** Human players currently trapped in the configured physical SCP-106 pocket area. */
+    private static final Set<UUID> POCKET_PRISONERS = new HashSet<>();
     private static final Map<UUID, Integer> MIMIC_INDEX = new HashMap<>();
 
     private ScpAbilityManager() {}
@@ -43,6 +48,7 @@ public final class ScpAbilityManager {
         CORPSES.clear();
         REANIMATIONS.clear();
         RAGES.clear();
+        POCKET_PRISONERS.clear();
         MIMIC_INDEX.clear();
         MimicryEngine.clear();
     }
@@ -69,6 +75,10 @@ public final class ScpAbilityManager {
             }
             case SCP_939 -> event.setAmount(60.0F);
             case SCP_049 -> event.setAmount(10_000.0F); // "cure" touch
+            case SCP_106 -> {
+                event.setCanceled(true);
+                captureBy106(attacker, victim);
+            }
             case SCP_096 -> event.setAmount(RAGES.containsKey(attacker.getUUID()) ? 10_000.0F : 35.0F);
             case SCP_049_2 -> event.setAmount(32.0F);
             default -> { }
@@ -79,7 +89,9 @@ public final class ScpAbilityManager {
 
     @SubscribeEvent
     public static void onDeath(LivingDeathEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer victim) || !roundActive() || !human(victim)) return;
+        if (!(event.getEntity() instanceof ServerPlayer victim)) return;
+        POCKET_PRISONERS.remove(victim.getUUID());
+        if (!roundActive() || !human(victim)) return;
         Role victimRole = RoundEngine.getPlayerRole(victim.getUUID());
         long now = victim.serverLevel().getGameTime();
         CORPSES.put(victim.getUUID(), new Corpse(victim.getUUID(), victim.position(), now + CORPSE_LIFETIME));
@@ -101,11 +113,64 @@ public final class ScpAbilityManager {
         long now = server.overworld().getGameTime();
         tickCorpses(now);
         tickReanimations(server, now);
+        tickPocketDimension(server);
         for (ServerPlayer scp : server.getPlayerList().getPlayers()) {
             Role role = RoundEngine.getPlayerRole(scp.getUUID());
             if (role == Role.SCP_173) tick173(scp);
             else if (role == Role.SCP_939) tick939Sense(scp);
             else if (role == Role.SCP_096) tick096(scp, now);
+        }
+    }
+
+    /**
+     * A complete map setup transfers the victim into its authored pocket area. If one of the three
+     * required map anchors is absent, SCP-106 still has a deterministic, server-side fallback:
+     * severe blindness and a movement slowdown that effectively prevents movement.
+     */
+    private static void captureBy106(ServerPlayer scp106, ServerPlayer victim) {
+        SpatialZoneManager zones = SpatialZoneManager.get(scp106.serverLevel());
+        if (!zones.hasCompletePocketDimension()) {
+            apply106Fallback(victim);
+            return;
+        }
+        SpatialZoneManager.SpawnTarget target = zones.getRandomPocketArrival(victim.serverLevel(), victim.getRandom());
+        if (target == null) {
+            apply106Fallback(victim);
+            return;
+        }
+        victim.connection.teleport(target.x(), target.y(), target.z(), target.yaw(), target.pitch());
+        victim.resetFallDistance();
+        victim.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 20 * 3, 0, true, false, false));
+        victim.serverLevel().sendParticles(ParticleTypes.PORTAL, target.x(), target.y() + 1.0D, target.z(), 26, .35D, .55D, .35D, .12D);
+        POCKET_PRISONERS.add(victim.getUUID());
+    }
+
+    private static void apply106Fallback(ServerPlayer victim) {
+        victim.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 20 * 8, 1, true, false, false));
+        victim.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20 * 8, 10, true, false, false));
+        victim.setSprinting(false);
+    }
+
+    /** Escape is evaluated by the server only for people actually captured by SCP-106. */
+    private static void tickPocketDimension(MinecraftServer server) {
+        if (POCKET_PRISONERS.isEmpty()) return;
+        Iterator<UUID> it = POCKET_PRISONERS.iterator();
+        while (it.hasNext()) {
+            UUID uuid = it.next();
+            ServerPlayer prisoner = server.getPlayerList().getPlayer(uuid);
+            if (prisoner == null || !prisoner.isAlive() || !human(prisoner)) {
+                it.remove();
+                continue;
+            }
+            SpatialZoneManager zones = SpatialZoneManager.get(prisoner.serverLevel());
+            AABB escape = zones.getPocketEscapeZone();
+            SpatialZoneManager.SpawnTarget returnTarget = zones.getPocketReturnTarget();
+            if (escape == null || returnTarget == null || !escape.contains(prisoner.position())) continue;
+            prisoner.connection.teleport(returnTarget.x(), returnTarget.y(), returnTarget.z(), returnTarget.yaw(), returnTarget.pitch());
+            prisoner.resetFallDistance();
+            prisoner.removeEffect(MobEffects.BLINDNESS);
+            prisoner.serverLevel().sendParticles(ParticleTypes.REVERSE_PORTAL, returnTarget.x(), returnTarget.y() + 1.0D, returnTarget.z(), 22, .3D, .45D, .3D, .08D);
+            it.remove();
         }
     }
 

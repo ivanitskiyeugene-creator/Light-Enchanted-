@@ -15,8 +15,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /** Compact OP map-editor visualization data. No map configuration is trusted from the client. */
-public record S2CMapZonesPacket(AABB escapeZone, Map<Role, List<AABB>> spawnZones,
-                                Map<Role, List<BlockPos>> spawnPoints, List<AABB> elevatorCabins) {
+public record S2CMapZonesPacket(AABB escapeZone, AABB pocketArrivalZone, AABB pocketEscapeZone, BlockPos pocketReturnPoint,
+                                Map<Role, List<AABB>> spawnZones, Map<Role, List<BlockPos>> spawnPoints,
+                                List<AABB> elevatorCabins) {
     public static S2CMapZonesPacket from(SpatialZoneManager zones) {
         Map<Role, List<AABB>> roleZones = new EnumMap<>(Role.class);
         Map<Role, List<BlockPos>> points = new EnumMap<>(Role.class);
@@ -24,11 +25,17 @@ public record S2CMapZonesPacket(AABB escapeZone, Map<Role, List<AABB>> spawnZone
             roleZones.put(role, zones.getRoleSpawnZones(role).stream().map(SpatialZoneManager.SpawnZone::bounds).toList());
             points.put(role, zones.getRoleSpawnPoints(role).stream().map(SpatialZoneManager.SpawnPoint::pos).toList());
         }
-        return new S2CMapZonesPacket(zones.getEscapeZone(), roleZones, points, new ArrayList<>(zones.getElevatorCabins().values()));
+        SpatialZoneManager.SpawnPoint pocketReturn = zones.getPocketReturnPoint();
+        return new S2CMapZonesPacket(zones.getEscapeZone(), zones.getPocketArrivalZone(), zones.getPocketEscapeZone(),
+                pocketReturn == null ? null : pocketReturn.pos(), roleZones, points, new ArrayList<>(zones.getElevatorCabins().values()));
     }
 
     public static void encode(S2CMapZonesPacket msg, FriendlyByteBuf buf) {
         writeBox(buf, msg.escapeZone);
+        writeBox(buf, msg.pocketArrivalZone);
+        writeBox(buf, msg.pocketEscapeZone);
+        buf.writeBoolean(msg.pocketReturnPoint != null);
+        if (msg.pocketReturnPoint != null) buf.writeBlockPos(msg.pocketReturnPoint);
         for (Role role : Role.values()) {
             List<AABB> zones = msg.spawnZones.getOrDefault(role, List.of());
             buf.writeVarInt(zones.size());
@@ -43,6 +50,9 @@ public record S2CMapZonesPacket(AABB escapeZone, Map<Role, List<AABB>> spawnZone
 
     public static S2CMapZonesPacket decode(FriendlyByteBuf buf) {
         AABB escape = readBox(buf);
+        AABB pocketArrival = readBox(buf);
+        AABB pocketEscape = readBox(buf);
+        BlockPos pocketReturn = buf.readBoolean() ? buf.readBlockPos() : null;
         Map<Role, List<AABB>> zones = new EnumMap<>(Role.class);
         Map<Role, List<BlockPos>> points = new EnumMap<>(Role.class);
         for (Role role : Role.values()) {
@@ -58,11 +68,12 @@ public record S2CMapZonesPacket(AABB escapeZone, Map<Role, List<AABB>> spawnZone
         int cabinCount = buf.readVarInt();
         List<AABB> cabins = new ArrayList<>();
         for (int i = 0; i < cabinCount; i++) cabins.add(readBox(buf));
-        return new S2CMapZonesPacket(escape, zones, points, cabins);
+        return new S2CMapZonesPacket(escape, pocketArrival, pocketEscape, pocketReturn, zones, points, cabins);
     }
 
     public static void handle(S2CMapZonesPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> ClientMapZoneCache.set(msg.escapeZone, msg.spawnZones, msg.spawnPoints, msg.elevatorCabins));
+        ctx.get().enqueueWork(() -> ClientMapZoneCache.set(msg.escapeZone, msg.pocketArrivalZone, msg.pocketEscapeZone,
+                msg.pocketReturnPoint, msg.spawnZones, msg.spawnPoints, msg.elevatorCabins));
         ctx.get().setPacketHandled(true);
     }
 

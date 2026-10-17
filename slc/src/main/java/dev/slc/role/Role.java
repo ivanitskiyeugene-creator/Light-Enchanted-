@@ -12,6 +12,7 @@ public enum Role {
     CHAOS_MARAUDER("Мародёр Хаоса", Team.CHAOS_INSURGENCY, 120, 0, 0xFF27AE60),
     CHAOS_REPRESSOR("Подавитель Хаоса", Team.CHAOS_INSURGENCY, 150, 0, 0xFF1E8449),
     SCP_079("SCP-079 (Старый ИИ)", Team.SCP_OBJECTS, 100, 0, 0xFFE74C3C),
+    SCP_106("SCP-106 (Старик)", Team.SCP_OBJECTS, 1500, 400, 0xFF4A235A),
     SCP_939("SCP-939 (С многими голосами)", Team.SCP_OBJECTS, 1500, 600, 0xFFC0392B),
     SCP_173("SCP-173 (Скульптура)", Team.SCP_OBJECTS, 3200, 1200, 0xFFA93226),
     SCP_049("SCP-049 (Чумной Доктор)", Team.SCP_OBJECTS, 1700, 0, 0xFF922B21),

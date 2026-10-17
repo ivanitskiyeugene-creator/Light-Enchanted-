@@ -9,7 +9,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class ModNetwork {
-    private static final String PROTOCOL_VERSION = "1.0.0";
+    // Map-editor payloads changed in 1.11.0; reject older clients instead of decoding stale packet layouts.
+    private static final String PROTOCOL_VERSION = "1.11.0";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SecretLabCubed.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,

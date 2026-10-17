@@ -18,6 +18,10 @@ public class SpatialZoneManager extends SavedData {
     private static final String DATA_NAME = "slc_spatial_zones";
 
     private AABB escapeZone = null;
+    // SCP-106 uses a real map-authored pocket area, not an implicit hard-coded coordinate.
+    private AABB pocketArrivalZone = null;
+    private AABB pocketEscapeZone = null;
+    private SpawnPoint pocketReturnPoint = null;
     private final Map<Role, List<SpawnPoint>> roleSpawnPoints = new EnumMap<>(Role.class);
     private final Map<Role, List<SpawnZone>> roleSpawnZones = new EnumMap<>(Role.class);
     private final Map<BlockPos, AABB> elevatorCabins = new HashMap<>();
@@ -37,6 +41,41 @@ public class SpatialZoneManager extends SavedData {
     public void setEscapeZone(AABB aabb) {
         this.escapeZone = aabb;
         setDirty();
+    }
+
+    public AABB getPocketArrivalZone() { return pocketArrivalZone; }
+    public AABB getPocketEscapeZone() { return pocketEscapeZone; }
+    public SpawnPoint getPocketReturnPoint() { return pocketReturnPoint; }
+
+    public void setPocketArrivalZone(AABB bounds) {
+        pocketArrivalZone = bounds;
+        setDirty();
+    }
+
+    public void setPocketEscapeZone(AABB bounds) {
+        pocketEscapeZone = bounds;
+        setDirty();
+    }
+
+    public void setPocketReturnPoint(BlockPos pos, float yaw, float pitch) {
+        pocketReturnPoint = new SpawnPoint(pos, yaw, pitch);
+        setDirty();
+    }
+
+    /** A complete 106 setup has an arrival volume, an escape volume and a safe return anchor. */
+    public boolean hasCompletePocketDimension() {
+        return pocketArrivalZone != null && pocketEscapeZone != null && pocketReturnPoint != null;
+    }
+
+    public SpawnTarget getRandomPocketArrival(ServerLevel level, RandomSource random) {
+        if (pocketArrivalZone == null) return null;
+        return randomPointInZone(level, new SpawnZone(pocketArrivalZone, 0.0F, 0.0F), random);
+    }
+
+    public SpawnTarget getPocketReturnTarget() {
+        if (pocketReturnPoint == null) return null;
+        return new SpawnTarget(pocketReturnPoint.pos.getX() + 0.5D, pocketReturnPoint.pos.getY(),
+                pocketReturnPoint.pos.getZ() + 0.5D, pocketReturnPoint.yaw, pocketReturnPoint.pitch);
     }
 
     public void addRoleSpawn(Role role, BlockPos pos) {
@@ -141,6 +180,13 @@ public class SpatialZoneManager extends SavedData {
             CompoundTag esc = nbt.getCompound("EscapeZone");
             mgr.escapeZone = readBox(esc);
         }
+        if (nbt.contains("PocketArrival")) mgr.pocketArrivalZone = readBox(nbt.getCompound("PocketArrival"));
+        if (nbt.contains("PocketEscape")) mgr.pocketEscapeZone = readBox(nbt.getCompound("PocketEscape"));
+        if (nbt.contains("PocketReturn")) {
+            CompoundTag point = nbt.getCompound("PocketReturn");
+            mgr.pocketReturnPoint = new SpawnPoint(new BlockPos(point.getInt("x"), point.getInt("y"), point.getInt("z")),
+                    point.getFloat("yaw"), point.getFloat("pitch"));
+        }
 
         if (nbt.contains("Spawns")) {
             CompoundTag spawnsTag = nbt.getCompound("Spawns");
@@ -191,6 +237,17 @@ public class SpatialZoneManager extends SavedData {
     @Override
     public CompoundTag save(CompoundTag nbt) {
         if (escapeZone != null) nbt.put("EscapeZone", writeBox(escapeZone));
+        if (pocketArrivalZone != null) nbt.put("PocketArrival", writeBox(pocketArrivalZone));
+        if (pocketEscapeZone != null) nbt.put("PocketEscape", writeBox(pocketEscapeZone));
+        if (pocketReturnPoint != null) {
+            CompoundTag point = new CompoundTag();
+            point.putInt("x", pocketReturnPoint.pos.getX());
+            point.putInt("y", pocketReturnPoint.pos.getY());
+            point.putInt("z", pocketReturnPoint.pos.getZ());
+            point.putFloat("yaw", pocketReturnPoint.yaw);
+            point.putFloat("pitch", pocketReturnPoint.pitch);
+            nbt.put("PocketReturn", point);
+        }
 
         CompoundTag spawnsTag = new CompoundTag();
         for (Map.Entry<Role, List<SpawnPoint>> entry : roleSpawnPoints.entrySet()) {

@@ -125,6 +125,9 @@ public record C2SAdminActionPacket(AdminAction action, UUID targetId, String val
             case GIVE_ROLE_SPAWN_ZONE_MARKER -> giveRoleSpawnTool(admin, request.number, true);
             case GIVE_079_MAP -> status(admin, giveItem(target == null ? admin : target, "zero_seven_nine:map_tablet", 1)
                     ? "Планшет 079 выдан" : "0-7-9 не найден или планшет недоступен", giveItemPossible(target == null ? admin : target, "zero_seven_nine:map_tablet"));
+            case GIVE_POCKET_ARRIVAL_MARKER -> giveMapTool(admin, dev.slc.init.ModItems.POCKET_ARRIVAL_MARKER.get(), "Маркер прибытия SCP-106 выдан");
+            case GIVE_POCKET_ESCAPE_MARKER -> giveMapTool(admin, dev.slc.init.ModItems.POCKET_ESCAPE_MARKER.get(), "Маркер выхода SCP-106 выдан");
+            case GIVE_POCKET_RETURN_MARKER -> giveMapTool(admin, dev.slc.init.ModItems.POCKET_RETURN_MARKER.get(), "Маркер возврата SCP-106 выдан");
             case ROLE_SKIN_REQUEST -> ModNetwork.sendToPlayer(S2CSyncRoleSkinsPacket.from(admin), admin);
             case ROLE_SKIN_SET -> updateRoleSkin(admin, request.number, request.value);
         }

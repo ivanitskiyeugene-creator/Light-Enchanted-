@@ -9,6 +9,7 @@ import dev.slc.item.ElevatorTimerTunerItem;
 import dev.slc.item.SpatialMarkerWandItem;
 import dev.slc.item.map.ElevatorCabinMarkerItem;
 import dev.slc.item.map.ExitZoneMarkerItem;
+import dev.slc.item.map.PocketDimensionMarkerItem;
 import dev.slc.item.map.RoleSpawnMarkerItem;
 import dev.slc.role.Role;
 import net.minecraft.world.item.BlockItem;
@@ -31,6 +32,12 @@ public class ModItems {
             () -> new ExitZoneMarkerItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> ELEVATOR_CABIN_MARKER = ITEMS.register("elevator_cabin_marker",
             () -> new ElevatorCabinMarkerItem(new Item.Properties().stacksTo(1)));
+    public static final RegistryObject<Item> POCKET_ARRIVAL_MARKER = ITEMS.register("pocket_arrival_marker",
+            () -> new PocketDimensionMarkerItem(new Item.Properties().stacksTo(1), PocketDimensionMarkerItem.Type.ARRIVAL_ZONE));
+    public static final RegistryObject<Item> POCKET_ESCAPE_MARKER = ITEMS.register("pocket_escape_marker",
+            () -> new PocketDimensionMarkerItem(new Item.Properties().stacksTo(1), PocketDimensionMarkerItem.Type.ESCAPE_ZONE));
+    public static final RegistryObject<Item> POCKET_RETURN_MARKER = ITEMS.register("pocket_return_marker",
+            () -> new PocketDimensionMarkerItem(new Item.Properties().stacksTo(1), PocketDimensionMarkerItem.Type.RETURN_POINT));
     public static final Map<Role, RegistryObject<Item>> SPAWN_POINT_MARKERS = registerSpawnMarkers("spawn_point", RoleSpawnMarkerItem.Type.POINT);
     public static final Map<Role, RegistryObject<Item>> SPAWN_ZONE_MARKERS = registerSpawnMarkers("spawn_zone", RoleSpawnMarkerItem.Type.ZONE);
 

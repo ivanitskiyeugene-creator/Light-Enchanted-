@@ -29,6 +29,7 @@ public final class RoleSpawnMarkerItem extends Item {
     public Role role() { return role; }
     public Type type() { return type; }
     public boolean hasFirstPoint(ItemStack stack) { return MapMarkerFeedback.hasFirst(stack); }
+    public BlockPos firstPoint(ItemStack stack) { return MapMarkerFeedback.firstPoint(stack); }
 
     @Override
     public boolean canAttackBlock(net.minecraft.world.level.block.state.BlockState state, Level level, BlockPos pos, Player player) {

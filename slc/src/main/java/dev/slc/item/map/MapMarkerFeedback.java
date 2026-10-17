@@ -23,6 +23,10 @@ final class MapMarkerFeedback {
         return stack.hasTag() && stack.getTag().contains(FIRST_POINT);
     }
 
+    static BlockPos firstPoint(ItemStack stack) {
+        return hasFirst(stack) ? BlockPos.of(stack.getTag().getLong(FIRST_POINT)) : null;
+    }
+
     static AABB finishBox(ItemStack stack, BlockPos second) {
         CompoundTag tag = stack.getOrCreateTag();
         BlockPos first = BlockPos.of(tag.getLong(FIRST_POINT));

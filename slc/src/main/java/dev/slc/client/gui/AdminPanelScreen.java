@@ -45,7 +45,7 @@ public final class AdminPanelScreen extends Screen {
         CIVILIANS("ПЕРСОНАЛ", new Role[]{Role.CLASS_D, Role.SCIENTIST, Role.FACILITY_GUARD}),
         REINFORCEMENTS("ПОДКРЕПЛЕНИЯ", new Role[]{Role.MTF_PRIVATE, Role.MTF_SERGEANT, Role.MTF_SPECIALIST, Role.MTF_CAPTAIN,
                 Role.CHAOS_CONSCRIPT, Role.CHAOS_MARAUDER, Role.CHAOS_REPRESSOR}),
-        SCPS("SCP", new Role[]{Role.SCP_079, Role.SCP_939, Role.SCP_173, Role.SCP_049, Role.SCP_049_2, Role.SCP_096}),
+        SCPS("SCP", new Role[]{Role.SCP_079, Role.SCP_106, Role.SCP_939, Role.SCP_173, Role.SCP_049, Role.SCP_049_2, Role.SCP_096}),
         OTHER("ПРОЧЕЕ", new Role[]{Role.SPECTATOR});
 
         private final String label;
@@ -170,9 +170,15 @@ public final class AdminPanelScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("ОТКРЫТЬ ИНСТРУМЕНТ 079"), b -> send(AdminAction.GIVE_079_MAP, selectedPlayer, "", 0))
                 .bounds(24, 64, 182, 20).build());
         addRenderableWidget(Button.builder(Component.literal("ЗОНА ВЫХОДА"), b -> send(AdminAction.GIVE_EXIT_ZONE_MARKER, null, "", 0))
-                .bounds(24, 90, 128, 20).build());
+                .bounds(212, 64, 128, 20).build());
         addRenderableWidget(Button.builder(Component.literal("КАБИНА ЛИФТА"), b -> send(AdminAction.GIVE_ELEVATOR_CABIN_MARKER, null, "", 0))
-                .bounds(158, 90, 128, 20).build());
+                .bounds(346, 64, 128, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("106: ПРИБЫТИЕ"), b -> send(AdminAction.GIVE_POCKET_ARRIVAL_MARKER, null, "", 0))
+                .bounds(24, 90, 140, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("106: ВЫХОД"), b -> send(AdminAction.GIVE_POCKET_ESCAPE_MARKER, null, "", 0))
+                .bounds(170, 90, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("106: ВОЗВРАТ"), b -> send(AdminAction.GIVE_POCKET_RETURN_MARKER, null, "", 0))
+                .bounds(296, 90, 140, 20).build());
 
         int groupX = 24;
         for (MapGroup group : MapGroup.values()) {
@@ -353,9 +359,9 @@ public final class AdminPanelScreen extends Screen {
     }
 
     private void drawMapHelp(GuiGraphics graphics) {
-        graphics.drawString(font, "Редактор карты SLC / 079", 24, 44, 0xFFFFFFFF, false);
-        graphics.drawString(font, "Выбери роль — появятся её отдельные инструменты точки и зоны спавна.", 24, 112, 0xFFB8C2CC, false);
-        graphics.drawString(font, "ЗОНА: ЛКМ = угол A, Shift+ПКМ = сохранить объём. ТОЧКА: ПКМ = добавить.", 24, 130, 0xFFB8C2CC, false);
+        graphics.drawString(font, "Редактор карты SLC / 079 / SCP-106", 24, 44, 0xFFFFFFFF, false);
+        graphics.drawString(font, "106: настрой ПРИБЫТИЕ, ВЫХОД и ВОЗВРАТ. Без полной настройки захват даёт только слепоту и обездвиживание.", 24, height - 126, 0xFFB8C2CC, false);
+        graphics.drawString(font, "ЗОНА: ЛКМ = угол A, Shift+ПКМ = сохранить объём. ТОЧКА: ПКМ = добавить.", 24, height - 112, 0xFFB8C2CC, false);
         graphics.drawString(font, "Выбрано: " + mapRole.getDisplayName(), 24, height - 96, 0xFFFFFFFF, false);
         graphics.renderItem(new ItemStack(ModItems.spawnPointMarker(mapRole).get()), 195, height - 100);
         graphics.renderItem(new ItemStack(ModItems.spawnZoneMarker(mapRole).get()), 391, height - 100);

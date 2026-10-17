@@ -73,5 +73,11 @@
   "item.slc.spawn_zone_spectator": "Spectator Spawn Zone Marker",
   "role.slc.scp_049_2": "SCP-049-2",
   "item.slc.spawn_point_scp_049_2": "Spawn Point: SCP-049-2",
-  "item.slc.spawn_zone_scp_049_2": "Spawn Zone: SCP-049-2"
+  "item.slc.spawn_zone_scp_049_2": "Spawn Zone: SCP-049-2",
+  "role.slc.scp_106": "SCP-106",
+  "item.slc.spawn_point_scp_106": "SCP-106 Spawn Point Marker",
+  "item.slc.spawn_zone_scp_106": "SCP-106 Spawn Zone Marker",
+  "item.slc.pocket_arrival_marker": "SCP-106 Pocket Arrival Zone Marker",
+  "item.slc.pocket_escape_marker": "SCP-106 Pocket Escape Zone Marker",
+  "item.slc.pocket_return_marker": "SCP-106 Pocket Return Point Marker"
 }

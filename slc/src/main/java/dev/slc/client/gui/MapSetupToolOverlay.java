@@ -2,6 +2,7 @@ package dev.slc.client.gui;
 
 import dev.slc.item.map.ElevatorCabinMarkerItem;
 import dev.slc.item.map.ExitZoneMarkerItem;
+import dev.slc.item.map.PocketDimensionMarkerItem;
 import dev.slc.item.map.RoleSpawnMarkerItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -37,6 +38,22 @@ public final class MapSetupToolOverlay {
             step = marker.hasFirstPoint(stack)
                     ? "Shift + ПКМ по кнопке лифта — привязать кабину"
                     : "ЛКМ или ПКМ — установить угол A кабины";
+        } else if (stack.getItem() instanceof PocketDimensionMarkerItem marker) {
+            switch (marker.type()) {
+                case ARRIVAL_ZONE -> {
+                    title = "SCP-106: ЗОНА ПРИБЫТИЯ";
+                    step = marker.hasFirstPoint(stack) ? "Shift + ПКМ — сохранить зону прибытия" : "ЛКМ или ПКМ — установить угол A";
+                }
+                case ESCAPE_ZONE -> {
+                    title = "SCP-106: ЗОНА ПОБЕГА";
+                    step = marker.hasFirstPoint(stack) ? "Shift + ПКМ — сохранить зону побега" : "ЛКМ или ПКМ — установить угол A";
+                }
+                case RETURN_POINT -> {
+                    title = "SCP-106: ТОЧКА ВОЗВРАТА";
+                    step = "ПКМ по полу — сохранить точку и направление возврата";
+                }
+                default -> { title = "SCP-106"; step = ""; }
+            }
         } else return;
 
         int x = 14;

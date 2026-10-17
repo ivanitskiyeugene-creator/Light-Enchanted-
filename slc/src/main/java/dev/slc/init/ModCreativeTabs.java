@@ -20,6 +20,9 @@ public class ModCreativeTabs {
                     .displayItems((params, output) -> {
                         output.accept(ModItems.EXIT_ZONE_MARKER.get());
                         output.accept(ModItems.ELEVATOR_CABIN_MARKER.get());
+                        output.accept(ModItems.POCKET_ARRIVAL_MARKER.get());
+                        output.accept(ModItems.POCKET_ESCAPE_MARKER.get());
+                        output.accept(ModItems.POCKET_RETURN_MARKER.get());
                         for (Role role : Role.values()) {
                             output.accept(ModItems.spawnPointMarker(role).get());
                             output.accept(ModItems.spawnZoneMarker(role).get());

@@ -93,7 +93,8 @@ public class SecretLabCubed {
                 net.minecraft.world.item.Item held = serverPlayer.getMainHandItem().getItem();
                 if (held instanceof dev.slc.item.map.RoleSpawnMarkerItem
                         || held instanceof dev.slc.item.map.ExitZoneMarkerItem
-                        || held instanceof dev.slc.item.map.ElevatorCabinMarkerItem) {
+                        || held instanceof dev.slc.item.map.ElevatorCabinMarkerItem
+                        || held instanceof dev.slc.item.map.PocketDimensionMarkerItem) {
                     dev.slc.zone.MapZoneVisualSync.send(serverPlayer);
                 }
             }

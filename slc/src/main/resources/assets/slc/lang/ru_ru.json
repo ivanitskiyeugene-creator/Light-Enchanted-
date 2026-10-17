@@ -73,5 +73,11 @@
   "item.slc.spawn_zone_spectator": "Зона Спавна: Наблюдатель",
   "role.slc.scp_049_2": "SCP-049-2 (Чумной зомби)",
   "item.slc.spawn_point_scp_049_2": "Точка Спавна: SCP-049-2",
-  "item.slc.spawn_zone_scp_049_2": "Зона Спавна: SCP-049-2"
+  "item.slc.spawn_zone_scp_049_2": "Зона Спавна: SCP-049-2",
+  "role.slc.scp_106": "SCP-106 (Старик)",
+  "item.slc.spawn_point_scp_106": "Точка Спавна: SCP-106",
+  "item.slc.spawn_zone_scp_106": "Зона Спавна: SCP-106",
+  "item.slc.pocket_arrival_marker": "Маркер Зоны Прибытия SCP-106",
+  "item.slc.pocket_escape_marker": "Маркер Зоны Выхода SCP-106",
+  "item.slc.pocket_return_marker": "Маркер Точки Возврата SCP-106"
 }
