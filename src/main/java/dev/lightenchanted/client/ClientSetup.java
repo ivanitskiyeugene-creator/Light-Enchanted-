@@ -27,6 +27,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
+            HybridRendererSupport.logCompatibilityStatus();
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.LIGHT_TRUSS.get(), RenderType.cutoutMipped());
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.LIGHT_GRATE.get(), RenderType.cutoutMipped());
             ItemBlockRenderTypes.setRenderLayer(ModBlocks.OPTICAL_MIRROR.get(), RenderType.translucent());

@@ -30,14 +30,14 @@ public final class LightEnchantedConfig {
         public final ForgeConfigSpec.DoubleValue beamBrightnessMultiplier;
 
         public Client(ForgeConfigSpec.Builder builder) {
-            builder.comment("Light Enchanted Client Graphics & STR Raytracing Settings").push("graphics");
+            builder.comment("Light Enchanted fallback renderer settings. The optional Oculus shaderpack has its own Low / Balanced / Cinematic presets.").push("graphics");
 
             rayQuality = builder
-                    .comment("STR Raytracing Quality Profile:\nLOW = 49 rays (Best for low-end GPUs)\nMEDIUM = 193 rays (Balanced 300+ FPS)\nULTRA = 433 rays (Cinematic quality)")
+                    .comment("Fallback Java beam-occlusion quality. This renderer remains available even with the optional Oculus shaderpack so configured beam colour, shape and gameplay behavior are never lost:\nLOW = 49 rays\nMEDIUM = 193 rays\nULTRA = 433 rays")
                     .defineEnum("rayQuality", RayQuality.MEDIUM);
 
             enableDynamicShadows = builder
-                    .comment("Enable real-time dynamic 3D raymarching shadows from fans, fences, and obstacles")
+                    .comment("Enable Java fallback beam occlusion from fans, fences, and obstacles. The selected Oculus pack additionally uses GPU shadow maps and screen-space tracing for the world.")
                     .define("enableDynamicShadows", true);
 
             enableVolumetricDust = builder

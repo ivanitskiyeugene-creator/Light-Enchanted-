@@ -73,6 +73,14 @@ jobs:
           path: build/libs/*.jar
           if-no-files-found: error
 
+      - name: Upload Light Enchanted shaderpack
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lightenchanted-shaderpack
+          path: build/shaderpacks/*.zip
+          if-no-files-found: error
+
       - name: Upload Snow - SCPied jar
         uses: actions/upload-artifact@v4
         if: success()
@@ -110,11 +118,13 @@ jobs:
             - **SECRET LAB - CUBED** (`slc-*.jar`) — Round engine, roles, CASSIE announcer and SCP-939 mimicry.
             - **0-7-9** (`zero_seven_nine-*.jar`) — SCP-079 surveillance AI gameplay mod and CCTV shaders.
             - **Snow - SCPied** (`snow_scpied-*.jar`) — Dynamic snow accumulation and physical footprints/blood.
-            - **Light Enchanted** (`lightenchanted-*.jar`) — Volumetric lighting and Simple Ray Tracing (STR).
+            - **Light Enchanted** (`lightenchanted-*.jar`) — configurable emitters and fallback beam renderer.
+            - **Light Enchanted Hybrid Renderer** (`lightenchanted-shaders-*.zip`) — optional Oculus GPU shadows, screen-space tracing and scalable presets.
           draft: false
           prerelease: false
           files: |
             build/libs/*.jar
+            build/shaderpacks/*.zip
             snow-scpied/build/libs/*.jar
             0-7-9/build/libs/*.jar
             slc/build/libs/*.jar

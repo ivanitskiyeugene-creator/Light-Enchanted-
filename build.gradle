@@ -96,6 +96,19 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
+tasks.register('shaderpackZip', Zip) {
+    group = 'distribution'
+    description = 'Packages the optional Light Enchanted Oculus/Iris hybrid shaderpack.'
+    archiveBaseName = 'lightenchanted-shaders'
+    archiveVersion = project.version.toString()
+    destinationDirectory = layout.buildDirectory.dir('shaderpacks')
+    from('shaderpack')
+}
+
+tasks.named('build').configure {
+    dependsOn tasks.named('shaderpackZip')
+}
+
 tasks.named('jar', Jar).configure {
     manifest {
         attributes([

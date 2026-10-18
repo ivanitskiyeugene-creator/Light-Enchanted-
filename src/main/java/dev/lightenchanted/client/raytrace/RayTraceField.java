@@ -1,6 +1,7 @@
 package dev.lightenchanted.client.raytrace;
 
 import dev.lightenchanted.beam.BeamShape;
+import dev.lightenchanted.config.LightEnchantedConfig;
 import dev.lightenchanted.block.*;
 import dev.lightenchanted.blockentity.HazeMachineBlockEntity;
 import dev.lightenchanted.blockentity.IndustrialFanBlockEntity;
@@ -39,9 +40,11 @@ import java.util.List;
  * - High-contrast shadow silhouettes with zero GC overhead (300+ FPS).
  */
 public class RayTraceField {
-    public static final int RINGS = 8;
-    public static final int RAYS_PER_RING = 24;
-    public static final int TOTAL_RAYS = 1 + RINGS * RAYS_PER_RING; // 193 rays
+    private Ray[] rays = new Ray[0];
+    private int rings;
+    private int raysPerRing;
+    private LightEnchantedConfig.RayQuality activeQuality;
+    private boolean qualityChanged;
 
     public static class Ray {
         public float localX, localZ;
@@ -84,7 +87,6 @@ public class RayTraceField {
         IndustrialFanBlockEntity fan;
     }
 
-    private final Ray[] rays = new Ray[TOTAL_RAYS];
     private final List<Triangle> staticTriangles = new ArrayList<>();
     private final List<Triangle> dynamicTriangles = new ArrayList<>();
     private final List<AABB> obstacleBoxes = new ArrayList<>();
@@ -108,9 +110,7 @@ public class RayTraceField {
     private AABB combinedBounds = null;
 
     public RayTraceField() {
-        for (int i = 0; i < TOTAL_RAYS; i++) {
-            rays[i] = new Ray();
-        }
+        updateQuality();
         for (int i = 0; i < 2048; i++) {
             staticTriangles.add(new Triangle());
         }
@@ -119,8 +119,35 @@ public class RayTraceField {
         }
     }
 
+    /**
+     * Rebuilds only the compact sampling lattice when the client changes the fallback profile.
+     * World collision caches stay intact; the next render simply retraces against the new lattice.
+     */
+    private void updateQuality() {
+        LightEnchantedConfig.RayQuality requested = LightEnchantedConfig.CLIENT.rayQuality.get();
+        if (requested == activeQuality) {
+            return;
+        }
+        activeQuality = requested;
+        rings = requested.rings;
+        raysPerRing = requested.raysPerRing;
+        rays = new Ray[requested.totalRays];
+        for (int i = 0; i < rays.length; i++) {
+            rays[i] = new Ray();
+        }
+        qualityChanged = true;
+    }
+
     public Ray[] getRays() {
         return rays;
+    }
+
+    public int getRings() {
+        return rings;
+    }
+
+    public int getRaysPerRing() {
+        return raysPerRing;
     }
 
     public float getHazeMultiplier() {
@@ -130,6 +157,8 @@ public class RayTraceField {
     public boolean needsRetrace(long currentTick, float partialTick, Vec3 origin, Vec3 dir,
                                 float width, float endWidth, float maxDist,
                                 BeamShape shape, boolean shadows) {
+        updateQuality();
+        if (qualityChanged) return true;
         if (lastOrigin == null || lastDir == null) return true;
         if (!dynamicFans.isEmpty() || hasEntitiesInBeam) return true; // Real-time 60-144 FPS tracking!
         if (currentTick - lastStaticScanTick >= 20L) return true;
@@ -142,6 +171,8 @@ public class RayTraceField {
     public void trace(Level level, BlockPos emitterPos, Vec3 origin, Vec3 dir,
                       float width, float endWidth, float maxDist, BeamShape shape,
                       boolean shadows, long currentTick, float partialTick) {
+        updateQuality();
+        qualityChanged = false;
         lastOrigin = origin;
         lastDir = dir;
         lastW = width;
@@ -214,14 +245,14 @@ public class RayTraceField {
         int rayIdx = 0;
         setupRay(rays[rayIdx++], 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
-        for (int ring = 1; ring <= RINGS; ring++) {
-            float frac = (float) ring / RINGS;
+        for (int ring = 1; ring <= rings; ring++) {
+            float frac = (float) ring / rings;
             float ringR0 = r0 * frac;
             float ringR1 = r1 * frac;
             float ringIntensity = (float) Math.exp(-2.2 * frac * frac);
 
-            for (int r = 0; r < RAYS_PER_RING; r++) {
-                float angle = (r * (float) (Math.PI * 2.0) / RAYS_PER_RING) + (ring * 0.35f);
+            for (int r = 0; r < raysPerRing; r++) {
+                float angle = (r * (float) (Math.PI * 2.0) / raysPerRing) + (ring * 0.35f);
                 float c = Mth.cos(angle);
                 float s = Mth.sin(angle);
 
@@ -254,8 +285,8 @@ public class RayTraceField {
 
         BlockPos.MutableBlockPos mpos = new BlockPos.MutableBlockPos();
 
-        // March all 193 rays with individual voxel raymarching and 6-axis surface normal detection
-        for (int i = 0; i < TOTAL_RAYS; i++) {
+        // March the active profile lattice with individual voxel raymarching and 6-axis surface normal detection
+        for (int i = 0; i < rays.length; i++) {
             Ray ray = rays[i];
 
             Vec3 rayStart = origin.add(right.scale(ray.localX)).add(actualUp.scale(ray.localZ));

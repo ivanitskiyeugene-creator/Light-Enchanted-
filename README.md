@@ -1,14 +1,14 @@
 # 🌟 Light Enchanted & SCP Facility Suite
 
 <p align="center">
-  <b>Комплекс модов для Minecraft 1.20.1 Forge: Кинематографичный свет STR 2.0, Реалистичный снег и Управление Комплексом через SCP-079</b><br>
+  <b>Комплекс модов для Minecraft 1.20.1 Forge: гибридный GPU-свет Light Enchanted 3.0, Реалистичный снег и Управление Комплексом через SCP-079</b><br>
   <i>Light Enchanted (Micro-RT Beams), Snow - SCPied (Footprints & Blood Stains), and 0-7-9 (SCP-079 Camera Surveillance Engine)</i>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-1.20.1-brightgreen.svg" alt="Minecraft 1.20.1">
   <img src="https://img.shields.io/badge/Loader-Forge%2047.x-orange.svg" alt="Forge 47.x">
-  <img src="https://img.shields.io/badge/STR%202.0-Micro--Raytracing-blueviolet.svg" alt="STR 2.0 Shadows">
+  <img src="https://img.shields.io/badge/Light%20Enchanted%203.0-Oculus%20Hybrid-blueviolet.svg" alt="Light Enchanted 3.0 Hybrid">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT">
 </p>
 
@@ -16,12 +16,13 @@
 
 ## 🌟 1. Light Enchanted (`mod_id: lightenchanted`)
 
-Кинематографичный свет и тени нового поколения STR 2.0 (Simple Ray Tracing):
+Light Enchanted 3.0: гибридный рендеринг с безопасным Java-fallback без шейдерлоадера и отдельным GPU shaderpack для Oculus:
 - **Поворотный сценический прожектор (`moving_spotlight`):** Автоматическое непрерывное покачивание и сканирование по Yaw и Pitch с динамическими живыми тенями.
 - **Вентиляция Комплекса:**
   - **SCP HCZ 3x3 Industrial Fan:** Монолитный тяжелый вентилятор в матовом оружейном металле.
   - **1x1 Compact Wall Fan:** Компактный 4-лопастной настенный вентилятор с переключением скоростей и сквозными тенями.
-- **Микро-трассировка STR 2.0:** Честный воксельный шаг сканирования преград («нету — дальше, есть — остановиться»), 6-осевая адаптивная проекция на любые стены и потолок.
+- **Oculus Hybrid Renderer:** отдельный `lightenchanted-shaders-*.zip` с PCF тенями, screen-space contact tracing, GTAO, объёмным светом с occlusion, консервативными SSR и пресетами **Low / Balanced / Cinematic**.
+- **Без Oculus:** сохраняется настраиваемый встроенный fallback для лучей, взаимодействий и всех игровых механик — Oculus не является обязательной зависимостью.
 - **Визуальный GUI-редактор:** Настройка HEX цвета, формы луча, разброса до 8 блоков, стробоскопа и пульсации в реальном времени.
 
 ---

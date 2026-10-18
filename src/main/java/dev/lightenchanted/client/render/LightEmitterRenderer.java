@@ -139,8 +139,11 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
         // ---- STR 2.0: Lazy Cached Raytracing with dynamic entity & fan shadow tracking
         RayTraceField rayField = RAY_FIELDS.computeIfAbsent(pos, p -> new RayTraceField());
-        if (rayField.needsRetrace(currentTick, partialTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows)) {
-            rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, cfg.shadows, currentTick, partialTick);
+        // Turning off dynamic fallback occlusion still clips a beam against real terrain; it only
+        // skips expensive moving-entity, fan-blade and detailed-model intersection work.
+        boolean fallbackDynamicOcclusion = cfg.shadows && LightEnchantedConfig.CLIENT.enableDynamicShadows.get();
+        if (rayField.needsRetrace(currentTick, partialTick, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, fallbackDynamicOcclusion)) {
+            rayField.trace(level, pos, startVec, dirVec, w, endW, (float) maxDist, cfg.shape, fallbackDynamicOcclusion, currentTick, partialTick);
         }
 
         // ---- Color
@@ -201,11 +204,15 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             Matrix3f nmat = poseStack.last().normal();
 
             RayTraceField.Ray[] rays = rayField.getRays();
-            int raysPerRing = RayTraceField.RAYS_PER_RING;
-            int totalRings = RayTraceField.RINGS;
+            int raysPerRing = rayField.getRaysPerRing();
+            int totalRings = rayField.getRings();
+            int middleRing = Math.max(2, totalRings / 2);
+            int[] shellRings = middleRing == 2
+                    ? new int[]{totalRings, 2}
+                    : new int[]{totalRings, middleRing, 2};
 
             // ---- Continuous Seamless Volumetric Cone Hulls
-            for (int ringStep : new int[]{totalRings, totalRings / 2, 2}) {
+            for (int ringStep : shellRings) {
                 int baseIdx = 1 + (ringStep - 1) * raysPerRing;
                 float shellAlpha = alpha * (ringStep == totalRings ? 0.35f : (ringStep == 2 ? 0.85f : 0.55f));
 
