@@ -67,13 +67,18 @@ public class Scp079Config {
             builder.push("visuals");
 
             enableCctvShader = builder
-                    .comment("Enable realistic CCTV Fisheye & CRT Scanline post-processing shader in camera view. Default: true.")
+                    .comment("Enable the SCP-079 CCTV monitor presentation: world camera post-process plus matching HUD and tactical-map composite. Default: true.")
                     .define("enableCctvShader", true);
+
+            monitorInterfaceStrength = builder
+                    .comment("Strength of the matching CRT/monitor composite on the SCP-079 HUD and tactical map. Default: 0.72.")
+                    .defineInRange("monitorInterfaceStrength", 0.72, 0.15, 1.0);
 
             builder.pop();
         }
 
         public final ForgeConfigSpec.BooleanValue enableCctvShader;
+        public final ForgeConfigSpec.DoubleValue monitorInterfaceStrength;
     }
 
     public static final ForgeConfigSpec COMMON_SPEC;

@@ -1,6 +1,5 @@
 package dev.zerosevennine.client.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
 import dev.zerosevennine.facility.FacilityNetworkManager;
@@ -17,7 +16,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
@@ -27,8 +25,6 @@ import org.lwjgl.glfw.GLFW;
 import java.util.List;
 
 public class Scp079MapScreen extends Screen {
-    private static final ResourceLocation SCANLINES = new ResourceLocation("zero_seven_nine", "textures/gui/scanlines.png");
-
     public static final int CELL_SIZE = FacilityNetworkManager.CELL_SIZE; // 42
 
     private double panX = 0;
@@ -231,13 +227,6 @@ public class Scp079MapScreen extends Screen {
         // Dark CRT Blue Background
         graphics.fill(0, 0, width, height, 0xFF020712);
 
-        // Single Fullscreen CRT Scanline Overlay
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.7f, 1.0f, 0.08f);
-        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-
         Font font = this.font;
 
         // 1. Vector Schematic Map (1:1 identical to Designer Tablet)
@@ -256,6 +245,10 @@ public class Scp079MapScreen extends Screen {
         renderCenterReticle(graphics, font, cx, cy);
 
         super.render(graphics, mouseX, mouseY, partialTick);
+
+        // Screens are drawn after the world post-process. Composite here so the tactical map
+        // receives the same active CRT monitor treatment as the camera feed and operator HUD.
+        Scp079MonitorFx.renderFinalComposite(graphics, width, height);
     }
 
     private void renderLeftLifeformCounters(GuiGraphics graphics, Font font) {

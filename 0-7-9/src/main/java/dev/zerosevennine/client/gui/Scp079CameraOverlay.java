@@ -1,10 +1,7 @@
 package dev.zerosevennine.client.gui;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import dev.zerosevennine.ZeroSevenNine;
 import dev.zerosevennine.blockentity.CameraBlockEntity;
 import dev.zerosevennine.client.handler.ClientCameraHandler;
-import dev.zerosevennine.config.Scp079Config;
 import dev.zerosevennine.facility.FacilityNetworkManager;
 import dev.zerosevennine.system.Scp079Session;
 import net.minecraft.client.Minecraft;
@@ -12,15 +9,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 public class Scp079CameraOverlay {
-    private static final ResourceLocation SCANLINES = new ResourceLocation(ZeroSevenNine.MOD_ID, "textures/gui/scanlines.png");
-
     // Authentic SCP:SL Monochrome Palette: Ice-White / Pale Cyan
     private static final int TEXT_COLOR = 0xFFE0F7FA;
     private static final int TEXT_DIM = 0x5580DEEA;
@@ -41,6 +34,7 @@ public class Scp079CameraOverlay {
         // 1. Inter-Zone Telephone Transition Screen
         if (ClientCameraHandler.zoneTransitionTicks > 0) {
             renderInterZoneTransition(graphics, font, width, height, mc);
+            Scp079MonitorFx.renderFinalComposite(graphics, width, height);
             return;
         }
 
@@ -49,10 +43,7 @@ public class Scp079CameraOverlay {
             renderStaticNoiseGlitch(graphics, font, width, height);
         }
 
-        // 3. CRT Scanlines & Subtle Corner Vignette
-        renderCrtOverlay(graphics, width, height, mc);
-
-        // 4. Technical Screen Corner Brackets [┌ ┐ └ ┘]
+        // 3. Technical Screen Corner Brackets [┌ ┐ └ ┘]
         renderScreenCornerBrackets(graphics, width, height);
 
         // 5. Center Minimalist Reticle
@@ -69,18 +60,15 @@ public class Scp079CameraOverlay {
 
         // 9. Bottom-Left Ephemeral Notifications (fading to 0 alpha after 3-5 seconds)
         renderBottomLeftNotifications(graphics, font, height);
+
+        // GUI is rendered after GameRenderer's world post-chain. Apply the matching monitor pass
+        // here so the SCP-079 interface is physically part of the surveillance display as well.
+        Scp079MonitorFx.renderFinalComposite(graphics, width, height);
     }
 
     private static void renderInterZoneTransition(GuiGraphics graphics, Font font, int width, int height, Minecraft mc) {
         // Deep Black Background
         graphics.fill(0, 0, width, height, 0xFF020712);
-
-        // Scanlines
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.15f);
-        graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
 
         // Static Noise Dots
         for (int i = 0; i < 180; i++) {
@@ -171,22 +159,6 @@ public class Scp079CameraOverlay {
         graphics.fill(bx, by, bx + bw, by + 1, 0xFF00E5FF);
         graphics.fill(bx, by + 13, bx + bw, by + 14, 0xFF00E5FF);
         graphics.drawString(font, badge, bx + 6, by + 3, 0xFFFFFFFF, true);
-    }
-
-    private static void renderCrtOverlay(GuiGraphics graphics, int width, int height, Minecraft mc) {
-        boolean shaderActive = Scp079Config.COMMON == null || Scp079Config.COMMON.enableCctvShader.get();
-        if (!shaderActive) {
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.08f);
-            graphics.blit(SCANLINES, 0, 0, 0, 0, width, height, width, height);
-            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-
-            // Subtle rolling scan line fallback
-            long time = mc.level != null ? mc.level.getGameTime() : 0;
-            int rollY = (int) ((time * 2) % Math.max(1, height));
-            graphics.fill(0, rollY, width, rollY + 2, 0x1200E5FF);
-        }
     }
 
     private static void renderScreenCornerBrackets(GuiGraphics graphics, int width, int height) {

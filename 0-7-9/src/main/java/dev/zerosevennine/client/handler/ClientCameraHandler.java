@@ -302,22 +302,38 @@ public class ClientCameraHandler {
 
     public static final ResourceLocation CCTV_SHADER = new ResourceLocation("zero_seven_nine", "shaders/post/cctv.json");
 
+    // GameRenderer can host only one post-chain. Keep the exact chain instance we loaded so
+    // leaving SCP-079 mode never shuts down a post effect installed by another mod.
+    private static Object ownedCctvEffect;
+
     public static void updateCctvShader(Minecraft mc) {
         if (mc.gameRenderer == null) return;
         boolean wantsShader = in079Mode && (Scp079Config.COMMON == null || Scp079Config.COMMON.enableCctvShader.get());
+        Object currentEffect = mc.gameRenderer.currentEffect();
 
         if (wantsShader) {
-            if (mc.gameRenderer.currentEffect() == null) {
+            if (ownedCctvEffect != null && currentEffect != ownedCctvEffect) {
+                // Another renderer has replaced our chain; do not take ownership of it or clobber it.
+                ownedCctvEffect = null;
+            }
+
+            if (ownedCctvEffect == null && currentEffect == null) {
                 try {
                     mc.gameRenderer.loadEffect(CCTV_SHADER);
-                } catch (Exception ignored) {}
+                    ownedCctvEffect = mc.gameRenderer.currentEffect();
+                } catch (Exception ignored) {
+                    ownedCctvEffect = null;
+                }
             }
         } else {
-            if (mc.gameRenderer.currentEffect() != null) {
+            if (ownedCctvEffect != null && currentEffect == ownedCctvEffect) {
                 try {
                     mc.gameRenderer.shutdownEffect();
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                    // The reference is still cleared below; a later entry can safely retry loading.
+                }
             }
+            ownedCctvEffect = null;
         }
     }
 
