@@ -9,8 +9,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class ModNetwork {
-    // Map-editor payloads changed in 1.11.0; reject older clients instead of decoding stale packet layouts.
-    private static final String PROTOCOL_VERSION = "1.11.0";
+    // The role HUD and server-side SCP inventory contract ship together; reject incompatible clients.
+    private static final String PROTOCOL_VERSION = "1.12.0";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SecretLabCubed.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,

@@ -1,5 +1,6 @@
 package dev.slc.client.gui;
 
+import dev.slc.client.ClientRoundCache;
 import dev.slc.client.ClientSlcArmorCache;
 import dev.slc.loadout.SlcLoadoutSavedData;
 import dev.slc.network.C2SSelectInventorySlotPacket;
@@ -21,10 +22,7 @@ import java.util.List;
  */
 public class RadialInventoryScreen extends Screen {
     private static final int PAGE_SIZE = 8;
-    private static final int COLOR_GOLD_LINE = 0xFFD8B01C;
-    private static final int COLOR_HOVER_FILL = 0xAAD8B01C;
     private static final int COLOR_BG_SECTOR = 0x660A0D12;
-    private static final int COLOR_GOLD_TEXT = 0xFFF1C40F;
 
     private int hoveredIndex = -1;
     private int page;
@@ -56,8 +54,16 @@ public class RadialInventoryScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        Player player = Minecraft.getInstance().player;
+        Minecraft minecraft = Minecraft.getInstance();
+        Player player = minecraft.player;
         if (player == null) return;
+        // SCP entities have no equipment wheel. The server independently rejects all wheel packets.
+        if (ClientRoundCache.getLocalRole().isScp()) {
+            minecraft.setScreen(null);
+            return;
+        }
+        int accent = ClientRoundCache.getLocalRole().getTeam().getColorRgb();
+        int hoverFill = withAlpha(accent, 0xAA);
         List<Integer> cells = occupiedCells(player);
         page = Math.min(page, pageCount(cells) - 1);
 
@@ -84,7 +90,7 @@ public class RadialInventoryScreen extends Screen {
             double iconRadius = (innerRadius + outerRadius) / 2.0;
             int iconX = (int) (cx + Math.cos(middle) * iconRadius) - 8;
             int iconY = (int) (cy + Math.sin(middle) * iconRadius) - 8;
-            graphics.fill(iconX - 8, iconY - 8, iconX + 24, iconY + 24, hovered ? COLOR_HOVER_FILL : COLOR_BG_SECTOR);
+            graphics.fill(iconX - 8, iconY - 8, iconX + 24, iconY + 24, hovered ? hoverFill : COLOR_BG_SECTOR);
 
             int sourceCell = sourceCellAt(player, i);
             if (sourceCell >= 0) {
@@ -92,27 +98,27 @@ public class RadialInventoryScreen extends Screen {
                 graphics.renderItem(stack, iconX, iconY);
                 graphics.renderItemDecorations(font, stack, iconX, iconY);
                 if (sourceCell == player.getInventory().selected) {
-                    graphics.fill(iconX - 9, iconY - 9, iconX + 25, iconY - 8, 0xFF62D87B);
+                    graphics.fill(iconX - 9, iconY - 9, iconX + 25, iconY - 8, accent);
                 }
             }
         }
 
-        renderCircleOutline(graphics, cx, cy, (int) innerRadius, COLOR_GOLD_LINE);
-        renderCircleOutline(graphics, cx, cy, (int) outerRadius, COLOR_GOLD_LINE);
+        renderCircleOutline(graphics, cx, cy, (int) innerRadius, accent);
+        renderCircleOutline(graphics, cx, cy, (int) outerRadius, accent);
         for (int i = 0; i < PAGE_SIZE; i++) {
             double lineAngle = Math.toRadians((i * 45.0) - 112.5);
             int x1 = (int) (cx + Math.cos(lineAngle) * innerRadius);
             int y1 = (int) (cy + Math.sin(lineAngle) * innerRadius);
             int x2 = (int) (cx + Math.cos(lineAngle) * outerRadius);
             int y2 = (int) (cy + Math.sin(lineAngle) * outerRadius);
-            graphics.fill(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2) + 1, Math.max(y1, y2) + 1, COLOR_GOLD_LINE);
+            graphics.fill(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2) + 1, Math.max(y1, y2) + 1, accent);
         }
 
         graphics.fill(cx - 46, cy - 46, cx + 46, cy + 46, 0xEE080B10);
         int sourceCell = hoveredIndex < 0 ? -1 : sourceCellAt(player, hoveredIndex);
         if (sourceCell >= 0) {
             ItemStack stack = player.getInventory().getItem(sourceCell);
-            graphics.drawCenteredString(font, "§l" + stack.getHoverName().getString().toUpperCase(), cx, cy - 28, COLOR_GOLD_TEXT);
+            graphics.drawCenteredString(font, "§l" + stack.getHoverName().getString().toUpperCase(), cx, cy - 28, accent);
             graphics.drawCenteredString(font, "§eКоличество: §f" + stack.getCount(), cx, cy - 6, 0xFFFFFFFF);
             graphics.drawCenteredString(font, "§8ЛКМ выбрать • ПКМ выбросить", cx, cy + 18, 0x888888);
         } else {
@@ -121,11 +127,15 @@ public class RadialInventoryScreen extends Screen {
         }
         graphics.drawCenteredString(font, "Колесо мыши: страницы", cx, cy + 36, 0xAAAAAA);
 
-        renderSpecialCell(graphics, font, cx + 118, cy - 12, ClientSlcArmorCache.getArmor(), "БРОНЯ", COLOR_GOLD_TEXT);
+        renderSpecialCell(graphics, font, cx + 118, cy - 12, ClientSlcArmorCache.getArmor(), "БРОНЯ", accent);
         renderSpecialCell(graphics, font, cx + 118, cy + 46,
-                player.getInventory().getItem(SlcLoadoutSavedData.AMMO_SLOT), "AMMO", 0xFFE67E22);
+                player.getInventory().getItem(SlcLoadoutSavedData.AMMO_SLOT), "AMMO", accent);
 
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return (alpha & 0xFF) << 24 | (color & 0x00FFFFFF);
     }
 
     private void renderSpecialCell(GuiGraphics graphics, Font font, int x, int y, ItemStack stack, String label, int color) {

@@ -267,6 +267,7 @@ public class RoundEngine {
             case IN_PROGRESS -> {
                 roundElapsedTicks++;
                 StaminaManager.tick(server);
+                if (roundElapsedTicks % 20 == 0) enforceScpInventoryEmpty();
                 DecontaminationManager.tick(roundElapsedTicks);
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
@@ -278,6 +279,7 @@ public class RoundEngine {
             case WARHEAD_DETONATING -> {
                 roundElapsedTicks++;
                 StaminaManager.tick(server);
+                if (roundElapsedTicks % 20 == 0) enforceScpInventoryEmpty();
                 AlphaWarheadManager.tick();
                 RespawnWaveManager.tick();
                 if (roundElapsedTicks % 10 == 0) {
@@ -385,7 +387,15 @@ public class RoundEngine {
             // then become SLC's technical backing, which keeps normal TACZ scanning functional.
             RoundInventoryManager.hideForRound(player);
         }
-        if (player.level() instanceof ServerLevel level) {
+        if (role.isScp()) {
+            // SCPs possess abilities, not player equipment. Clear all visible/technical cells and
+            // the dedicated invisible armor cell on every SCP role transition.
+            player.getInventory().clearContent();
+            player.getInventory().armor.clear();
+            player.getInventory().offhand.clear();
+            SlcArmorManager.setArmor(player, net.minecraft.world.item.ItemStack.EMPTY);
+            player.inventoryMenu.broadcastChanges();
+        } else if (player.level() instanceof ServerLevel level) {
             SlcArmorManager.applyRoleLoadout(player, SlcLoadoutSavedData.get(level).getLoadout(role));
         }
         AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
@@ -401,6 +411,24 @@ public class RoundEngine {
             player.setGameMode(GameType.SURVIVAL);
             StaminaManager.refill(player);
             if (role == Role.SCP_079) dev.slc.integration.Scp079Bridge.begin(player);
+        }
+    }
+
+    /** Hard server invariant: every SCP role, including SCP-079, has no player equipment cells. */
+    private static void enforceScpInventoryEmpty() {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!getPlayerRole(player.getUUID()).isScp()) continue;
+            boolean hasItems = !player.getInventory().items.stream().allMatch(net.minecraft.world.item.ItemStack::isEmpty)
+                    || !player.getInventory().armor.stream().allMatch(net.minecraft.world.item.ItemStack::isEmpty)
+                    || !player.getInventory().offhand.stream().allMatch(net.minecraft.world.item.ItemStack::isEmpty)
+                    || !SlcArmorManager.getArmor(player).isEmpty();
+            if (!hasItems) continue;
+            player.getInventory().clearContent();
+            player.getInventory().armor.clear();
+            player.getInventory().offhand.clear();
+            SlcArmorManager.setArmor(player, net.minecraft.world.item.ItemStack.EMPTY);
+            player.inventoryMenu.broadcastChanges();
         }
     }
 

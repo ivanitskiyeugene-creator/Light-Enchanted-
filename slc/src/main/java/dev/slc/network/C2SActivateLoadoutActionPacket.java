@@ -32,7 +32,8 @@ public record C2SActivateLoadoutActionPacket(QuickAction action) {
             ServerPlayer player = context.getSender();
             if (player == null || msg.action == null
                     || (RoundEngine.getState() != RoundState.IN_PROGRESS && RoundEngine.getState() != RoundState.WARHEAD_DETONATING)
-                    || player.isSpectator() || msg.action == QuickAction.INTERACT) return;
+                    || player.isSpectator() || RoundEngine.getPlayerRole(player.getUUID()).isScp()
+                    || msg.action == QuickAction.INTERACT) return;
             int source = findCanonicalItem(player, msg.action);
             if (source < 0) return;
 

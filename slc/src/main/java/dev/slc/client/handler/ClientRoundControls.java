@@ -42,7 +42,8 @@ public final class ClientRoundControls {
         if (!active(mc) || mc.screen != null || event.getAction() != GLFW.GLFW_PRESS) return;
         int key = event.getKey();
         if (matches(RoundControl.RADIAL_INVENTORY, key)) {
-            mc.setScreen(new RadialInventoryScreen());
+            // SCPs deliberately have no equipment inventory. Their F/V abilities remain available below.
+            if (!ClientRoundCache.getLocalRole().isScp()) mc.setScreen(new RadialInventoryScreen());
         } else if (matches(RoundControl.ACCESS_CARD, key)) {
             ModNetwork.CHANNEL.sendToServer(new C2SActivateLoadoutActionPacket(QuickAction.CARD));
         } else if (matches(RoundControl.INTERACT, key)) {
@@ -91,7 +92,9 @@ public final class ClientRoundControls {
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
         Minecraft mc = Minecraft.getInstance();
-        if (active(mc) && event.getNewScreen() instanceof InventoryScreen) {
+        if (!active(mc)) return;
+        if (event.getNewScreen() instanceof InventoryScreen
+                || (ClientRoundCache.getLocalRole().isScp() && event.getNewScreen() instanceof RadialInventoryScreen)) {
             event.setNewScreen(null);
         }
     }

@@ -44,7 +44,7 @@ public class RoleIntroOverlay implements IGuiOverlay {
 
         // 2. [BIG BOLD ROLE TITLE] (Scaled 2.2x)
         String roleTitle = role.getDisplayName().toUpperCase();
-        int roleRgb = (role.getColorRgb() & 0x00FFFFFF) | alphaBits;
+        int roleRgb = (role.getTeam().getColorRgb() & 0x00FFFFFF) | alphaBits;
 
         PoseStack pose = graphics.pose();
         pose.pushPose();

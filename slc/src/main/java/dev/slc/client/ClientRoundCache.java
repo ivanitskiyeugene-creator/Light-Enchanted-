@@ -149,6 +149,15 @@ public class ClientRoundCache {
         }
     }
 
+    /** Client-side role directory sent by the server with round state; used by the aim identity HUD. */
+    public static SpectatorTargetInfo findPlayer(java.util.UUID uuid) {
+        if (uuid == null) return null;
+        for (SpectatorTargetInfo info : alivePlayers) {
+            if (uuid.equals(info.uuid())) return info;
+        }
+        return null;
+    }
+
     public static List<SpectatorTargetInfo> getAlivePlayers() {
         return alivePlayers;
     }

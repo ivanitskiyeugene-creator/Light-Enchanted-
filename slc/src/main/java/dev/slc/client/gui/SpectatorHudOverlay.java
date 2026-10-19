@@ -79,7 +79,7 @@ public class SpectatorHudOverlay implements IGuiOverlay {
             }
 
             // Role color badge and nickname
-            int roleColor = target.role().getColorRgb();
+            int roleColor = target.role().getTeam().getColorRgb();
             String namePrefix = isSpectatingThis ? "§b► " : "  ";
             graphics.drawString(font, namePrefix + "§f" + target.name(), leftPanelX + 4, cardY + 2, 0xFFFFFF, false);
 

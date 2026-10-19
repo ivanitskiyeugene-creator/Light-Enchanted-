@@ -33,6 +33,7 @@ public class C2SSelectInventorySlotPacket {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
             if (player == null || (RoundEngine.getState() != RoundState.IN_PROGRESS && RoundEngine.getState() != RoundState.WARHEAD_DETONATING)
+                    || RoundEngine.getPlayerRole(player.getUUID()).isScp()
                     || msg.sourceCell < 0 || msg.sourceCell >= SlcLoadoutSavedData.AMMO_SLOT) return;
             int selected = player.getInventory().selected;
             if (selected < 0 || selected >= 9) selected = 0;
