@@ -14,6 +14,7 @@ public class Scp079Config {
         public final ForgeConfigSpec.DoubleValue blackoutApCost;
         public final ForgeConfigSpec.DoubleValue lockdownApCost;
         public final ForgeConfigSpec.BooleanValue disableScpBlink;
+        public final ForgeConfigSpec.ConfigValue<String> remoteAccessKeycardId;
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.push("generators");
@@ -53,6 +54,14 @@ public class Scp079Config {
             lockdownApCost = builder
                     .comment("AP cost to trigger room full lockdown (Tier 3+).")
                     .defineInRange("lockdownApCost", 80.0, 0.0, 100.0);
+
+            builder.pop();
+
+            builder.push("remote_access");
+
+            remoteAccessKeycardId = builder
+                    .comment("Preferred high-clearance keycard ID SCP-079 presents to remote card readers. If unavailable, 0-7-9 automatically searches SCP: Foundation Requisites high-clearance cards. Default: scpfr:o_5_keycard.")
+                    .define("remoteAccessKeycardId", "scpfr:o_5_keycard");
 
             builder.pop();
 

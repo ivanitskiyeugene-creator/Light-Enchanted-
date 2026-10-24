@@ -1,9 +1,11 @@
 package dev.zerosevennine.facility;
 
+import dev.zerosevennine.config.Scp079Config;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -13,6 +15,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ButtonBlock;
@@ -48,15 +51,83 @@ public class UniversalDoorHandler {
         }
     }
 
+    private static final ResourceLocation[] PREFERRED_REMOTE_ACCESS_CARDS = {
+            new ResourceLocation("scpfr", "o_5_keycard"),
+            new ResourceLocation("scpfr", "o5_keycard"),
+            new ResourceLocation("scpfr", "keycard_o5"),
+            new ResourceLocation("scpfr", "05_keycard"),
+            new ResourceLocation("scpfr", "keycard_05"),
+            new ResourceLocation("scpfr", "level_5_keycard"),
+            new ResourceLocation("scpfr", "keycard_level_5"),
+            new ResourceLocation("scpfr", "omni_keycard")
+    };
+
+    /**
+     * Resolves a high-clearance card at runtime instead of assuming one historical SCPFR item ID.
+     * SCPFR has changed keycard IDs between releases; a server owner can also set the exact ID in
+     * {@code remote_access.remoteAccessKeycardId}. If that item is absent, a conservative scan for
+     * SCPFR O5/level-5/omni cards keeps existing facility maps working after an SCPFR update.
+     */
     public static ItemStack getO5KeycardStack() {
-        ResourceLocation loc = new ResourceLocation("scpfr", "o_5_keycard");
-        if (ForgeRegistries.ITEMS.containsKey(loc)) {
-            Item item = ForgeRegistries.ITEMS.getValue(loc);
-            if (item != null) {
-                return new ItemStack(item);
+        if (Scp079Config.COMMON != null) {
+            String configuredId = Scp079Config.COMMON.remoteAccessKeycardId.get();
+            if (configuredId != null && !configuredId.isBlank()) {
+                ResourceLocation configuredKey = ResourceLocation.tryParse(configuredId.trim());
+                ItemStack configuredCard = getRegisteredCard(configuredKey);
+                if (!configuredCard.isEmpty()) {
+                    return configuredCard;
+                }
             }
         }
-        return ItemStack.EMPTY;
+
+        for (ResourceLocation candidate : PREFERRED_REMOTE_ACCESS_CARDS) {
+            ItemStack card = getRegisteredCard(candidate);
+            if (!card.isEmpty()) {
+                return card;
+            }
+        }
+
+        ResourceLocation bestMatch = null;
+        int bestScore = 0;
+        for (ResourceLocation key : ForgeRegistries.ITEMS.getKeys()) {
+            if (!"scpfr".equalsIgnoreCase(key.getNamespace())) {
+                continue;
+            }
+            int score = highClearanceCardScore(key.getPath().toLowerCase());
+            if (score > bestScore) {
+                bestScore = score;
+                bestMatch = key;
+            }
+        }
+        return getRegisteredCard(bestMatch);
+    }
+
+    private static ItemStack getRegisteredCard(ResourceLocation key) {
+        if (key == null || !ForgeRegistries.ITEMS.containsKey(key)) {
+            return ItemStack.EMPTY;
+        }
+        Item item = ForgeRegistries.ITEMS.getValue(key);
+        return item == null ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    private static int highClearanceCardScore(String path) {
+        boolean cardLike = path.contains("card") || path.contains("key");
+        if (!cardLike) {
+            return 0;
+        }
+        if (path.contains("o_5") || path.contains("o5") || path.contains("05")) {
+            return 100;
+        }
+        if (path.contains("level_5") || path.contains("level5") || path.contains("lvl_5") || path.contains("lvl5")) {
+            return 90;
+        }
+        if (path.contains("omni") || path.contains("administrator")) {
+            return 80;
+        }
+        if (path.contains("keycard_5") || path.contains("key_card_5") || path.contains("card_5")) {
+            return 70;
+        }
+        return 0;
     }
 
     public static boolean isReaderOrScannerBlock(BlockState state) {
@@ -163,79 +234,41 @@ public class UniversalDoorHandler {
         if (level == null || pos == null) return false;
         BlockState state = level.getBlockState(pos);
 
-        FakePlayer fakePlayer = null;
-        ItemStack o5Card = getO5KeycardStack();
+        ServerLevel serverLevel = level instanceof ServerLevel server ? server : null;
+        ServerPlayer remotePlayer = player instanceof ServerPlayer serverPlayer ? serverPlayer : null;
+        FakePlayer fakePlayer = createRemoteAccessPlayer(serverLevel, pos);
+        ItemStack accessCard = getO5KeycardStack();
 
-        if (level instanceof ServerLevel serverLevel) {
-            fakePlayer = FakePlayerFactory.getMinecraft(serverLevel);
-            fakePlayer.setPos(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-            if (!o5Card.isEmpty()) {
-                fakePlayer.getInventory().selected = 0;
-                fakePlayer.getInventory().setItem(0, o5Card);
-                fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, o5Card);
-                fakePlayer.setItemInHand(InteractionHand.OFF_HAND, o5Card.copy());
-            }
-        }
-
-        ItemStack prevHand = (player != null) ? player.getItemInHand(InteractionHand.MAIN_HAND) : ItemStack.EMPTY;
-        if (player != null && !o5Card.isEmpty()) {
-            player.setItemInHand(InteractionHand.MAIN_HAND, o5Card);
+        ItemStack previousHand = player != null ? player.getItemInHand(InteractionHand.MAIN_HAND) : ItemStack.EMPTY;
+        if (player != null && !accessCard.isEmpty()) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, accessCard.copy());
         }
 
         try {
-            boolean triggered = false;
-
-            // Direct interaction with FakePlayer holding scpfr:o_5_keycard
-            BlockHitResult targetBhr = new BlockHitResult(new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
-
-            if (fakePlayer != null && level instanceof ServerLevel serverLevel) {
-                InteractionResult res1 = fakePlayer.gameMode.useItemOn(fakePlayer, serverLevel, o5Card, InteractionHand.MAIN_HAND, targetBhr);
-                if (res1.consumesAction()) {
-                    triggered = true;
+            // Readers and secured doors must report success only after a card interaction actually
+            // consumes an action. The previous implementation treated merely finding a nearby
+            // reader as success, which spent AP and logged "Door toggled" without granting access.
+            if (!accessCard.isEmpty() && serverLevel != null) {
+                if (tryRemoteCardAccess(serverLevel, pos, fakePlayer, remotePlayer, accessCard)) {
                     notifyNeighbors(level, pos);
+                    return true;
                 }
 
-                InteractionResult res2 = state.use(level, fakePlayer, InteractionHand.MAIN_HAND, targetBhr);
-                if (res2.consumesAction()) {
-                    triggered = true;
-                    notifyNeighbors(level, pos);
-                }
-
-                if (!o5Card.isEmpty()) {
-                    UseOnContext uoc = new UseOnContext(fakePlayer, InteractionHand.MAIN_HAND, targetBhr);
-                    if (o5Card.useOn(uoc).consumesAction()) {
-                        triggered = true;
-                        notifyNeighbors(level, pos);
-                    }
-                }
-            }
-
-            // Also check for card readers in 3x3x3 vicinity
-            for (int dy = -1; dy <= 2; dy++) {
-                for (int dx = -2; dx <= 2; dx++) {
-                    for (int dz = -2; dz <= 2; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) continue;
-                        BlockPos p = pos.offset(dx, dy, dz);
-                        BlockState s = level.getBlockState(p);
-                        if (isReaderOrScannerBlock(s)) {
-                            BlockHitResult bhr = new BlockHitResult(new Vec3(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5), Direction.UP, p, false);
-                            if (fakePlayer != null && level instanceof ServerLevel serverLevel) {
-                                fakePlayer.gameMode.useItemOn(fakePlayer, serverLevel, o5Card, InteractionHand.MAIN_HAND, bhr);
-                                s.use(level, fakePlayer, InteractionHand.MAIN_HAND, bhr);
-                                if (!o5Card.isEmpty()) {
-                                    o5Card.useOn(new UseOnContext(fakePlayer, InteractionHand.MAIN_HAND, bhr));
-                                }
+                // A scanner is commonly mounted next to (rather than inside) the actual door.
+                for (int dy = -1; dy <= 2; dy++) {
+                    for (int dx = -2; dx <= 2; dx++) {
+                        for (int dz = -2; dz <= 2; dz++) {
+                            if (dx == 0 && dy == 0 && dz == 0) continue;
+                            BlockPos readerPos = pos.offset(dx, dy, dz);
+                            if (!isReaderOrScannerBlock(level.getBlockState(readerPos))) continue;
+                            if (tryRemoteCardAccess(serverLevel, readerPos, fakePlayer, remotePlayer, accessCard)) {
+                                notifyNeighbors(level, readerPos);
+                                notifyNeighbors(level, pos);
+                                return true;
                             }
-                            triggered = true;
-                            notifyNeighbors(level, p);
                         }
                     }
                 }
-            }
-
-            if (triggered) {
-                notifyNeighbors(level, pos);
-                return true;
             }
 
             // Standard door toggles (Vanilla doors, trapdoors, fencegates, buttons, levers)
@@ -306,13 +339,76 @@ public class UniversalDoorHandler {
                 return true;
             }
 
-            notifyNeighbors(level, pos);
-            return true;
+            // Unsupported blocks are failures, not successful remote card swipes. This lets the
+            // packet handler refund AP and avoids misleading success entries in the SCP-079 log.
+            return false;
         } finally {
             if (player != null) {
-                player.setItemInHand(InteractionHand.MAIN_HAND, prevHand);
+                player.setItemInHand(InteractionHand.MAIN_HAND, previousHand);
             }
         }
+    }
+
+    private static FakePlayer createRemoteAccessPlayer(ServerLevel level, BlockPos pos) {
+        if (level == null) {
+            return null;
+        }
+        FakePlayer fakePlayer = FakePlayerFactory.getMinecraft(level);
+        fakePlayer.setGameMode(GameType.SURVIVAL);
+        fakePlayer.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        return fakePlayer;
+    }
+
+    /**
+     * Performs a real server-side right-click with a high-clearance card. Every face is attempted
+     * because SCP facility readers may expose their usable face on either side of a door.
+     */
+    private static boolean tryRemoteCardAccess(ServerLevel level, BlockPos targetPos, FakePlayer fakePlayer,
+                                               ServerPlayer remotePlayer, ItemStack accessCard) {
+        for (Direction face : Direction.values()) {
+            BlockHitResult hit = new BlockHitResult(
+                    new Vec3(targetPos.getX() + 0.5, targetPos.getY() + 0.5, targetPos.getZ() + 0.5),
+                    face, targetPos, false);
+
+            if (fakePlayer != null) {
+                prepareFakePlayerForCardSwipe(fakePlayer, targetPos, face, accessCard);
+                InteractionResult result = fakePlayer.gameMode.useItemOn(
+                        fakePlayer, level, fakePlayer.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
+                if (result.consumesAction()) {
+                    return true;
+                }
+            }
+
+            // A few modded readers reject generic FakePlayers. Their block/item callbacks are
+            // still safe to invoke with the actual SCP-079 player; the card is only equipped for
+            // this call and is restored by toggleDoorState afterwards.
+            if (remotePlayer != null) {
+                ItemStack remoteCard = remotePlayer.getMainHandItem();
+                if (!remoteCard.isEmpty()) {
+                    InteractionResult itemResult = remoteCard.useOn(
+                            new UseOnContext(remotePlayer, InteractionHand.MAIN_HAND, hit));
+                    if (itemResult.consumesAction()) {
+                        return true;
+                    }
+                }
+                InteractionResult blockResult = level.getBlockState(targetPos).use(
+                        level, remotePlayer, InteractionHand.MAIN_HAND, hit);
+                if (blockResult.consumesAction()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void prepareFakePlayerForCardSwipe(FakePlayer fakePlayer, BlockPos targetPos,
+                                                       Direction face, ItemStack accessCard) {
+        BlockPos standingPos = targetPos.relative(face.getOpposite());
+        fakePlayer.setPos(standingPos.getX() + 0.5, standingPos.getY(), standingPos.getZ() + 0.5);
+        fakePlayer.getInventory().selected = 0;
+        fakePlayer.getInventory().setItem(0, accessCard.copy());
+        fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, fakePlayer.getInventory().getItem(0));
+        fakePlayer.setItemInHand(InteractionHand.OFF_HAND, accessCard.copy());
     }
 
     public static void setAreaLockState(Level level, BlockPos centerPos, boolean lock, Player player) {

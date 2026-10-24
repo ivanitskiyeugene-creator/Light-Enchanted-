@@ -70,6 +70,7 @@ public class C2SInteractDevicePacket {
                             session.addLog("Door toggled", 0x2ECC71, player.level().getGameTime());
                         } else {
                             session.spendAp(-cost); // Refund
+                            session.addLog("Remote card access failed", 0xE74C3C, player.level().getGameTime());
                         }
                     }
                 }
