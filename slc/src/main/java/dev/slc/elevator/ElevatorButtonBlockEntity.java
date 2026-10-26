@@ -267,16 +267,22 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                 }
             }
             case MOVING -> {
+                boolean transferSucceeded = true;
                 if (server && level instanceof ServerLevel serverLevel) {
                     List<BlockPos> floors = be.getExteriorFloors();
                     if (floors.size() >= 2) {
                         BlockPos src = floors.get(Math.min(be.srcFloor, floors.size() - 1));
                         BlockPos dst = floors.get(Math.min(be.dstFloor, floors.size() - 1));
-                        // The physical transfer happens exactly once, from the destination member
+                        // The physical transfer happens exactly once, from the destination member.
                         if (pos.equals(dst)) {
-                            be.performTeleportation(serverLevel, src, dst);
+                            transferSucceeded = be.performTeleportation(serverLevel, src, dst);
                         }
                     }
+                }
+                if (!transferSucceeded) {
+                    // performTeleportation has restored the entire linked network to the source
+                    // floor. Do not let this destination ticker overwrite that cancellation.
+                    return;
                 }
                 be.cabinFloor = be.dstFloor;
                 be.state = ElevatorState.OPENING_DOORS;
@@ -294,7 +300,7 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         be.sync();
     }
 
-    private void performTeleportation(ServerLevel level, BlockPos fromPos, BlockPos toPos) {
+    private boolean performTeleportation(ServerLevel level, BlockPos fromPos, BlockPos toPos) {
         level.getChunkSource().getChunk(toPos.getX() >> 4, toPos.getZ() >> 4, ChunkStatus.FULL, true);
 
         SpatialZoneManager zoneMgr = SpatialZoneManager.get(level);
@@ -328,7 +334,8 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
         ValkyrienSkiesCompat.CabinSpace destinationSpace = ValkyrienSkiesCompat.cabinSpace(level, toPos, dstCabin);
         if (!sourceSpace.isAvailable() || !destinationSpace.isAvailable()) {
             SecretLabCubed.LOGGER.warn("[SLC] Elevator transfer cancelled: a Valkyrien Skies ship endpoint is not loaded ({} -> {}).", fromPos, toPos);
-            return;
+            networkAbortMove(srcFloor);
+            return false;
         }
         Vec3 sourceCenter = sourceSpace.localTransferAnchor();
         Vec3 destinationCenter = destinationSpace.localTransferAnchor();
@@ -348,6 +355,22 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                 player.resetFallDistance();
             } else {
                 entity.teleportTo(targetWorldPosition.x, targetWorldPosition.y, targetWorldPosition.z);
+            }
+        }
+        return true;
+    }
+
+    /** Restores every panel to the source floor when a VS endpoint is not safely transformable. */
+    private void networkAbortMove(int sourceFloor) {
+        for (BlockPos memberPos : members) {
+            BlockEntity blockEntity = getMemberBlockEntity(memberPos);
+            if (blockEntity instanceof ElevatorButtonBlockEntity member) {
+                member.cabinFloor = sourceFloor;
+                member.srcFloor = sourceFloor;
+                member.dstFloor = sourceFloor;
+                member.state = ElevatorState.IDLE;
+                member.timerTicks = 0;
+                member.sync();
             }
         }
     }

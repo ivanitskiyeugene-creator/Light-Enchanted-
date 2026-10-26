@@ -10,7 +10,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public class ModNetwork {
     // The role HUD and server-side SCP inventory contract ship together; reject incompatible clients.
-    private static final String PROTOCOL_VERSION = "1.12.1";
+    private static final String PROTOCOL_VERSION = "1.12.2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SecretLabCubed.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
