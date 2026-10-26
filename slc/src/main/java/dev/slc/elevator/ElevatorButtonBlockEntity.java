@@ -1,5 +1,7 @@
 package dev.slc.elevator;
 
+import dev.slc.SecretLabCubed;
+import dev.slc.compat.ValkyrienSkiesCompat;
 import dev.slc.init.ModBlockEntities;
 import dev.slc.init.ModSounds;
 import dev.slc.zone.SpatialZoneManager;
@@ -21,6 +23,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -317,21 +320,34 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
                     dstCenter.getX() + 2.0, toPos.getY() + 3.0, dstCenter.getZ() + 2.0);
         }
 
-        double dx = ((dstCabin.minX + dstCabin.maxX) / 2.0) - ((srcCabin.minX + srcCabin.maxX) / 2.0);
-        double dy = dstCabin.minY - srcCabin.minY;
-        double dz = ((dstCabin.minZ + dstCabin.maxZ) / 2.0) - ((srcCabin.minZ + srcCabin.maxZ) / 2.0);
+        // Cabin boxes are saved in the coordinate space of their elevator buttons. When one of
+        // those buttons sits on a Valkyrien Skies ship, that coordinate space is the shipyard,
+        // not the position players see in the world. Convert through the optional VS bridge so a
+        // lift may safely travel ship -> world, world -> ship, or ship -> ship.
+        ValkyrienSkiesCompat.CabinSpace sourceSpace = ValkyrienSkiesCompat.cabinSpace(level, fromPos, srcCabin);
+        ValkyrienSkiesCompat.CabinSpace destinationSpace = ValkyrienSkiesCompat.cabinSpace(level, toPos, dstCabin);
+        if (!sourceSpace.isAvailable() || !destinationSpace.isAvailable()) {
+            SecretLabCubed.LOGGER.warn("[SLC] Elevator transfer cancelled: a Valkyrien Skies ship endpoint is not loaded ({} -> {}).", fromPos, toPos);
+            return;
+        }
+        Vec3 sourceCenter = sourceSpace.localTransferAnchor();
+        Vec3 destinationCenter = destinationSpace.localTransferAnchor();
 
-        List<Entity> entities = level.getEntities(null, srcCabin);
+        List<Entity> entities = ValkyrienSkiesCompat.entitiesInCabin(level, sourceSpace);
         for (Entity entity : entities) {
-            double targetX = entity.getX() + dx;
-            double targetY = entity.getY() + dy;
-            double targetZ = entity.getZ() + dz;
+            Vec3 sourceLocalPosition = sourceSpace.toLocal(entity.position());
+            Vec3 targetLocalPosition = sourceLocalPosition.add(
+                    destinationCenter.x - sourceCenter.x,
+                    destinationCenter.y - sourceCenter.y,
+                    destinationCenter.z - sourceCenter.z);
+            Vec3 targetWorldPosition = destinationSpace.toWorld(targetLocalPosition);
 
             if (entity instanceof ServerPlayer player) {
-                player.connection.teleport(targetX, targetY, targetZ, player.getYRot(), player.getXRot());
+                player.connection.teleport(targetWorldPosition.x, targetWorldPosition.y, targetWorldPosition.z,
+                        player.getYRot(), player.getXRot());
                 player.resetFallDistance();
             } else {
-                entity.teleportTo(targetX, targetY, targetZ);
+                entity.teleportTo(targetWorldPosition.x, targetWorldPosition.y, targetWorldPosition.z);
             }
         }
     }
