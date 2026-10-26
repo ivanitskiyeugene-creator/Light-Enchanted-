@@ -70,7 +70,7 @@ public final class ValkyrienSkiesCompat {
     /** Finds the entities physically standing inside a cabin, including a cabin carried by a VS ship. */
     public static List<Entity> entitiesInCabin(ServerLevel level, CabinSpace cabin) {
         AABB searchBounds = cabin.worldBounds().inflate(CABIN_EPSILON);
-        return level.getEntities(null, searchBounds,
+        return level.getEntities((Entity) null, searchBounds,
                 entity -> cabin.containsWorldPosition(entity.position()));
     }
 
