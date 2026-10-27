@@ -350,14 +350,39 @@ public class ElevatorButtonBlockEntity extends BlockEntity {
             Vec3 targetWorldPosition = destinationSpace.toWorld(targetLocalPosition);
 
             if (entity instanceof ServerPlayer player) {
+                ViewAngles arrivalView = transformViewForCabinTransfer(player, sourceSpace, destinationSpace);
                 player.connection.teleport(targetWorldPosition.x, targetWorldPosition.y, targetWorldPosition.z,
-                        player.getYRot(), player.getXRot());
+                        arrivalView.yaw(), arrivalView.pitch());
                 player.resetFallDistance();
             } else {
                 entity.teleportTo(targetWorldPosition.x, targetWorldPosition.y, targetWorldPosition.z);
             }
         }
         return true;
+    }
+
+    /**
+     * Keeps a player's look direction relative to the elevator cabin. A player facing the front
+     * door of a ship rotated 45 degrees will therefore face the front door after arriving in a
+     * cabin rotated 90 degrees, instead of retaining an unrelated global yaw.
+     */
+    private static ViewAngles transformViewForCabinTransfer(ServerPlayer player,
+                                                             ValkyrienSkiesCompat.CabinSpace sourceSpace,
+                                                             ValkyrienSkiesCompat.CabinSpace destinationSpace) {
+        Vec3 worldLook = Vec3.directionFromRotation(player.getXRot(), player.getYRot());
+        Vec3 sourceLocalLook = sourceSpace.toLocalDirection(worldLook);
+        Vec3 destinationWorldLook = destinationSpace.toWorldDirection(sourceLocalLook);
+        if (destinationWorldLook.lengthSqr() < 1.0E-8D) {
+            return new ViewAngles(player.getYRot(), player.getXRot());
+        }
+
+        Vec3 normalized = destinationWorldLook.normalize();
+        float yaw = (float) Math.toDegrees(Math.atan2(-normalized.x, normalized.z));
+        float pitch = (float) -Math.toDegrees(Math.asin(normalized.y));
+        return new ViewAngles(yaw, pitch);
+    }
+
+    private record ViewAngles(float yaw, float pitch) {
     }
 
     /** Restores every panel to the source floor when a VS endpoint is not safely transformable. */

@@ -181,6 +181,16 @@ public final class ValkyrienSkiesCompat {
             return transform(localToWorld, localPosition);
         }
 
+        /** Converts a view/movement direction without applying the ship's positional translation. */
+        public Vec3 toLocalDirection(Vec3 worldDirection) {
+            return transformDirection(worldToLocal, worldDirection);
+        }
+
+        /** Converts a ship-local view/movement direction into world space without translation. */
+        public Vec3 toWorldDirection(Vec3 localDirection) {
+            return transformDirection(localToWorld, localDirection);
+        }
+
         public boolean containsWorldPosition(Vec3 worldPosition) {
             Vec3 localPosition = toLocal(worldPosition);
             return localBounds.inflate(CABIN_EPSILON).contains(localPosition.x, localPosition.y, localPosition.z);
@@ -222,6 +232,14 @@ public final class ValkyrienSkiesCompat {
                 return position;
             }
             Vector3d transformed = matrix.transformPosition(new Vector3d(position.x, position.y, position.z));
+            return new Vec3(transformed.x(), transformed.y(), transformed.z());
+        }
+
+        private static Vec3 transformDirection(Matrix4dc matrix, Vec3 direction) {
+            if (matrix == null) {
+                return direction;
+            }
+            Vector3d transformed = matrix.transformDirection(new Vector3d(direction.x, direction.y, direction.z));
             return new Vec3(transformed.x(), transformed.y(), transformed.z());
         }
     }
