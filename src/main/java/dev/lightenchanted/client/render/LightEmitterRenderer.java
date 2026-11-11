@@ -255,35 +255,14 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                 }
             }
 
-            // Radial Volumetric Fins (Connecting Center to Outer Rings)
+            // The visible beam is a continuous shell built from adjacent ring segments. The
+            // ray lattice is used only for collision/occlusion; there is deliberately no radial
+            // "one quad per ray" fin pass, because that was the old laser-bundle look.
             RayTraceField.Ray centerRay = rays[0];
             float cLen = centerRay.length;
-            int outerBase = 1 + (totalRings - 1) * raysPerRing;
 
-            for (int s = 0; s < raysPerRing; s += 2) {
-                RayTraceField.Ray rOuter = rays[outerBase + s];
-                float oLen = rOuter.length;
-                if (cLen < 0.05f && oLen < 0.05f) continue;
-
-                float pOut = oLen / (float) maxDist;
-                float xOut_bot = rOuter.localX + (rOuter.targetLocalX - rOuter.localX) * pOut;
-                float zOut_bot = rOuter.localZ + (rOuter.targetLocalZ - rOuter.localZ) * pOut;
-
-                float fR = beamR * rOuter.tintR;
-                float fG = beamG * rOuter.tintG;
-                float fB = beamB * rOuter.tintB;
-
-                drawVolumetricQuad(vc, mat, nmat,
-                        0.0f, 0.0f, 0.0f,
-                        rOuter.localX, 0.0f, rOuter.localZ,
-                        xOut_bot, oLen, zOut_bot,
-                        0.0f, cLen, 0.0f,
-                        fR, fG, fB, alpha * 0.24f);
-            }
-
-            // ---- Hot white photometric core. The core is deliberately a separate pass: the
-            // outer volume carries color while this narrow cross-ribbon gives lamps a convincing
-            // incandescent center instead of a uniformly translucent tube.
+            // ---- Hot white photometric core. The core is a closed tube, not crossed laser
+            // ribbons, so it remains a single continuous light volume from every angle.
             if (LightEnchantedConfig.CLIENT.enableBeamCore.get() && cLen > 0.05f) {
                 float coreRadius = Math.max(0.025f, w * 0.12f);
                 float coreR = Mth.lerp(0.72f, beamR, 1.0f);
@@ -442,18 +421,22 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
     private static void drawCoreTube(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
                                      float length, float radius,
                                      float r, float g, float b, float alpha) {
-        drawVolumetricQuad(vc, mat, nmat,
-                -radius, 0.0f, 0.0f,
-                radius, 0.0f, 0.0f,
-                radius, length, 0.0f,
-                -radius, length, 0.0f,
-                r, g, b, alpha);
-        drawVolumetricQuad(vc, mat, nmat,
-                0.0f, 0.0f, -radius,
-                0.0f, 0.0f, radius,
-                0.0f, length, radius,
-                0.0f, length, -radius,
-                r, g, b, alpha * 0.82f);
+        final int segments = 8;
+        final float step = (float) (Math.PI * 2.0 / segments);
+        for (int i = 0; i < segments; i++) {
+            float a0 = i * step;
+            float a1 = (i + 1) * step;
+            float x0 = radius * Mth.cos(a0);
+            float z0 = radius * Mth.sin(a0);
+            float x1 = radius * Mth.cos(a1);
+            float z1 = radius * Mth.sin(a1);
+            drawVolumetricQuad(vc, mat, nmat,
+                    x0, 0.0f, z0,
+                    x1, 0.0f, z1,
+                    x1, length, z1,
+                    x0, length, z0,
+                    r, g, b, alpha);
+        }
     }
 
     private static void drawVolumetricQuad(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
