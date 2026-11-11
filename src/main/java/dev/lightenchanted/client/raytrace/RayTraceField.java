@@ -57,6 +57,14 @@ public class RayTraceField {
         public Direction surfaceNormal = Direction.UP;
         public float intensity;
 
+        // A moving entity or fan can block the beam before the terrain receiver.
+        // The renderer uses this downstream hit to paint a soft, physical silhouette.
+        public boolean hasProjectedShadow;
+        public double shadowImpactX, shadowImpactY, shadowImpactZ;
+        public Direction shadowSurfaceNormal = Direction.UP;
+        public float shadowRadius;
+        public float shadowStrength;
+
         // Colored light staining
         public float tintR = 1.0f, tintG = 1.0f, tintB = 1.0f;
 
@@ -299,11 +307,17 @@ public class RayTraceField {
 
             // 1. Precise per-ray terrain & wall voxel intersection
             VoxelHit wallHit = marchVoxelTerrain(level, emitterPos, rayStart, rayDir, maxDist);
-            double hitDist = wallHit.dist;
-            boolean solidHit = wallHit.dist < (maxDist - 0.05);
+            double terrainHitDist = wallHit.dist;
+            double hitDist = terrainHitDist;
+            boolean solidHit = terrainHitDist < (maxDist - 0.05);
             boolean hitFloor = solidHit;
             boolean hitEntity = false;
+            boolean blockedByMovingOccluder = false;
+            double movingOccluderDist = Double.MAX_VALUE;
             Direction surfaceNormal = wallHit.normal;
+            ray.hasProjectedShadow = false;
+            ray.shadowRadius = 0.0f;
+            ray.shadowStrength = 0.0f;
 
             // Optical glass color filtering
             float tintR = 1.0f, tintG = 1.0f, tintB = 1.0f;
@@ -347,8 +361,10 @@ public class RayTraceField {
                                 hitDist);
                         if (triHit > 0.02 && triHit < hitDist) {
                             hitDist = triHit;
+                            movingOccluderDist = triHit;
+                            blockedByMovingOccluder = true;
                             solidHit = true;
-                            hitFloor = false; // Blocked by fan blade!
+                            hitFloor = false; // Blocked by a fan blade; the next surface receives its shadow.
                         }
                     }
 
@@ -381,8 +397,10 @@ public class RayTraceField {
                             hitDist);
                     if (entHit >= 0.02 && entHit < hitDist) {
                         hitDist = entHit;
+                        movingOccluderDist = entHit;
+                        blockedByMovingOccluder = true;
                         solidHit = true;
-                        hitFloor = false; // Blocked by Player / Mob!
+                        hitFloor = false; // Blocked by Player / Mob; the next surface receives its shadow.
                         hitEntity = true;
                     }
                 }
@@ -405,6 +423,27 @@ public class RayTraceField {
                         solidHit = true;
                         hitFloor = false;
                     }
+                }
+            }
+
+            // A dynamic occluder (player, mob, fan blade) is not the receiver. Continue the
+            // same ray past it to the first terrain surface so the silhouette lands where the
+            // light would actually arrive. This is the fallback renderer's real beam shadow pass.
+            if (shadows && blockedByMovingOccluder
+                    && movingOccluderDist < terrainHitDist - 0.05
+                    && movingOccluderDist < maxDist - 0.15) {
+                double remaining = maxDist - movingOccluderDist - 0.10;
+                Vec3 receiverStart = rayStart.add(rayDir.scale(movingOccluderDist + 0.10));
+                VoxelHit receiver = marchVoxelTerrain(level, emitterPos, receiverStart, rayDir, remaining);
+                if (receiver.dist < remaining - 0.05) {
+                    Vec3 shadowImpact = receiverStart.add(rayDir.scale(receiver.dist));
+                    ray.hasProjectedShadow = true;
+                    ray.shadowImpactX = shadowImpact.x;
+                    ray.shadowImpactY = shadowImpact.y;
+                    ray.shadowImpactZ = shadowImpact.z;
+                    ray.shadowSurfaceNormal = receiver.normal;
+                    ray.shadowRadius = Math.max(0.18f, Math.max(width, endWidth) * 0.24f);
+                    ray.shadowStrength = hitEntity ? 1.0f : 0.72f;
                 }
             }
 

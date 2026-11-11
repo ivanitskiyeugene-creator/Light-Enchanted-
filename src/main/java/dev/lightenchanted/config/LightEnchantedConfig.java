@@ -26,6 +26,9 @@ public final class LightEnchantedConfig {
         public final ForgeConfigSpec.BooleanValue enableVolumetricDust;
         public final ForgeConfigSpec.BooleanValue enableLensFlares;
         public final ForgeConfigSpec.BooleanValue enableColorStaining;
+        public final ForgeConfigSpec.BooleanValue enableProjectedShadows;
+        public final ForgeConfigSpec.BooleanValue enableBeamCore;
+        public final ForgeConfigSpec.DoubleValue beamShadowStrength;
         public final ForgeConfigSpec.IntValue maxBeamRenderDistance;
         public final ForgeConfigSpec.DoubleValue beamBrightnessMultiplier;
 
@@ -51,6 +54,18 @@ public final class LightEnchantedConfig {
             enableColorStaining = builder
                     .comment("Enable light rays changing color when passing through stained glass")
                     .define("enableColorStaining", true);
+
+            enableProjectedShadows = builder
+                    .comment("Project soft silhouettes from entities and moving fan blades onto the next lit surface")
+                    .define("enableProjectedShadows", true);
+
+            enableBeamCore = builder
+                    .comment("Render the hot white inner core and layered halo inside every beam")
+                    .define("enableBeamCore", true);
+
+            beamShadowStrength = builder
+                    .comment("Strength of projected beam silhouettes from 0.0 to 1.0")
+                    .defineInRange("beamShadowStrength", 0.82, 0.0, 1.0);
 
             maxBeamRenderDistance = builder
                     .comment("Maximum distance in blocks to render light beams")

@@ -1,14 +1,14 @@
 # 🌟 Light Enchanted & SCP Facility Suite
 
 <p align="center">
-  <b>Комплекс модов для Minecraft 1.20.1 Forge: гибридный GPU-свет Light Enchanted 3.0, Реалистичный снег и Управление Комплексом через SCP-079</b><br>
+  <b>Комплекс модов для Minecraft 1.20.1 Forge: сочный объёмный свет Light Enchanted 3.1, Реалистичный снег и Управление Комплексом через SCP-079</b><br>
   <i>Light Enchanted (Micro-RT Beams), Snow - SCPied (Footprints & Blood Stains), and 0-7-9 (SCP-079 Camera Surveillance Engine)</i>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-1.20.1-brightgreen.svg" alt="Minecraft 1.20.1">
   <img src="https://img.shields.io/badge/Loader-Forge%2047.x-orange.svg" alt="Forge 47.x">
-  <img src="https://img.shields.io/badge/Light%20Enchanted%203.0-Oculus%20Hybrid-blueviolet.svg" alt="Light Enchanted 3.0 Hybrid">
+  <img src="https://img.shields.io/badge/Light%20Enchanted%203.1-Oculus%20Hybrid-blueviolet.svg" alt="Light Enchanted 3.1 Hybrid">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT">
 </p>
 
@@ -16,7 +16,9 @@
 
 ## 🌟 1. Light Enchanted (`mod_id: lightenchanted`)
 
-Light Enchanted 3.0: гибридный рендеринг с безопасным Java-fallback без шейдерлоадера и отдельным GPU shaderpack для Oculus:
+Light Enchanted 3.1: слоёный сочный рендеринг лучей с безопасным Java-fallback без шейдерлоадера и отдельным GPU shaderpack для Oculus:
+- **Объёмный луч:** широкая мягкая атмосферная оболочка, горячее белое ядро, пыль в луче, bloom на ярких участках и depth-tested перекрытие стенами.
+- **Настоящие лучевые тени:** трассировка препятствий по лучам, динамические силуэты игроков/мобов/лопастей вентиляторов на следующей поверхности и PCF-тени в Oculus-пути.
 - **Поворотный сценический прожектор (`moving_spotlight`):** Автоматическое непрерывное покачивание и сканирование по Yaw и Pitch с динамическими живыми тенями.
 - **Вентиляция Комплекса:**
   - **SCP HCZ 3x3 Industrial Fan:** Монолитный тяжелый вентилятор в матовом оружейном металле.

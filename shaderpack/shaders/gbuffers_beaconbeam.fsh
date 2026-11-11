@@ -1,2 +1,2 @@
 #version 120
-#include "/lib/gbuffer.fsh"
+#include "/lib/beaconbeam.fsh"

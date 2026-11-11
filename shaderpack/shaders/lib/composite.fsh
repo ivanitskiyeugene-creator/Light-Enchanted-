@@ -118,6 +118,27 @@ vec3 leAces(vec3 x) {
     return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
+// Small bright-pass bloom. Unlike a fullscreen radial flare this follows the actual
+// emissive pixels, so beam cores and impact pools glow around geometry without washing
+// the whole scene into white.
+vec3 leBeamBloom(vec2 uv) {
+    vec2 texel = vec2(1.0 / max(viewWidth, 1.0), 1.0 / max(viewHeight, 1.0));
+    vec3 sum = vec3(0.0);
+    float total = 0.0;
+    for (int x = -2; x <= 2; ++x) {
+        for (int y = -2; y <= 2; ++y) {
+            vec2 sampleUv = clamp(uv + vec2(float(x), float(y)) * texel * 2.2,
+                                  vec2(0.002), vec2(0.998));
+            vec3 sampleColor = texture2D(gcolor, sampleUv).rgb;
+            float brightness = max(max(sampleColor.r, sampleColor.g), sampleColor.b);
+            float weight = 1.0 / (1.0 + float(x * x + y * y));
+            sum += sampleColor * max(brightness - 0.58, 0.0) * weight;
+            total += weight;
+        }
+    }
+    return sum / max(total, 0.001) * 1.35;
+}
+
 void main() {
     vec3 color = texture2D(gcolor, leUv).rgb;
     float depth = leDepth(leUv);
@@ -130,6 +151,7 @@ void main() {
         color += leScreenReflection(viewPos);
     }
 
+    color += leBeamBloom(leUv) * LE_BLOOM_STRENGTH;
     color *= LE_EXPOSURE;
     color = leAces(color);
     float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));

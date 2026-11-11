@@ -187,7 +187,13 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         float beamG = g;
         float beamB = b;
 
-        VertexConsumer vc = buffers.getBuffer(RenderType.beaconBeam(BEAM_TEXTURE, true));
+        // The stock beacon pass is intentionally replaced with our layered additive pass. It
+        // keeps the vanilla depth behavior but gives the beam a hot core, soft halo, and stable
+        // texture-driven falloff instead of a flat white column.
+        VertexConsumer vc = buffers.getBuffer(ModRenderTypes.beam(BEAM_TEXTURE));
+        VertexConsumer shadowVc = cfg.shadows && LightEnchantedConfig.CLIENT.enableProjectedShadows.get()
+                ? buffers.getBuffer(RenderType.entityTranslucent(BEAM_TEXTURE))
+                : null;
         Quaternionf camOrientation = camera.rotation();
 
         if (alpha > 0.0f) {
@@ -214,7 +220,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
             // ---- Continuous Seamless Volumetric Cone Hulls
             for (int ringStep : shellRings) {
                 int baseIdx = 1 + (ringStep - 1) * raysPerRing;
-                float shellAlpha = alpha * (ringStep == totalRings ? 0.35f : (ringStep == 2 ? 0.85f : 0.55f));
+                float shellAlpha = alpha * (ringStep == totalRings ? 0.22f : (ringStep == 2 ? 0.52f : 0.34f));
 
                 for (int s = 0; s < raysPerRing; s++) {
                     int nextS = (s + 1) % raysPerRing;
@@ -234,7 +240,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     float x0_bot = r0.localX + (r0.targetLocalX - r0.localX) * p0;
                     float z0_bot = r0.localZ + (r0.targetLocalZ - r0.localZ) * p0;
                     float x1_bot = r1.localX + (r1.targetLocalX - r1.localX) * p1;
-                    float z1_bot = r1.targetLocalZ + (r1.targetLocalZ - r1.localZ) * p1;
+                    float z1_bot = r1.localZ + (r1.targetLocalZ - r1.localZ) * p1;
 
                     float sR = beamR * (r0.tintR + r1.tintR) * 0.5f;
                     float sG = beamG * (r0.tintG + r1.tintG) * 0.5f;
@@ -272,7 +278,19 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                         rOuter.localX, 0.0f, rOuter.localZ,
                         xOut_bot, oLen, zOut_bot,
                         0.0f, cLen, 0.0f,
-                        fR, fG, fB, alpha * 0.35f);
+                        fR, fG, fB, alpha * 0.24f);
+            }
+
+            // ---- Hot white photometric core. The core is deliberately a separate pass: the
+            // outer volume carries color while this narrow cross-ribbon gives lamps a convincing
+            // incandescent center instead of a uniformly translucent tube.
+            if (LightEnchantedConfig.CLIENT.enableBeamCore.get() && cLen > 0.05f) {
+                float coreRadius = Math.max(0.025f, w * 0.12f);
+                float coreR = Mth.lerp(0.72f, beamR, 1.0f);
+                float coreG = Mth.lerp(0.72f, beamG, 1.0f);
+                float coreB = Mth.lerp(0.72f, beamB, 1.0f);
+                float coreAlpha = Math.min(1.0f, alpha * (0.42f + cfg.glow * 0.22f));
+                drawCoreTube(vc, mat, nmat, cLen, coreRadius, coreR, coreG, coreB, coreAlpha);
             }
 
             // ---- Cinematic 3D Micro-Turbulence Dust Motes
@@ -324,8 +342,24 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
 
             for (int i = 0; i < rays.length; i++) {
                 RayTraceField.Ray ray = rays[i];
-                // Only rays that reached the wall/floor illuminate the surface!
-                // Blocked rays leave a crisp, high-contrast dark silhouette!
+
+                // Dynamic blockers are rendered twice: the beam terminates at the occluder,
+                // while a soft black cookie is projected onto the downstream receiver. This is
+                // what makes a player or a spinning fan visibly cast a shadow through the shaft.
+                if (shadowVc != null && ray.hasProjectedShadow && ray.shadowRadius > 0.0f) {
+                    double shadowRelX = ray.shadowImpactX - pos.getX();
+                    double shadowRelY = ray.shadowImpactY - pos.getY();
+                    double shadowRelZ = ray.shadowImpactZ - pos.getZ();
+                    float shadowAlpha = Math.min(0.28f,
+                            0.11f * ray.shadowStrength
+                                    * LightEnchantedConfig.CLIENT.beamShadowStrength.get().floatValue());
+                    drawSurfaceDisc(shadowVc, poseStack, shadowRelX, shadowRelY, shadowRelZ,
+                            ray.shadowRadius, ray.shadowSurfaceNormal,
+                            0.008f, 0.006f, 0.010f, shadowAlpha);
+                }
+
+                // Only rays that reached the receiver illuminate the surface. Rays stopped by
+                // an obstacle are intentionally absent, leaving the projected silhouette intact.
                 if (ray.hitSolid && ray.hitFloor && ray.length > 0.1f) {
                     double hitRelX = ray.impactX - pos.getX();
                     double hitRelY = ray.impactY - pos.getY();
@@ -403,6 +437,23 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
         }
 
         poseStack.popPose();
+    }
+
+    private static void drawCoreTube(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
+                                     float length, float radius,
+                                     float r, float g, float b, float alpha) {
+        drawVolumetricQuad(vc, mat, nmat,
+                -radius, 0.0f, 0.0f,
+                radius, 0.0f, 0.0f,
+                radius, length, 0.0f,
+                -radius, length, 0.0f,
+                r, g, b, alpha);
+        drawVolumetricQuad(vc, mat, nmat,
+                0.0f, 0.0f, -radius,
+                0.0f, 0.0f, radius,
+                0.0f, length, radius,
+                0.0f, length, -radius,
+                r, g, b, alpha * 0.82f);
     }
 
     private static void drawVolumetricQuad(VertexConsumer vc, Matrix4f mat, Matrix3f nmat,
