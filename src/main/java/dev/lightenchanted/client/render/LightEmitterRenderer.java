@@ -251,7 +251,8 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                             x1_top, 0.0f, z1_top,
                             x1_bot, len1, z1_bot,
                             x0_bot, len0, z0_bot,
-                            sR, sG, sB, shellAlpha);
+                            sR, sG, sB, shellAlpha,
+                            Math.max(w, endW));
                 }
             }
 
@@ -304,7 +305,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     float refRadius = Math.max(0.08f, w * 0.15f);
                     drawVolumetricQuad(vc, rMat, rNmat, -refRadius, 0, 0, refRadius, 0, 0,
                             refRadius, ray.reflectLength, 0, -refRadius, ray.reflectLength, 0,
-                            rayR, rayG, rayB, rayAlpha);
+                            rayR, rayG, rayB, rayAlpha, 1.0f);
 
                     poseStack.popPose();
                 }
@@ -435,7 +436,7 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                     x1, 0.0f, z1,
                     x1, length, z1,
                     x0, length, z0,
-                    r, g, b, alpha);
+                    r, g, b, alpha, 1000.0f);
         }
     }
 
@@ -444,25 +445,39 @@ public class LightEmitterRenderer implements BlockEntityRenderer<LightEmitterBlo
                                           float x1, float y1, float z1,
                                           float x2, float y2, float z2,
                                           float x3, float y3, float z3,
-                                          float r, float g, float b, float a) {
+                                          float r, float g, float b, float a,
+                                          float textureRadius) {
+        // Map the beam texture once in the beam's local cross-section. The old renderer mapped
+        // the radial texture from 0..1 on EVERY face, which made every polygon repeat the bright
+        // center and produced the exact vertical laser-stripe artifact seen in-game.
+        float invDiameter = 0.5f / Math.max(textureRadius, 0.001f);
+        float u0 = Mth.clamp(0.5f + x0 * invDiameter, 0.0f, 1.0f);
+        float v0 = Mth.clamp(0.5f + z0 * invDiameter, 0.0f, 1.0f);
+        float u1 = Mth.clamp(0.5f + x1 * invDiameter, 0.0f, 1.0f);
+        float v1 = Mth.clamp(0.5f + z1 * invDiameter, 0.0f, 1.0f);
+        float u2 = Mth.clamp(0.5f + x2 * invDiameter, 0.0f, 1.0f);
+        float v2 = Mth.clamp(0.5f + z2 * invDiameter, 0.0f, 1.0f);
+        float u3 = Mth.clamp(0.5f + x3 * invDiameter, 0.0f, 1.0f);
+        float v3 = Mth.clamp(0.5f + z3 * invDiameter, 0.0f, 1.0f);
+
         // Front Face
-        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(0.0f, 0.0f)
+        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(u0, v0)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(1.0f, 0.0f)
+        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(u1, v1)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
+        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(u2, v2)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
+        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(u3, v3)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, 1.0f, 0.0f).endVertex();
 
         // Back Face
-        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(0.0f, 1.0f)
+        vc.vertex(mat, x3, y3, z3).color(r, g, b, a * 0.85f).uv(u3, v3)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(1.0f, 1.0f)
+        vc.vertex(mat, x2, y2, z2).color(r, g, b, a * 0.85f).uv(u2, v2)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(1.0f, 0.0f)
+        vc.vertex(mat, x1, y1, z1).color(r, g, b, a).uv(u1, v1)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
-        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(0.0f, 0.0f)
+        vc.vertex(mat, x0, y0, z0).color(r, g, b, a).uv(u0, v0)
                 .overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(nmat, 0.0f, -1.0f, 0.0f).endVertex();
     }
 
